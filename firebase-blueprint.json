@@ -1,0 +1,50 @@
+{
+  "entities": {
+    "SharedState": {
+      "title": "SharedState",
+      "description": "Estado global compartido de turnos, roles, músicos, canciones y parejas",
+      "type": "object",
+      "properties": {
+        "roles": {
+          "type": "array",
+          "description": "Lista de roles musicales"
+        },
+        "musicians": {
+          "type": "array",
+          "description": "Lista de músicos integrantes con género y roles"
+        },
+        "slots": {
+          "type": "array",
+          "description": "Turnos recurrentes semanales"
+        },
+        "assignments": {
+          "type": "object",
+          "description": "Mapeo de asignaciones por semana/turno/rol"
+        },
+        "shiftSongs": {
+          "type": "object",
+          "description": "Canciones/setlist asignadas a cada turno"
+        },
+        "songCatalog": {
+          "type": "array",
+          "description": "Catálogo de canciones de alabanza disponibles"
+        },
+        "couples": {
+          "type": "array",
+          "description": "Parejas de descanso vinculadas"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "description": "Marca de tiempo de última actualización"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "shared_data/main": {
+      "schema": "SharedState",
+      "description": "Documento central de sincronización en tiempo real"
+    }
+  }
+}
+

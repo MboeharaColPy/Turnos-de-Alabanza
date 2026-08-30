@@ -1,0 +1,710 @@
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { AppState, DAYS_OF_WEEK, INITIAL_PRELOADED_ROLES, Role, Slot } from '../types';
+import { generateId, getInitialDefaultState } from '../services/storage';
+import {
+  Settings,
+  Clock,
+  Pencil,
+  Trash2,
+  RotateCcw,
+  Download,
+  Upload,
+  CheckSquare,
+  Square,
+  Sparkles,
+  KeyRound,
+  AlertCircle,
+  Check,
+} from 'lucide-react';
+
+interface ConfigViewProps {
+  state: AppState;
+  onSaveRole: (role: Role) => void;
+  onDeleteRole: (roleId: string) => void;
+  onSaveSlot: (slot: Slot) => void;
+  onDeleteSlot: (slotId: string) => void;
+  onUpdateAdminPassword: (newPassword: string) => void;
+  onResetAllData: (freshState: AppState) => void;
+  onImportState: (importedState: AppState) => void;
+  showToast: (msg: string) => void;
+}
+
+export const ConfigView: React.FC<ConfigViewProps> = ({
+  state,
+  onSaveRole,
+  onDeleteRole,
+  onSaveSlot,
+  onDeleteSlot,
+  onUpdateAdminPassword,
+  onResetAllData,
+  onImportState,
+  showToast,
+}) => {
+  // Roles state
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
+  const [roleName, setRoleName] = useState('');
+
+  // Slots state
+  const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
+  const [slotLabel, setSlotLabel] = useState('');
+  const [slotDay, setSlotDay] = useState<number>(6);
+  const [slotTime, setSlotTime] = useState('10:00');
+  const [slotRoleIds, setSlotRoleIds] = useState<string[]>([]);
+
+  // Admin password state
+  const [adminPasswordInput, setAdminPasswordInput] = useState(state.adminPassword || 'alabanza2026');
+
+  // Confirmation Modals
+  const [deleteConfirmSlot, setDeleteConfirmSlot] = useState<{ id: string; label: string } | null>(null);
+  const [deleteConfirmRole, setDeleteConfirmRole] = useState<{ id: string; name: string } | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  // Import JSON file ref
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Initialize slot roles with all roles if empty
+  useEffect(() => {
+    if (slotRoleIds.length === 0 && state.roles.length > 0 && !editingSlotId) {
+      setSlotRoleIds(state.roles.map(r => r.id));
+    }
+  }, [state.roles]);
+
+  // Sync admin password when state changes
+  useEffect(() => {
+    if (state.adminPassword) {
+      setAdminPasswordInput(state.adminPassword);
+    }
+  }, [state.adminPassword]);
+
+  // --- Handlers for Roles ---
+  const handleRoleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = roleName.trim();
+    if (!clean) return;
+
+    const roleToSave: Role = {
+      id: editingRoleId || generateId('rol'),
+      name: clean,
+    };
+
+    onSaveRole(roleToSave);
+    showToast(editingRoleId ? `Rol "${clean}" actualizado.` : `Rol "${clean}" agregado.`);
+    setEditingRoleId(null);
+    setRoleName('');
+  };
+
+  const startEditRole = (role: Role) => {
+    setEditingRoleId(role.id);
+    setRoleName(role.name);
+  };
+
+  const cancelEditRole = () => {
+    setEditingRoleId(null);
+    setRoleName('');
+  };
+
+  const handleRestorePreloadedRoles = () => {
+    INITIAL_PRELOADED_ROLES.forEach(preloadedName => {
+      const exists = state.roles.some(
+        r => r.name.toLowerCase() === preloadedName.toLowerCase()
+      );
+      if (!exists) {
+        onSaveRole({
+          id: generateId('rol'),
+          name: preloadedName,
+        });
+      }
+    });
+    showToast('Roles pre-cargados restaurados con éxito.');
+  };
+
+  // --- Handlers for Slots ---
+  const handleSlotSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const label = slotLabel.trim();
+    if (!label || !slotTime) {
+      showToast('Por favor completa el nombre y la hora del turno.');
+      return;
+    }
+
+    const slotToSave: Slot = {
+      id: editingSlotId || generateId('slt'),
+      label,
+      day: slotDay,
+      time: slotTime,
+      roleIds: slotRoleIds,
+    };
+
+    onSaveSlot(slotToSave);
+    showToast(editingSlotId ? `Turno "${label}" actualizado.` : `Turno "${label}" creado.`);
+    cancelEditSlot();
+  };
+
+  const startEditSlot = (slot: Slot) => {
+    setEditingSlotId(slot.id);
+    setSlotLabel(slot.label);
+    setSlotDay(slot.day);
+    setSlotTime(slot.time);
+    setSlotRoleIds(slot.roleIds || []);
+  };
+
+  const cancelEditSlot = () => {
+    setEditingSlotId(null);
+    setSlotLabel('');
+    setSlotDay(6);
+    setSlotTime('10:00');
+    setSlotRoleIds(state.roles.map(r => r.id));
+  };
+
+  const toggleSlotRole = (roleId: string) => {
+    setSlotRoleIds(prev =>
+      prev.includes(roleId) ? prev.filter(id => id !== roleId) : [...prev, roleId]
+    );
+  };
+
+  // --- Password Handler ---
+  const handleSavePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminPasswordInput.trim()) {
+      showToast('La contraseña de administración no puede estar vacía.');
+      return;
+    }
+    onUpdateAdminPassword(adminPasswordInput.trim());
+    showToast('Contraseña de administrador actualizada.');
+  };
+
+  // --- Handlers for Backup / Export / Reset ---
+  const handleExportJSON = () => {
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(state, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', dataStr);
+    downloadAnchor.setAttribute('download', `alabanza_backup_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    showToast('Copia de seguridad descargada.');
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0], 'UTF-8');
+      fileReader.onload = event => {
+        try {
+          const parsed = JSON.parse(event.target?.result as string);
+          if (parsed && Array.isArray(parsed.roles) && Array.isArray(parsed.musicians)) {
+            onImportState(parsed);
+            showToast('¡Datos importados con éxito!');
+          } else {
+            showToast('El archivo JSON no tiene un formato válido.');
+          }
+        } catch (err) {
+          showToast('Error al leer el archivo JSON.');
+        }
+      };
+    }
+  };
+
+  const handleExecuteReset = () => {
+    const fresh = getInitialDefaultState();
+    onResetAllData(fresh);
+    setShowResetConfirm(false);
+    showToast('Datos restablecidos al estado inicial.');
+  };
+
+  const sortedSlots = useMemo(() => {
+    return [...state.slots].sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
+  }, [state.slots]);
+
+  return (
+    <div className="space-y-8" id="config-view">
+      {/* SECCIÓN 1: SEGURIDAD & CONTRASEÑA DE ADMINISTRADOR */}
+      <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="flex items-center gap-3 border-b border-[#1f1f23] pb-4">
+          <div className="w-8 h-8 rounded-lg bg-[#c5a059]/10 text-[#c5a059] border border-[#c5a059]/30 flex items-center justify-center">
+            <KeyRound size={16} />
+          </div>
+          <div>
+            <h2 className="font-serif text-xl font-light text-white">
+              Contraseña del <span className="italic text-[#c5a059]">Modo Administrador</span>
+            </h2>
+            <p className="text-xs text-[#6b6b75]">
+              Protege las vistas de Músicos, Roles, Estadísticas y edición de turnos para los visitantes del enlace público.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSavePassword} className="flex flex-col sm:flex-row items-end gap-3 max-w-lg">
+          <div className="w-full">
+            <label className="block text-[10px] font-mono text-[#6b6b75] uppercase tracking-wider mb-1">
+              Contraseña de Acceso
+            </label>
+            <input
+              type="text"
+              value={adminPasswordInput}
+              onChange={e => setAdminPasswordInput(e.target.value)}
+              required
+              className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-3.5 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none font-mono"
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full sm:w-auto px-4 py-2.5 bg-[#c5a059] hover:bg-[#d4b068] text-black font-semibold text-xs uppercase tracking-wider rounded-lg transition-all cursor-pointer whitespace-nowrap"
+          >
+            Actualizar Clave
+          </button>
+        </form>
+      </div>
+
+      {/* SECCIÓN 2: TURNOS RECURRENTES (SÁBADO Y DOMINGO PREDEFINIDOS) */}
+      <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-6 shadow-xl space-y-6">
+        <div className="border-b border-[#1f1f23] pb-4">
+          <h2 className="font-serif text-2xl font-light tracking-tight text-white flex items-center gap-2">
+            <Clock size={18} className="text-[#c5a059]" />
+            <span>Turnos Recurrentes <span className="italic text-[#c5a059]">Semanales</span></span>
+          </h2>
+          <p className="text-xs text-[#6b6b75] mt-0.5">
+            Configura la hora y los roles requeridos para el Ensayo del Sábado y el Culto Dominical (u horarios adicionales).
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Formulario de Turno */}
+          <form onSubmit={handleSlotSubmit} className="lg:col-span-5 space-y-4">
+            <h3 className="font-mono text-[10px] text-[#6b6b75] uppercase tracking-[0.2em]">
+              {editingSlotId ? 'Editar Turno Recurrente' : 'Agregar Turno Recurrente'}
+            </h3>
+
+            <div>
+              <label className="block font-mono text-[10px] text-[#6b6b75] mb-1 uppercase tracking-[0.2em]">
+                Nombre / Descripción
+              </label>
+              <input
+                type="text"
+                value={slotLabel}
+                onChange={e => setSlotLabel(e.target.value)}
+                placeholder="Ej: Ensayo General o Culto Dominical"
+                required
+                className="w-full bg-[#0a0a0b] text-white text-sm rounded-lg px-3.5 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-mono text-[10px] text-[#6b6b75] mb-1 uppercase tracking-[0.2em]">
+                  Día
+                </label>
+                <select
+                  value={slotDay}
+                  onChange={e => setSlotDay(parseInt(e.target.value, 10))}
+                  className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-3 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none cursor-pointer"
+                >
+                  {DAYS_OF_WEEK.map((d, idx) => (
+                    <option key={idx} value={idx}>
+                      {d} {idx === 5 ? '(Ensayo)' : idx === 6 ? '(Culto)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-mono text-[10px] text-[#6b6b75] mb-1 uppercase tracking-[0.2em]">
+                  Hora
+                </label>
+                <input
+                  type="time"
+                  value={slotTime}
+                  onChange={e => setSlotTime(e.target.value)}
+                  required
+                  className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-3 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="font-mono text-[10px] text-[#6b6b75] uppercase tracking-[0.2em]">
+                  Roles Requeridos ({slotRoleIds.length})
+                </label>
+                <div className="flex gap-2 text-[10px] font-mono uppercase tracking-wider">
+                  <button
+                    type="button"
+                    onClick={() => setSlotRoleIds(state.roles.map(r => r.id))}
+                    className="text-[#c5a059] hover:underline cursor-pointer"
+                  >
+                    Todos
+                  </button>
+                  <span className="text-[#2a2a2e]">|</span>
+                  <button
+                    type="button"
+                    onClick={() => setSlotRoleIds([])}
+                    className="text-[#6b6b75] hover:text-white cursor-pointer"
+                  >
+                    Ninguno
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-2 bg-[#0a0a0b] rounded-xl border border-[#1f1f23]">
+                {state.roles.map(r => {
+                  const isChecked = slotRoleIds.includes(r.id);
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => toggleSlotRole(r.id)}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-mono uppercase tracking-wider border transition-colors cursor-pointer ${
+                        isChecked
+                          ? 'bg-[#c5a059]/10 text-[#c5a059] border-[#c5a059]/40'
+                          : 'bg-[#141418] text-[#6b6b75] border-[#1f1f23] hover:text-[#e0e0e0]'
+                      }`}
+                    >
+                      {isChecked ? <CheckSquare size={11} className="text-[#c5a059]" /> : <Square size={11} />}
+                      <span>{r.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="flex-1 bg-[#c5a059] hover:bg-[#d4b068] text-black font-semibold text-xs uppercase tracking-widest py-2.5 px-3 rounded-lg transition-all cursor-pointer shadow-lg shadow-[#c5a059]/10"
+              >
+                {editingSlotId ? 'Guardar Cambios' : 'Agregar Turno'}
+              </button>
+              {editingSlotId && (
+                <button
+                  type="button"
+                  onClick={cancelEditSlot}
+                  className="bg-[#1a1a1d] hover:bg-[#232328] text-[#6b6b75] hover:text-white text-xs uppercase tracking-wider py-2.5 px-3 rounded-lg border border-[#2a2a2e] cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
+          </form>
+
+          {/* Lista de Turnos */}
+          <div className="lg:col-span-7 space-y-3">
+            <h3 className="font-mono text-[10px] text-[#6b6b75] uppercase tracking-[0.2em]">
+              Turnos Configurados ({sortedSlots.length})
+            </h3>
+            {sortedSlots.length === 0 ? (
+              <p className="text-xs text-[#6b6b75] italic p-4 bg-[#0a0a0b] rounded-xl border border-[#1f1f23]">
+                No hay turnos recurrentes configurados.
+              </p>
+            ) : (
+              <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                {sortedSlots.map(s => {
+                  return (
+                    <div
+                      key={s.id}
+                      className="bg-[#0a0a0b] border border-[#1f1f23] hover:border-[#2a2a2e] p-3.5 rounded-xl flex items-start justify-between gap-3"
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-xs text-white">{s.label}</span>
+                          <span className="font-mono text-[10px] text-[#c5a059] bg-[#c5a059]/10 px-2 py-0.5 rounded border border-[#c5a059]/20 uppercase tracking-wider">
+                            {DAYS_OF_WEEK[s.day]} · {s.time} HS
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {(s.roleIds || []).map(rid => {
+                            const r = state.roles.find(x => x.id === rid);
+                            return r ? (
+                              <span
+                                key={r.id}
+                                className="text-[10px] font-mono bg-[#141418] text-[#6b6b75] px-2 py-0.5 rounded border border-[#1f1f23]"
+                              >
+                                {r.name}
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          onClick={() => startEditSlot(s)}
+                          className="w-8 h-8 rounded-lg bg-[#1a1a1d] hover:bg-[#232328] text-[#6b6b75] hover:text-white border border-[#2a2a2e] flex items-center justify-center cursor-pointer"
+                          title="Editar turno"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmSlot({ id: s.id, label: s.label })}
+                          className="w-8 h-8 rounded-lg bg-[#1a1a1d] hover:bg-red-950/40 text-[#6b6b75] hover:text-red-400 border border-[#2a2a2e] flex items-center justify-center cursor-pointer"
+                          title="Eliminar turno"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* SECCIÓN 3: ROLES / FUNCIONES */}
+      <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-6 shadow-xl space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1f1f23] pb-4">
+          <div>
+            <h2 className="font-serif text-2xl font-light tracking-tight text-white flex items-center gap-2">
+              <Settings size={18} className="text-[#c5a059]" />
+              <span>Roles & <span className="italic text-[#c5a059]">Funciones</span></span>
+            </h2>
+            <p className="text-xs text-[#6b6b75] mt-0.5">
+              Instrumentos, voces y áreas técnicas disponibles en el ministerio.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleRestorePreloadedRoles}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1a1a1d] hover:bg-[#232328] text-[#c5a059] text-[11px] font-mono uppercase tracking-wider rounded-lg border border-[#c5a059]/30 hover:border-[#c5a059] transition-all cursor-pointer"
+          >
+            <Sparkles size={12} />
+            <span>Restaurar 10 Roles Pre-cargados</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Formulario Rol */}
+          <form onSubmit={handleRoleSubmit} className="lg:col-span-4 space-y-3">
+            <h3 className="font-mono text-[10px] text-[#6b6b75] uppercase tracking-[0.2em]">
+              {editingRoleId ? 'Editar Rol' : 'Agregar Nuevo Rol'}
+            </h3>
+            <div>
+              <input
+                type="text"
+                value={roleName}
+                onChange={e => setRoleName(e.target.value)}
+                placeholder="Ej: Saxofón, Guía"
+                required
+                className="w-full bg-[#0a0a0b] text-white text-sm rounded-lg px-3.5 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="flex-1 bg-[#c5a059] hover:bg-[#d4b068] text-black font-semibold text-xs uppercase tracking-widest py-2.5 px-3 rounded-lg transition-all cursor-pointer shadow-lg shadow-[#c5a059]/10"
+              >
+                {editingRoleId ? 'Guardar Cambios' : 'Agregar Rol'}
+              </button>
+              {editingRoleId && (
+                <button
+                  type="button"
+                  onClick={cancelEditRole}
+                  className="bg-[#1a1a1d] hover:bg-[#232328] text-[#6b6b75] hover:text-white text-xs uppercase tracking-wider py-2.5 px-3 rounded-lg border border-[#2a2a2e] cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
+          </form>
+
+          {/* Lista de Roles */}
+          <div className="lg:col-span-8">
+            <h3 className="font-mono text-[10px] text-[#6b6b75] uppercase tracking-[0.2em] mb-3">
+              Roles Configurados ({state.roles.length})
+            </h3>
+            {state.roles.length === 0 ? (
+              <p className="text-xs text-[#6b6b75] italic p-3 bg-[#0a0a0b] rounded-xl border border-[#1f1f23]">
+                No hay roles configurados.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-60 overflow-y-auto pr-1">
+                {state.roles.map(r => {
+                  const musicianCount = state.musicians.filter(m =>
+                    (m.roleIds || []).includes(r.id)
+                  ).length;
+                  return (
+                    <div
+                      key={r.id}
+                      className="bg-[#0a0a0b] border border-[#1f1f23] hover:border-[#2a2a2e] p-3 rounded-xl flex items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium text-white truncate">
+                          {r.name}
+                        </div>
+                        <div className="text-[10px] font-mono text-[#6b6b75]">
+                          {musicianCount} integrante(s) habilitado(s)
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          onClick={() => startEditRole(r)}
+                          className="w-7 h-7 rounded-lg bg-[#1a1a1d] hover:bg-[#232328] text-[#6b6b75] hover:text-white border border-[#2a2a2e] flex items-center justify-center cursor-pointer"
+                          title="Editar rol"
+                        >
+                          <Pencil size={11} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmRole({ id: r.id, name: r.name })}
+                          className="w-7 h-7 rounded-lg bg-[#1a1a1d] hover:bg-red-950/40 text-[#6b6b75] hover:text-red-400 border border-[#2a2a2e] flex items-center justify-center cursor-pointer"
+                          title="Eliminar rol"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* SECCIÓN 4: RESPALDO Y RESTABLECIMIENTO */}
+      <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-6 shadow-xl space-y-4">
+        <h2 className="font-serif text-xl font-light text-white flex items-center gap-2">
+          <Download size={16} className="text-[#c5a059]" />
+          <span>Respaldo & <span className="italic text-[#c5a059]">Persistencia</span></span>
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          <button
+            onClick={handleExportJSON}
+            className="flex items-center justify-center gap-2 p-3.5 bg-[#0a0a0b] hover:bg-[#1a1a1d] border border-[#2a2a2e] hover:border-[#c5a059]/40 rounded-xl text-xs font-mono uppercase tracking-wider text-white transition-all cursor-pointer shadow-sm"
+          >
+            <Download size={14} className="text-[#c5a059]" />
+            <span>Exportar Copia (JSON)</span>
+          </button>
+
+          <div>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImportFile}
+              accept=".json"
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full flex items-center justify-center gap-2 p-3.5 bg-[#0a0a0b] hover:bg-[#1a1a1d] border border-[#2a2a2e] hover:border-[#c5a059]/40 rounded-xl text-xs font-mono uppercase tracking-wider text-white transition-all cursor-pointer shadow-sm"
+            >
+              <Upload size={14} className="text-[#c5a059]" />
+              <span>Importar Copia (JSON)</span>
+            </button>
+          </div>
+
+          <button
+            onClick={() => setShowResetConfirm(true)}
+            className="flex items-center justify-center gap-2 p-3.5 bg-[#0a0a0b] hover:bg-red-950/20 border border-[#2a2a2e] hover:border-red-900/40 rounded-xl text-xs font-mono uppercase tracking-wider text-[#6b6b75] hover:text-red-400 transition-all cursor-pointer shadow-sm"
+          >
+            <RotateCcw size={14} className="text-red-400" />
+            <span>Restablecer Fábrica</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Modal Confirmación Eliminar Turno */}
+      {deleteConfirmSlot && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#141418] border border-red-900/40 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-400">
+              <AlertCircle size={24} />
+              <h3 className="font-serif text-lg text-white font-medium">¿Eliminar Turno?</h3>
+            </div>
+            <p className="text-xs text-[#a0a0ab]">
+              ¿Estás seguro de que deseas eliminar el turno recurrente <strong className="text-white">{deleteConfirmSlot.label}</strong>? Se removerán todas las asignaciones vinculadas.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmSlot(null)}
+                className="px-4 py-2 bg-[#1a1a1d] hover:bg-[#252529] text-[#6b6b75] hover:text-white rounded-lg text-xs uppercase tracking-wider cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteSlot(deleteConfirmSlot.id);
+                  if (editingSlotId === deleteConfirmSlot.id) cancelEditSlot();
+                  showToast(`Turno "${deleteConfirmSlot.label}" eliminado.`);
+                  setDeleteConfirmSlot(null);
+                }}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg text-xs uppercase tracking-wider cursor-pointer shadow-lg"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmación Eliminar Rol */}
+      {deleteConfirmRole && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#141418] border border-red-900/40 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-400">
+              <AlertCircle size={24} />
+              <h3 className="font-serif text-lg text-white font-medium">¿Eliminar Rol?</h3>
+            </div>
+            <p className="text-xs text-[#a0a0ab]">
+              ¿Estás seguro de que deseas eliminar el rol <strong className="text-white">{deleteConfirmRole.name}</strong>? Se desvinculará de todos los músicos y turnos.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmRole(null)}
+                className="px-4 py-2 bg-[#1a1a1d] hover:bg-[#252529] text-[#6b6b75] hover:text-white rounded-lg text-xs uppercase tracking-wider cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteRole(deleteConfirmRole.id);
+                  if (editingRoleId === deleteConfirmRole.id) cancelEditRole();
+                  showToast(`Rol "${deleteConfirmRole.name}" eliminado.`);
+                  setDeleteConfirmRole(null);
+                }}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg text-xs uppercase tracking-wider cursor-pointer shadow-lg"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmación Restablecer Fábrica */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#141418] border border-red-900/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-400">
+              <AlertCircle size={24} />
+              <h3 className="font-serif text-lg text-white font-medium">¿Restablecer de Fábrica?</h3>
+            </div>
+            <p className="text-xs text-[#a0a0ab]">
+              Esto restablecerá la base de datos a los valores predeterminados (10 roles oficiales, integrantes base y catálogo oficial de 220+ canciones). Esta acción no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(false)}
+                className="px-4 py-2 bg-[#1a1a1d] hover:bg-[#252529] text-[#6b6b75] hover:text-white rounded-lg text-xs uppercase tracking-wider cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteReset}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg text-xs uppercase tracking-wider cursor-pointer shadow-lg"
+              >
+                Restablecer Todo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

@@ -1,0 +1,6 @@
+{
+  "name": "Gestor de Turnos y Roles",
+  "description": "Sistema de gestión y asignación rotativa de turnos para Iglesia Dios es Amor: Calendario Mensual, balance de voces 3H/3M según Director, descanso obligatorio tras 4 turnos, rotación de parejas, repertorio de canciones y tablero de estadísticas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
