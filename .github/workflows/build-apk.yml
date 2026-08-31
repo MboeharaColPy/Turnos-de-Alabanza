@@ -19,11 +19,10 @@ jobs:
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 22
 
       - name: Instalar dependencias del proyecto
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Compilar la aplicación web (React + Vite)
         run: npm run build
