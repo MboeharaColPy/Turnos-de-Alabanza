@@ -1,0 +1,55 @@
+name: Generar APK para Android
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch: # Permite presionar un botón manual en GitHub para generar el APK
+
+jobs:
+  build:
+    name: Compilar APK de Android
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar el código del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Instalar dependencias del proyecto
+        run: npm install
+
+      - name: Compilar la aplicación web (React + Vite)
+        run: npm run build
+
+      - name: Preparar plataforma Android con Capacitor
+        run: |
+          npx cap add android || true
+          npx cap sync android
+
+      - name: Configurar Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Dar permisos de ejecución a Gradle
+        run: chmod +x android/gradlew
+
+      - name: Compilar APK (Debug)
+        run: |
+          cd android
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Subir APK para descargar
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gestor-de-Turnos-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30

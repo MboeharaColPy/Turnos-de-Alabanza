@@ -1,0 +1,6 @@
+{
+  "appId": "com.ministerio.turnos",
+  "appName": "Gestor de Turnos",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
