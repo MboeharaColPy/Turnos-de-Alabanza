@@ -15,7 +15,13 @@ import {
   KeyRound,
   AlertCircle,
   Check,
+  RefreshCw,
+  GitBranch,
+  Smartphone,
+  CheckCircle2,
+  ArrowUpCircle,
 } from 'lucide-react';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface ConfigViewProps {
   state: AppState;
@@ -27,6 +33,12 @@ interface ConfigViewProps {
   onResetAllData: (freshState: AppState) => void;
   onImportState: (importedState: AppState) => void;
   showToast: (msg: string) => void;
+  onCheckForUpdates?: () => Promise<boolean>;
+  isCheckingUpdate?: boolean;
+  isInstallable?: boolean;
+  isInstalled?: boolean;
+  isIOS?: boolean;
+  onInstallApp?: () => Promise<boolean>;
 }
 
 export const ConfigView: React.FC<ConfigViewProps> = ({
@@ -39,6 +51,12 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
   onResetAllData,
   onImportState,
   showToast,
+  onCheckForUpdates,
+  isCheckingUpdate = false,
+  isInstallable = false,
+  isInstalled = false,
+  isIOS = false,
+  onInstallApp,
 }) => {
   // Roles state
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
@@ -600,6 +618,95 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
             <RotateCcw size={14} className="text-red-400" />
             <span>Restablecer Fábrica</span>
           </button>
+        </div>
+      </div>
+
+      {/* SECCIÓN 5: DESPLIEGUE CONTINUO EN GITHUB & ACTUALIZACIONES PWA */}
+      <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-6 shadow-xl space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#232328]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#c5a059]/10 border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059]">
+              <GitBranch size={16} />
+            </div>
+            <div>
+              <h2 className="font-serif text-xl font-light text-white">
+                Actualizaciones & <span className="italic text-[#c5a059]">Despliegue Automático</span>
+              </h2>
+              <p className="text-xs text-[#8e8e99]">
+                Sincronización continua de versiones desde GitHub hacia la app instalada
+              </p>
+            </div>
+          </div>
+
+          {/* Botón Buscar Actualizaciones */}
+          {onCheckForUpdates && (
+            <button
+              onClick={async () => {
+                const hasUpdate = await onCheckForUpdates();
+                if (hasUpdate) {
+                  showToast('¡Nueva versión encontrada! Revisa el aviso superior.');
+                } else {
+                  showToast('Tu aplicación está al día con la última versión de GitHub.');
+                }
+              }}
+              disabled={isCheckingUpdate}
+              className="flex items-center gap-2 px-3.5 py-2 bg-[#1e1e24] hover:bg-[#282830] border border-[#33333d] hover:border-[#c5a059]/50 text-white rounded-xl text-xs font-mono uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw size={13} className={isCheckingUpdate ? 'animate-spin text-[#c5a059]' : 'text-[#c5a059]'} />
+              <span>{isCheckingUpdate ? 'Comprobando...' : 'Buscar Actualización'}</span>
+            </button>
+          )}
+        </div>
+
+        {/* Tarjeta de Instalación PWA */}
+        {onInstallApp && (
+          <PWAInstallButton
+            isInstallable={isInstallable}
+            isInstalled={isInstalled}
+            isIOS={isIOS}
+            onInstall={onInstallApp}
+            variant="full"
+          />
+        )}
+
+        {/* Cómo funciona el ciclo GitHub -> App Instalada */}
+        <div className="bg-[#0a0a0b] p-4 rounded-2xl border border-[#232328] space-y-3">
+          <h3 className="text-xs font-mono uppercase tracking-wider text-[#c5a059] font-bold flex items-center gap-1.5">
+            <Sparkles size={13} />
+            <span>¿Cómo se actualiza la app al subir a GitHub?</span>
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-[#a0a0ab]">
+            <div className="p-3 bg-[#121216] rounded-xl border border-[#1f1f23] space-y-1">
+              <div className="font-bold text-white flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-[#c5a059]/20 text-[#c5a059] text-[10px] font-mono flex items-center justify-center">1</span>
+                <span>Push a GitHub</span>
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                Al hacer <code>git push</code> a la rama <code>main</code>, GitHub Actions compila automáticamente los nuevos cambios.
+              </p>
+            </div>
+
+            <div className="p-3 bg-[#121216] rounded-xl border border-[#1f1f23] space-y-1">
+              <div className="font-bold text-white flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-[#c5a059]/20 text-[#c5a059] text-[10px] font-mono flex items-center justify-center">2</span>
+                <span>Detección en Silencio</span>
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                El Service Worker consulta al servidor en segundo plano cada 5 minutos y al enfocar la pantalla.
+              </p>
+            </div>
+
+            <div className="p-3 bg-[#121216] rounded-xl border border-[#1f1f23] space-y-1">
+              <div className="font-bold text-white flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-[#c5a059]/20 text-[#c5a059] text-[10px] font-mono flex items-center justify-center">3</span>
+                <span>Aviso Instantáneo</span>
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                Aparece el aviso flotante <em>"¡Nueva versión disponible!"</em> para actualizar con 1 clic sin perder datos ni canciones.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 

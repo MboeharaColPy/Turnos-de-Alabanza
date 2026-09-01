@@ -23,6 +23,8 @@ import { MusiciansView } from './components/MusiciansView';
 import { ConfigView } from './components/ConfigView';
 import { SongLyricsModal } from './components/SongLyricsModal';
 import { ConflictExplainerModal } from './components/ConflictExplainerModal';
+import { PWAUpdateNotification } from './components/PWAUpdateNotification';
+import { usePWA } from './hooks/usePWA';
 import { getMonday } from './utils/dateUtils';
 import { KeyRound, ShieldAlert, X, Eye, EyeOff, Check, ShieldCheck } from 'lucide-react';
 
@@ -34,6 +36,19 @@ export default function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [isCloudConnected, setIsCloudConnected] = useState(true);
   const [showGlobalExplainerModal, setShowGlobalExplainerModal] = useState(false);
+
+  // PWA Updates and Installation Hooks
+  const {
+    needRefresh,
+    isCheckingUpdate,
+    updateApp,
+    dismissUpdate,
+    checkForUpdates,
+    isInstallable,
+    isInstalled,
+    isIOS,
+    installApp,
+  } = usePWA();
 
   // Theme State: Dark or Light mode
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -569,6 +584,13 @@ export default function App() {
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
+        {/* Notificación de Actualización PWA en Vivo (GitHub -> Service Worker) */}
+        <PWAUpdateNotification
+          needRefresh={needRefresh}
+          onUpdate={updateApp}
+          onDismiss={dismissUpdate}
+        />
+
         {/* Header Principal */}
         <Header
           activeTab={activeTab}
@@ -589,6 +611,10 @@ export default function App() {
           theme={theme}
           onToggleTheme={handleToggleTheme}
           onChangeAdminPassword={handleUpdateAdminPassword}
+          isInstallable={isInstallable}
+          isInstalled={isInstalled}
+          isIOS={isIOS}
+          onInstallApp={installApp}
         />
 
         {/* Contenido según pestaña activa */}
@@ -703,6 +729,12 @@ export default function App() {
               onResetAllData={handleResetAllData}
               onImportState={handleImportState}
               showToast={showToast}
+              onCheckForUpdates={checkForUpdates}
+              isCheckingUpdate={isCheckingUpdate}
+              isInstallable={isInstallable}
+              isInstalled={isInstalled}
+              isIOS={isIOS}
+              onInstallApp={installApp}
             />
           )}
         </main>

@@ -23,6 +23,8 @@ import {
   EyeOff,
 } from 'lucide-react';
 
+import { PWAInstallButton } from './PWAInstallButton';
+
 export type ActiveTab =
   | 'inicio'
   | 'canciones'
@@ -48,6 +50,10 @@ interface HeaderProps {
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   onChangeAdminPassword?: (newPass: string) => void;
+  isInstallable?: boolean;
+  isInstalled?: boolean;
+  isIOS?: boolean;
+  onInstallApp?: () => Promise<boolean>;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -63,6 +69,10 @@ export const Header: React.FC<HeaderProps> = ({
   theme = 'dark',
   onToggleTheme,
   onChangeAdminPassword,
+  isInstallable = false,
+  isInstalled = false,
+  isIOS = false,
+  onInstallApp,
 }) => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [newPass, setNewPass] = useState('');
@@ -343,6 +353,17 @@ export const Header: React.FC<HeaderProps> = ({
               {!isAdmin && <Lock size={11} className="text-[#c5a059] ml-0.5" />}
             </button>
           </nav>
+
+          {/* Botón Instalar App (PWA) */}
+          {onInstallApp && (
+            <PWAInstallButton
+              isInstallable={isInstallable}
+              isInstalled={isInstalled}
+              isIOS={isIOS}
+              onInstall={onInstallApp}
+              variant="compact"
+            />
+          )}
 
           {/* Botón General de Modo Claro / Oscuro */}
           {onToggleTheme && (
