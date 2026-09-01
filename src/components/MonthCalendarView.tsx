@@ -20,8 +20,12 @@ import {
   CheckCircle2,
   FileText,
   KeyRound,
+  HelpCircle,
+  AlertTriangle,
+  Heart,
 } from 'lucide-react';
 import { generateRotativeSchedule, getRoleCategory } from '../services/rotativeScheduler';
+import { ConflictExplainerModal } from './ConflictExplainerModal';
 
 interface MonthCalendarViewProps {
   state: AppState;
@@ -47,6 +51,7 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
   const [viewMode, setViewMode] = useState<'agenda' | 'calendar' | 'table'>('agenda');
   const [hidePastDates, setHidePastDates] = useState(false);
   const [expandedPastKeys, setExpandedPastKeys] = useState<Record<string, boolean>>({});
+  const [showExplainerModal, setShowExplainerModal] = useState(false);
 
   const todayStart = useMemo(() => {
     const d = new Date();
@@ -221,6 +226,12 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
 
   return (
     <div className="space-y-6" id="month-calendar-view">
+      {/* Guía Visual Modal */}
+      <ConflictExplainerModal
+        isOpen={showExplainerModal}
+        onClose={() => setShowExplainerModal(false)}
+      />
+
       {/* Barra de Navegación del Mes */}
       <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Título del Mes y Navegación */}
@@ -240,7 +251,7 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
           <div className="flex items-center gap-1.5 ml-0 sm:ml-4 bg-[#0a0a0b] p-1 rounded-xl border border-[#1f1f23]">
             <button
               onClick={prevMonth}
-              className="w-8 h-8 rounded-lg bg-[#1a1a1d] hover:bg-[#232328] text-white flex items-center justify-center cursor-pointer transition-colors"
+              className="w-9 h-9 rounded-lg bg-[#1a1a1d] hover:bg-[#232328] text-white flex items-center justify-center cursor-pointer transition-colors min-h-[36px]"
               title="Mes anterior"
               id="prev-month-btn"
             >
@@ -248,20 +259,29 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
             </button>
             <button
               onClick={setThisMonth}
-              className="px-3 py-1 bg-[#1a1a1d] hover:bg-[#232328] text-[11px] font-mono uppercase tracking-wider text-[#6b6b75] hover:text-white rounded-lg transition-colors cursor-pointer"
+              className="px-3.5 py-1.5 bg-[#1a1a1d] hover:bg-[#232328] text-xs font-mono uppercase tracking-wider text-[#a0a0ab] hover:text-white rounded-lg transition-colors cursor-pointer min-h-[36px]"
               id="this-month-btn"
             >
               Hoy
             </button>
             <button
               onClick={nextMonth}
-              className="w-8 h-8 rounded-lg bg-[#1a1a1d] hover:bg-[#232328] text-white flex items-center justify-center cursor-pointer transition-colors"
+              className="w-9 h-9 rounded-lg bg-[#1a1a1d] hover:bg-[#232328] text-white flex items-center justify-center cursor-pointer transition-colors min-h-[36px]"
               title="Mes siguiente"
               id="next-month-btn"
             >
               <ChevronRight size={16} />
             </button>
           </div>
+
+          <button
+            onClick={() => setShowExplainerModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-medium transition-colors cursor-pointer min-h-[36px]"
+            title="Ver guía visual de alertas y reglas de parejas"
+          >
+            <HelpCircle size={14} />
+            <span>Guía de Alertas</span>
+          </button>
         </div>
 
         {/* Acciones & Toggle de Vista */}
@@ -270,10 +290,10 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
           <div className="flex bg-[#0a0a0b] p-1 rounded-xl border border-[#1f1f23]">
             <button
               onClick={() => setViewMode('agenda')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer ${
+              className={`px-3 py-2 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer min-h-[40px] ${
                 viewMode === 'agenda'
-                  ? 'bg-[#1a1a1d] text-[#c5a059] border border-[#c5a059]/30 font-medium'
-                  : 'text-[#6b6b75] hover:text-white'
+                  ? 'bg-[#1e1e24] text-amber-300 border border-amber-500/40 font-bold'
+                  : 'text-[#888894] hover:text-white'
               }`}
               title="Vista de agenda con fechas y detalles asignados"
             >
@@ -282,10 +302,10 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
             </button>
             <button
               onClick={() => setViewMode('calendar')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer ${
+              className={`px-3 py-2 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer min-h-[40px] ${
                 viewMode === 'calendar'
-                  ? 'bg-[#1a1a1d] text-[#c5a059] border border-[#c5a059]/30 font-medium'
-                  : 'text-[#6b6b75] hover:text-white'
+                  ? 'bg-[#1e1e24] text-amber-300 border border-amber-500/40 font-bold'
+                  : 'text-[#888894] hover:text-white'
               }`}
               title="Vista cuadrícula de calendario"
             >
@@ -294,10 +314,10 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer ${
+              className={`px-3 py-2 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer min-h-[40px] ${
                 viewMode === 'table'
-                  ? 'bg-[#1a1a1d] text-[#c5a059] border border-[#c5a059]/30 font-medium'
-                  : 'text-[#6b6b75] hover:text-white'
+                  ? 'bg-[#1e1e24] text-amber-300 border border-amber-500/40 font-bold'
+                  : 'text-[#888894] hover:text-white'
               }`}
               title="Vista simultánea en tabla"
             >
@@ -309,10 +329,10 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
           {/* Toggle Fechas Pasadas */}
           <button
             onClick={() => setHidePastDates(!hidePastDates)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider border transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-mono uppercase tracking-wider border transition-colors cursor-pointer flex items-center gap-1.5 min-h-[40px] ${
               hidePastDates
-                ? 'bg-[#c5a059]/15 border-[#c5a059]/40 text-[#c5a059]'
-                : 'bg-[#0a0a0b] border-[#1f1f23] text-[#6b6b75] hover:text-white'
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 font-bold'
+                : 'bg-[#0a0a0b] border-[#1f1f23] text-[#888894] hover:text-white'
             }`}
             title={hidePastDates ? 'Mostrando solo fechas vigentes y futuras' : 'Ocultar fechas ya pasadas del mes'}
           >
@@ -323,20 +343,20 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
             <button
               onClick={handleAutoGenerateMonth}
               disabled={isGenerating || sortedSlots.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-[#c5a059] hover:bg-[#d4b068] text-black font-semibold rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-[#c5a059]/10 cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-slate-950 font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50 min-h-[42px] active:scale-95"
               id="auto-generate-month-btn"
               title="Sugerir automáticamente los turnos del mes respetando directores, balance 3H/3M, descansos y parejas"
             >
               <Sparkles size={14} className={isGenerating ? 'animate-spin' : ''} />
-              <span>{isGenerating ? 'Generando...' : 'Sugerir Turnos del Mes'}</span>
+              <span>{isGenerating ? 'Generando...' : 'Sugerir Mes (IA)'}</span>
             </button>
           ) : (
             <button
               onClick={onRequestAdmin}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#1a1a1d] hover:bg-[#232328] text-[#a0a0ab] hover:text-white rounded-xl text-xs font-mono uppercase tracking-wider border border-[#2a2a2e] cursor-pointer transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-[#18181c] hover:bg-[#222228] text-[#a0a0ab] hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider border border-[#2e2e36] cursor-pointer transition-all min-h-[42px]"
               title="Desbloquear modo administrador"
             >
-              <Lock size={12} className="text-[#c5a059]" />
+              <Lock size={12} className="text-amber-400" />
               <span>Modo Admin</span>
             </button>
           )}

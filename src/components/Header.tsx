@@ -9,8 +9,12 @@ import {
   CalendarDays,
   BookOpen,
   Lock,
-  Unlock,
+  LogOut,
   ShieldCheck,
+  HelpCircle,
+  Edit3,
+  Sparkles,
+  Music
 } from 'lucide-react';
 
 export type ActiveTab = 'mes' | 'semana' | 'cancionero' | 'estadisticas' | 'musicos' | 'config';
@@ -24,6 +28,7 @@ interface HeaderProps {
   isSaving: boolean;
   isCloudConnected?: boolean;
   onRefresh: () => void;
+  onOpenExplainer?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -35,14 +40,59 @@ export const Header: React.FC<HeaderProps> = ({
   isSaving,
   isCloudConnected = true,
   onRefresh,
+  onOpenExplainer,
 }) => {
   return (
-    <header className="border-b border-[#1f1f23] pb-6 mb-8" id="main-header">
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+    <header className="border-b border-[#1f1f23] pb-5 mb-6" id="main-header">
+      {/* Banner de Modo Edición Activo para Administradores */}
+      {isAdmin && (
+        <div 
+          id="admin-active-editing-banner"
+          className="mb-4 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 px-3.5 py-2 rounded-xl shadow-lg flex items-center justify-between flex-wrap gap-2 animate-in slide-in-from-top duration-200"
+        >
+          <div className="flex items-center gap-2 text-xs sm:text-sm font-bold min-w-0">
+            <span className="flex h-2.5 w-2.5 relative flex-shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-950 opacity-60"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-950"></span>
+            </span>
+            <span className="truncate flex items-center gap-1.5 font-sans">
+              <Edit3 size={15} className="text-slate-950 flex-shrink-0" />
+              <span>Modo Edición Activado</span>
+            </span>
+            <span className="hidden md:inline text-[11px] font-medium text-slate-800 bg-amber-300/80 px-2 py-0.5 rounded-full">
+              Puedes modificar turnos, agregar músicos y gestionar alabanzas
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {onOpenExplainer && (
+              <button
+                onClick={onOpenExplainer}
+                className="inline-flex items-center px-2.5 py-1 bg-amber-300/90 hover:bg-amber-200 text-slate-950 text-xs font-semibold rounded-lg transition active:scale-95 gap-1 cursor-pointer"
+                title="Ver qué significan las advertencias"
+              >
+                <HelpCircle size={13} />
+                <span className="hidden sm:inline">Guía de Alertas</span>
+              </button>
+            )}
+            <button
+              id="btn-exit-admin-mode"
+              onClick={onLogoutAdmin}
+              className="inline-flex items-center px-3 py-1 bg-slate-950 hover:bg-slate-900 text-amber-300 hover:text-amber-200 text-xs font-bold rounded-lg shadow-sm transition active:scale-95 gap-1.5 flex-shrink-0 border border-slate-800 cursor-pointer"
+              title="Salir del modo edición y bloquear cambios"
+            >
+              <LogOut size={13} className="text-amber-400" />
+              <span>Salir de edición</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
         {/* Brand / Logo */}
         <div>
           <div className="flex items-center gap-3 mb-1 flex-wrap">
-            <span className="font-serif italic text-2xl tracking-tight text-[#c5a059]">
+            <span className="font-serif italic text-2xl sm:text-3xl tracking-tight text-[#c5a059]">
               Iglesia Dios es Amor
             </span>
             <span className="text-[10px] font-mono tracking-[0.25em] text-[#6b6b75] uppercase border-l border-[#1f1f23] pl-3">
@@ -73,78 +123,81 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Admin status pill */}
             {isAdmin ? (
-              <div className="inline-flex items-center gap-1 text-[10px] font-mono px-2.5 py-0.5 rounded border text-emerald-400 bg-emerald-950/30 border-emerald-800/40">
-                <ShieldCheck size={11} />
-                <span>Modo Administrador Activo</span>
-                <button
-                  onClick={onLogoutAdmin}
-                  className="ml-1 text-[#6b6b75] hover:text-white underline cursor-pointer"
-                  title="Bloquear y salir a modo público"
-                >
-                  Salir
-                </button>
+              <div className="inline-flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-0.5 rounded-full border text-emerald-400 bg-emerald-950/40 border-emerald-800/50">
+                <ShieldCheck size={12} className="text-emerald-400" />
+                <span className="font-bold">ADMIN HABILITADO</span>
               </div>
             ) : (
               <button
                 onClick={onToggleAdminModal}
-                className="inline-flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-0.5 rounded border text-[#a0a0ab] hover:text-white bg-[#141418] hover:bg-[#1f1f23] border-[#2a2a2e] cursor-pointer transition-all"
-                title="Ingresar contraseña de administrador"
+                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-lg border text-[#e0e0e0] hover:text-white bg-[#18181c] hover:bg-[#222228] border-[#2e2e36] hover:border-amber-500/40 cursor-pointer transition-all shadow-sm"
+                title="Desbloquear modo edición con contraseña de administrador"
+                id="btn-login-admin"
               >
-                <Lock size={10} className="text-[#c5a059]" />
-                <span>Acceso Admin</span>
+                <Lock size={12} className="text-amber-400" />
+                <span>Acceso Administrador</span>
+              </button>
+            )}
+
+            {/* Guía Rápida Button */}
+            {onOpenExplainer && (
+              <button
+                onClick={onOpenExplainer}
+                className="inline-flex items-center gap-1 text-[11px] font-mono px-2.5 py-1 rounded-lg border text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 cursor-pointer transition-all"
+                title="Ver guía visual de conflictos, parejas y reglas"
+              >
+                <HelpCircle size={12} />
+                <span>Ayuda & Reglas</span>
               </button>
             )}
           </div>
 
-          <h1 className="font-serif text-3xl sm:text-4xl font-light tracking-tight text-white">
-            Ministerio de <span className="italic text-[#c5a059]">Alabanza</span>
+          <h1 className="font-serif text-2xl sm:text-3xl font-light tracking-tight text-white mt-1">
+            Gestión de <span className="italic text-[#c5a059]">Turnos y Alabanzas</span>
           </h1>
         </div>
 
-        {/* Tab Navigation & Status */}
+        {/* Tab Navigation on Desktop */}
         <div className="flex items-center gap-2.5 flex-wrap">
-          <nav className="flex bg-[#0f0f12] p-1 rounded-xl border border-[#1f1f23] shadow-inner overflow-x-auto max-w-full">
+          <nav className="hidden md:flex bg-[#0f0f12] p-1.5 rounded-xl border border-[#1f1f23] shadow-inner overflow-x-auto max-w-full gap-1">
             {/* PESTAÑAS PÚBLICAS */}
             <button
               onClick={() => onTabChange('mes')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs tracking-wider uppercase transition-all cursor-pointer font-medium whitespace-nowrap ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs tracking-wider uppercase transition-all cursor-pointer font-medium whitespace-nowrap min-h-[40px] ${
                 activeTab === 'mes'
-                  ? 'bg-[#1a1a1d] text-white border border-[#c5a059]/40 shadow-[inset_0_0_10px_rgba(197,160,89,0.05)]'
-                  : 'text-[#6b6b75] hover:text-[#e0e0e0] hover:bg-[#121215]'
+                  ? 'bg-[#1e1e24] text-white border border-[#c5a059]/50 shadow-[inset_0_0_10px_rgba(197,160,89,0.1)] font-bold'
+                  : 'text-[#888894] hover:text-[#e0e0e0] hover:bg-[#151518]'
               }`}
               id="tab-mes-btn"
             >
-              <div className={`w-1.5 h-1.5 rounded-full ${activeTab === 'mes' ? 'bg-[#c5a059]' : 'border border-[#6b6b75]'}`} />
-              <CalendarDays size={13} />
-              <span>Calendario Mensual</span>
+              <CalendarDays size={14} className={activeTab === 'mes' ? 'text-[#c5a059]' : 'text-[#888894]'} />
+              <span>Mes</span>
             </button>
 
             <button
               onClick={() => onTabChange('semana')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs tracking-wider uppercase transition-all cursor-pointer font-medium whitespace-nowrap ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs tracking-wider uppercase transition-all cursor-pointer font-medium whitespace-nowrap min-h-[40px] ${
                 activeTab === 'semana'
-                  ? 'bg-[#1a1a1d] text-white border border-[#c5a059]/40 shadow-[inset_0_0_10px_rgba(197,160,89,0.05)]'
-                  : 'text-[#6b6b75] hover:text-[#e0e0e0] hover:bg-[#121215]'
+                  ? 'bg-[#1e1e24] text-white border border-[#c5a059]/50 shadow-[inset_0_0_10px_rgba(197,160,89,0.1)] font-bold'
+                  : 'text-[#888894] hover:text-[#e0e0e0] hover:bg-[#151518]'
               }`}
               id="tab-semana-btn"
             >
-              <div className={`w-1.5 h-1.5 rounded-full ${activeTab === 'semana' ? 'bg-[#c5a059]' : 'border border-[#6b6b75]'}`} />
-              <Calendar size={13} />
-              <span>Semana Detallada</span>
+              <Calendar size={14} className={activeTab === 'semana' ? 'text-[#c5a059]' : 'text-[#888894]'} />
+              <span>Semana</span>
             </button>
 
             <button
               onClick={() => onTabChange('cancionero')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs tracking-wider uppercase transition-all cursor-pointer font-medium whitespace-nowrap ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs tracking-wider uppercase transition-all cursor-pointer font-medium whitespace-nowrap min-h-[40px] ${
                 activeTab === 'cancionero'
-                  ? 'bg-[#1a1a1d] text-white border border-[#c5a059]/40 shadow-[inset_0_0_10px_rgba(197,160,89,0.05)]'
-                  : 'text-[#6b6b75] hover:text-[#e0e0e0] hover:bg-[#121215]'
+                  ? 'bg-[#1e1e24] text-white border border-[#c5a059]/50 shadow-[inset_0_0_10px_rgba(197,160,89,0.1)] font-bold'
+                  : 'text-[#888894] hover:text-[#e0e0e0] hover:bg-[#151518]'
               }`}
               id="tab-cancionero-btn"
             >
-              <div className={`w-1.5 h-1.5 rounded-full ${activeTab === 'cancionero' ? 'bg-[#c5a059]' : 'border border-[#6b6b75]'}`} />
-              <BookOpen size={13} />
-              <span>Repertorio de Alabanzas</span>
+              <Music size={14} className={activeTab === 'cancionero' ? 'text-[#c5a059]' : 'text-[#888894]'} />
+              <span>Repertorio</span>
             </button>
 
             {/* PESTAÑAS ADMINISTRADOR (Protegidas) */}
@@ -153,20 +206,19 @@ export const Header: React.FC<HeaderProps> = ({
                 if (!isAdmin) {
                   onToggleAdminModal();
                 } else {
-                  onTabChange('estadisticas');
+                  onTabChange('musicos');
                 }
               }}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs tracking-wider uppercase transition-all cursor-pointer font-medium whitespace-nowrap ${
-                activeTab === 'estadisticas'
-                  ? 'bg-[#1a1a1d] text-white border border-[#c5a059]/40 shadow-[inset_0_0_10px_rgba(197,160,89,0.05)]'
-                  : 'text-[#6b6b75] hover:text-[#e0e0e0] hover:bg-[#121215]'
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs tracking-wider uppercase transition-all cursor-pointer font-medium whitespace-nowrap min-h-[40px] ${
+                activeTab === 'musicos'
+                  ? 'bg-[#1e1e24] text-white border border-[#c5a059]/50 shadow-[inset_0_0_10px_rgba(197,160,89,0.1)] font-bold'
+                  : 'text-[#888894] hover:text-[#e0e0e0] hover:bg-[#151518]'
               }`}
-              id="tab-estadisticas-btn"
+              id="tab-musicos-btn"
             >
-              <div className={`w-1.5 h-1.5 rounded-full ${activeTab === 'estadisticas' ? 'bg-[#c5a059]' : 'border border-[#6b6b75]'}`} />
-              <BarChart3 size={13} />
-              <span>Estadísticas</span>
-              {!isAdmin && <Lock size={10} className="text-[#c5a059] ml-0.5" />}
+              <Users size={14} className={activeTab === 'musicos' ? 'text-[#c5a059]' : 'text-[#888894]'} />
+              <span>Músicos & Parejas</span>
+              {!isAdmin && <Lock size={11} className="text-[#c5a059] ml-0.5" />}
             </button>
 
             <button
@@ -174,20 +226,19 @@ export const Header: React.FC<HeaderProps> = ({
                 if (!isAdmin) {
                   onToggleAdminModal();
                 } else {
-                  onTabChange('musicos');
+                  onTabChange('estadisticas');
                 }
               }}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs tracking-wider uppercase transition-all cursor-pointer font-medium whitespace-nowrap ${
-                activeTab === 'musicos'
-                  ? 'bg-[#1a1a1d] text-white border border-[#c5a059]/40 shadow-[inset_0_0_10px_rgba(197,160,89,0.05)]'
-                  : 'text-[#6b6b75] hover:text-[#e0e0e0] hover:bg-[#121215]'
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs tracking-wider uppercase transition-all cursor-pointer font-medium whitespace-nowrap min-h-[40px] ${
+                activeTab === 'estadisticas'
+                  ? 'bg-[#1e1e24] text-white border border-[#c5a059]/50 shadow-[inset_0_0_10px_rgba(197,160,89,0.1)] font-bold'
+                  : 'text-[#888894] hover:text-[#e0e0e0] hover:bg-[#151518]'
               }`}
-              id="tab-musicos-btn"
+              id="tab-estadisticas-btn"
             >
-              <div className={`w-1.5 h-1.5 rounded-full ${activeTab === 'musicos' ? 'bg-[#c5a059]' : 'border border-[#6b6b75]'}`} />
-              <Users size={13} />
-              <span>Músicos & Parejas</span>
-              {!isAdmin && <Lock size={10} className="text-[#c5a059] ml-0.5" />}
+              <BarChart3 size={14} className={activeTab === 'estadisticas' ? 'text-[#c5a059]' : 'text-[#888894]'} />
+              <span>Reportes</span>
+              {!isAdmin && <Lock size={11} className="text-[#c5a059] ml-0.5" />}
             </button>
 
             <button
@@ -198,26 +249,26 @@ export const Header: React.FC<HeaderProps> = ({
                   onTabChange('config');
                 }
               }}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs tracking-wider uppercase transition-all cursor-pointer font-medium whitespace-nowrap ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs tracking-wider uppercase transition-all cursor-pointer font-medium whitespace-nowrap min-h-[40px] ${
                 activeTab === 'config'
-                  ? 'bg-[#1a1a1d] text-white border border-[#c5a059]/40 shadow-[inset_0_0_10px_rgba(197,160,89,0.05)]'
-                  : 'text-[#6b6b75] hover:text-[#e0e0e0] hover:bg-[#121215]'
+                  ? 'bg-[#1e1e24] text-white border border-[#c5a059]/50 shadow-[inset_0_0_10px_rgba(197,160,89,0.1)] font-bold'
+                  : 'text-[#888894] hover:text-[#e0e0e0] hover:bg-[#151518]'
               }`}
               id="tab-config-btn"
             >
-              <div className={`w-1.5 h-1.5 rounded-full ${activeTab === 'config' ? 'bg-[#c5a059]' : 'border border-[#6b6b75]'}`} />
-              <Sliders size={13} />
-              <span>Roles y Turnos</span>
-              {!isAdmin && <Lock size={10} className="text-[#c5a059] ml-0.5" />}
+              <Sliders size={14} className={activeTab === 'config' ? 'text-[#c5a059]' : 'text-[#888894]'} />
+              <span>Ajustes</span>
+              {!isAdmin && <Lock size={11} className="text-[#c5a059] ml-0.5" />}
             </button>
           </nav>
 
           <button
             onClick={onRefresh}
-            className="w-10 h-10 rounded-xl bg-[#141418] hover:bg-[#1a1a1d] text-[#6b6b75] hover:text-white border border-[#1f1f23] hover:border-[#c5a059]/40 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 shadow-md"
-            title="Sincronizar datos"
+            className="w-11 h-11 rounded-xl bg-[#141418] hover:bg-[#1a1a1d] text-[#888894] hover:text-white border border-[#1f1f23] hover:border-[#c5a059]/50 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 shadow-md min-h-[44px]"
+            title="Sincronizar datos con la nube"
+            id="btn-sync-refresh"
           >
-            <RotateCw size={14} className={isSaving ? 'animate-spin text-[#c5a059]' : ''} />
+            <RotateCw size={16} className={isSaving ? 'animate-spin text-[#c5a059]' : ''} />
           </button>
         </div>
       </div>

@@ -12,6 +12,7 @@ import {
   subscribeToCloudState,
 } from './services/storage';
 import { Header, ActiveTab } from './components/Header';
+import { BottomNavigation } from './components/BottomNavigation';
 import { MonthCalendarView } from './components/MonthCalendarView';
 import { WeekView } from './components/WeekView';
 import { SongCatalogView } from './components/SongCatalogView';
@@ -19,6 +20,7 @@ import { StatsView } from './components/StatsView';
 import { MusiciansView } from './components/MusiciansView';
 import { ConfigView } from './components/ConfigView';
 import { SongLyricsModal } from './components/SongLyricsModal';
+import { ConflictExplainerModal } from './components/ConflictExplainerModal';
 import { getMonday } from './utils/dateUtils';
 import { Lock, KeyRound, ShieldAlert, X, Eye, EyeOff } from 'lucide-react';
 
@@ -29,6 +31,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isCloudConnected, setIsCloudConnected] = useState(true);
+  const [showGlobalExplainerModal, setShowGlobalExplainerModal] = useState(false);
 
   // Admin Auth State
   const [isAdmin, setIsAdmin] = useState<boolean>(() => {
@@ -505,6 +508,7 @@ export default function App() {
           isSaving={isSaving}
           isCloudConnected={isCloudConnected}
           onRefresh={handleRefresh}
+          onOpenExplainer={() => setShowGlobalExplainerModal(true)}
         />
 
         {/* Contenido según pestaña activa */}
@@ -579,6 +583,26 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Navegación Fija Inferior en Móvil */}
+      <BottomNavigation
+        activeTab={activeTab}
+        onTabChange={tab => {
+          if ((tab === 'estadisticas' || tab === 'musicos' || tab === 'config') && !isAdmin) {
+            handleRequestAdminModal(tab);
+          } else {
+            setActiveTab(tab);
+          }
+        }}
+        isAdmin={isAdmin}
+        onToggleAdminModal={() => handleRequestAdminModal()}
+      />
+
+      {/* Modal Guía Visual de Reglas y Conflictos */}
+      <ConflictExplainerModal
+        isOpen={showGlobalExplainerModal}
+        onClose={() => setShowGlobalExplainerModal(false)}
+      />
 
       {/* Modal de Letra, Notas y Acordes de Alabanzas */}
       {selectedSongForLyrics && (

@@ -356,7 +356,7 @@ export function saveStoredState(state: AppState): boolean {
  * Guarda el estado en Firestore en la nube para sincronizar con todos los usuarios
  */
 export async function saveCloudState(state: AppState): Promise<boolean> {
-  // Primero respaldar localmente
+  // Primero respaldar localmente de forma síncrona
   saveStoredState(state);
 
   try {
@@ -373,13 +373,15 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
       seeded: !!state.seeded,
       lastUpdated: new Date().toISOString(),
     };
-    await setDoc(docRef, payload);
+    await setDoc(docRef, payload, { merge: true });
     return true;
   } catch (error) {
-    console.error('Error guardando en Firestore:', error);
+    console.warn('Almacenamiento en la nube en modo diferido/offline:', error);
     return false;
   }
 }
+
+let hasAttemptedInitialCloudSeed = false;
 
 /**
  * Escucha cambios en tiempo real desde Firestore.
@@ -400,19 +402,21 @@ export function subscribeToCloudState(
         // Actualizar cache local
         saveStoredState(sanitized);
         onUpdate(sanitized);
-      } else {
+      } else if (!hasAttemptedInitialCloudSeed && navigator.onLine) {
+        hasAttemptedInitialCloudSeed = true;
         // Inicializar documento en Firestore con el estado actual o default
         const local = loadStoredState();
         try {
-          await setDoc(docRef, local);
+          await setDoc(docRef, local, { merge: true });
           onUpdate(local);
         } catch (err) {
-          console.error('Error inicializando estado en Firestore:', err);
+          console.warn('Modo sin conexión detectado, usando datos locales:', err);
         }
       }
     },
     error => {
-      console.warn('Advertencia en conexión de Firestore:', error);
+      // Registrar advertencia amigable sin romper la aplicación
+      console.warn('Conexión con Firestore operando en modo local/offline:', error.message);
       if (onError) onError(error);
     }
   );
