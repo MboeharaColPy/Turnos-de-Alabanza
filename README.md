@@ -22,7 +22,7 @@ Puedes descargar directamente el archivo ejecutable para Android (.apk) e instal
 ### 🌐 Opción 2: Acceso Web (iPhone, iPad y navegadores)
 Si prefieres no instalar una APK o usas dispositivos Apple, puedes acceder desde tu navegador:
 
-- **[🔗 Abre la aplicación web aquí](https://MboeharaColPy.github.io/Turnos-de-Alabanza/)**
+- **[🔗 Abre la aplicación web aquí](https://6a97404db2b3a5b12fbcd85c--cozy-elf-fe9291.netlify.app/)**
 
 **Instalar como aplicación:**
 1. Abre el enlace anterior en tu navegador
