@@ -35,6 +35,40 @@ export function formatCardDate(d: Date): string {
   return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 }
 
+/**
+ * Retorna la fecha del mes que debe mostrarse por defecto en la vista mensual:
+ * Una vez haya transcurrido el último domingo del mes en curso, cambia automáticamente
+ * al siguiente mes para que la congregación/liderazgo vea de inmediato la programación activa.
+ */
+export function getDefaultMonthDate(referenceDate: Date = new Date()): Date {
+  const date = new Date(referenceDate);
+  const year = date.getFullYear();
+  const month = date.getMonth();
+
+  // Encontrar el último día del mes
+  const lastDayOfMonth = new Date(year, month + 1, 0);
+  // Calcular el día del mes correspondiente al último domingo (0 = Domingo)
+  const lastSundayDay = lastDayOfMonth.getDate() - lastDayOfMonth.getDay();
+  const lastSunday = new Date(year, month, lastSundayDay, 23, 59, 59, 999);
+
+  // Si hoy ya pasó el último domingo de este mes, pasamos automáticamente al mes siguiente
+  if (date > lastSunday) {
+    return new Date(year, month + 1, 1);
+  }
+
+  return new Date(year, month, 1);
+}
+
+/**
+ * Determina si el último domingo de un mes ya ha transcurrido
+ */
+export function isPastLastSundayOfMonth(year: number, month: number, referenceDate: Date = new Date()): boolean {
+  const lastDayOfMonth = new Date(year, month + 1, 0);
+  const lastSundayDay = lastDayOfMonth.getDate() - lastDayOfMonth.getDay();
+  const lastSunday = new Date(year, month, lastSundayDay, 23, 59, 59, 999);
+  return referenceDate > lastSunday;
+}
+
 export function generateWhatsAppSummary(state: AppState, weekStart: Date): string {
   const weekLabel = formatWeekRange(weekStart);
   let text = `📅 *TURNOS DEL GRUPO (${weekLabel})*\n\n`;

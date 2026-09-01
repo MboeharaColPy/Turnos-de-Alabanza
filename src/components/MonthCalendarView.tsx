@@ -1,6 +1,14 @@
 import React, { useState, useMemo } from 'react';
-import { AppState, DAYS_OF_WEEK, SongItem } from '../types';
-import { dateForDay, formatCardDate, getMonday, isoLocal } from '../utils/dateUtils';
+import { AppState, DAYS_OF_WEEK, SongItem, Musician, Role } from '../types';
+import {
+  dateForDay,
+  formatCardDate,
+  formatWeekRange,
+  getDefaultMonthDate,
+  getMonday,
+  isPastLastSundayOfMonth,
+  isoLocal,
+} from '../utils/dateUtils';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -19,10 +27,11 @@ import {
   Users,
   CheckCircle2,
   FileText,
-  KeyRound,
   HelpCircle,
   AlertTriangle,
   Heart,
+  Check,
+  Info,
 } from 'lucide-react';
 import { generateRotativeSchedule, getRoleCategory } from '../services/rotativeScheduler';
 import { ConflictExplainerModal } from './ConflictExplainerModal';
@@ -46,7 +55,8 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
   showToast,
   onRequestAdmin,
 }) => {
-  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
+  // Inicialización inteligente: Si ya pasó el último domingo de este mes, abre en el siguiente mes
+  const [currentDate, setCurrentDate] = useState<Date>(() => getDefaultMonthDate(new Date()));
   const [isGenerating, setIsGenerating] = useState(false);
   const [viewMode, setViewMode] = useState<'agenda' | 'calendar' | 'table'>('agenda');
   const [hidePastDates, setHidePastDates] = useState(false);
@@ -78,36 +88,52 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
   };
 
   const setThisMonth = () => {
-    setCurrentDate(new Date());
+    setCurrentDate(getDefaultMonthDate(new Date()));
   };
 
   const monthName = currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
   const capitalizedMonthName = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+
+  // Comprobar si el mes en visualización es el mes inteligente activo (avance automático por último domingo)
+  const isAutoAdvancedNextMonth = useMemo(() => {
+    const now = new Date();
+    const actualCurrentMonth = now.getMonth();
+    const actualCurrentYear = now.getFullYear();
+    const targetIsNext = (year === actualCurrentYear && month === actualCurrentMonth + 1) ||
+                         (year === actualCurrentYear + 1 && actualCurrentMonth === 11 && month === 0);
+    return targetIsNext && isPastLastSundayOfMonth(actualCurrentYear, actualCurrentMonth, now);
+  }, [year, month]);
 
   // Turnos ordenados por día y hora
   const sortedSlots = useMemo(() => {
     return [...state.slots].sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
   }, [state.slots]);
 
-  // Saturday and Sunday standard slots
-  const saturdaySlot = sortedSlots.find(s => s.day === 5) || sortedSlots[0];
-  const sundaySlot = sortedSlots.find(s => s.day === 6) || sortedSlots[1];
-
   // Helper map for fast musician lookup
   const musicianMap = useMemo(() => {
-    const map = new Map<string, (typeof state.musicians)[0]>();
+    const map = new Map<string, Musician>();
     state.musicians.forEach(m => map.set(m.id, m));
     return map;
   }, [state.musicians]);
 
   // Helper map for role lookup
   const roleMap = useMemo(() => {
-    const map = new Map<string, (typeof state.roles)[0]>();
+    const map = new Map<string, Role>();
     state.roles.forEach(r => map.set(r.id, r));
     return map;
   }, [state.roles]);
 
-  // Calculate all weeks of the month
+  // Helper map for couples lookup
+  const coupleMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (state.couples || []).forEach(c => {
+      map.set(c.aId, c.bId);
+      map.set(c.bId, c.aId);
+    });
+    return map;
+  }, [state.couples]);
+
+  // Calculate all weeks of the month (from first Monday to last Sunday)
   const weeksOfMonth = useMemo(() => {
     const firstDayOfMonth = new Date(year, month, 1);
     const lastDayOfMonth = new Date(year, month + 1, 0);
@@ -126,7 +152,7 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
     return weeks;
   }, [year, month]);
 
-  // Agenda items: ONLY dates and events that have scheduled shifts in this month
+  // Agenda items: Todas las fechas con eventos y asignaciones en el mes
   const agendaEvents = useMemo(() => {
     const events: {
       date: Date;
@@ -240,9 +266,17 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
             <CalendarIcon size={18} />
           </div>
           <div>
-            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#6b6b75] block">
-              Agenda & Turnos del Mes
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#6b6b75] block">
+                Agenda & Turnos del Mes
+              </span>
+              {isAutoAdvancedNextMonth && (
+                <span className="font-mono text-[9px] uppercase tracking-wider text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Check size={10} />
+                  <span>Ciclo Activo</span>
+                </span>
+              )}
+            </div>
             <h2 className="font-serif text-2xl sm:text-3xl font-light text-white tracking-tight">
               {capitalizedMonthName}
             </h2>
@@ -260,9 +294,10 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
             <button
               onClick={setThisMonth}
               className="px-3.5 py-1.5 bg-[#1a1a1d] hover:bg-[#232328] text-xs font-mono uppercase tracking-wider text-[#a0a0ab] hover:text-white rounded-lg transition-colors cursor-pointer min-h-[36px]"
+              title="Ir al mes del ciclo activo actual"
               id="this-month-btn"
             >
-              Hoy
+              Ciclo Activo
             </button>
             <button
               onClick={nextMonth}
@@ -363,9 +398,9 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
         </div>
       </div>
 
-      {/* VISTA 1: AGENDA DE FECHAS ASIGNADAS (SOLO FECHAS CON EVENTO Y MÚLTIPLES DETALLES) */}
+      {/* VISTA 1: AGENDA DE FECHAS ASIGNADAS (SINCRONIZACIÓN EXACTA 100% CON VISTA SEMANAL) */}
       {viewMode === 'agenda' && (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {(() => {
             const filteredAgenda = agendaEvents.filter(evt => {
               if (hidePastDates) {
@@ -400,60 +435,98 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
               const isPast = evtMidnight < todayStart;
               const isExpanded = expandedPastKeys[evt.shiftKey] ?? !isPast;
 
-              const slotRoleIds = evt.slot.roleIds || [];
-              const assignedCount = Object.values(evt.assignments).filter(Boolean).length;
-
-              // Roles categorizados
-              const directorRole = state.roles.find(r =>
-                r.name.toLowerCase().includes('director')
+              // Extraer y categorizar TODOS los roles configurados + asignaciones activas
+              const slotRoleIds = (evt.slot.roleIds || []).filter(rid =>
+                state.roles.some(r => r.id === rid && r.name && r.name.toLowerCase().trim() !== 'rol')
               );
 
+              // Rol Director
+              const directorRole = state.roles.find(r => getRoleCategory(r.name) === 'director');
               const directorMusicianId = directorRole ? evt.assignments[directorRole.id] : null;
-              const directorMusician = directorMusicianId
-                ? musicianMap.get(directorMusicianId)
-                : null;
+              const directorMusician = directorMusicianId ? musicianMap.get(directorMusicianId) : null;
               const directorGender: 'H' | 'M' | null = directorMusician?.gender || null;
 
-              // Voces H (3 hombres) y Voces M (3 mujeres) estrictamente 6 puestos
-              const vocesHRoles = state.roles
-                .filter(r => r.name.toLowerCase().trim().startsWith('voz h'))
+              // Voces H (3 puestos) y Voces M (3 puestos)
+              const allVoiceRolesH = state.roles
+                .filter(r => getRoleCategory(r.name) === 'voz_h')
                 .sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }))
                 .slice(0, 3);
 
-              const vocesMRoles = state.roles
-                .filter(r => r.name.toLowerCase().trim().startsWith('voz m'))
+              const allVoiceRolesM = state.roles
+                .filter(r => getRoleCategory(r.name) === 'voz_m')
                 .sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }))
                 .slice(0, 3);
 
-              // Adjust required count if 3rd voice of director's gender is optional
+              // Instrumentos
+              const instrumentRoles = slotRoleIds
+                .map(rid => roleMap.get(rid))
+                .filter((r): r is Role => !!r && getRoleCategory(r.name) === 'instrument');
+
+              // Sonido Multimedia
+              const techRoles = slotRoleIds
+                .map(rid => roleMap.get(rid))
+                .filter((r): r is Role => !!r && getRoleCategory(r.name) === 'tech');
+
+              // Otros roles adicionales configurados o asignados
+              const otherRoles = slotRoleIds
+                .map(rid => roleMap.get(rid))
+                .filter(
+                  (r): r is Role =>
+                    !!r &&
+                    getRoleCategory(r.name) !== 'director' &&
+                    getRoleCategory(r.name) !== 'voz_h' &&
+                    getRoleCategory(r.name) !== 'voz_m' &&
+                    getRoleCategory(r.name) !== 'instrument' &&
+                    getRoleCategory(r.name) !== 'tech'
+                );
+
+              // Conteo de asignados reales
+              const assignedMusicianIds = Object.values(evt.assignments).filter(Boolean);
+              const assignedCount = assignedMusicianIds.length;
+
+              // Roles opcionales (3ra voz del mismo género del director)
               let optionalVoiceCount = 0;
-              if (directorGender === 'H' && vocesHRoles.length >= 3 && !evt.assignments[vocesHRoles[2].id]) {
+              if (directorGender === 'H' && allVoiceRolesH.length >= 3 && !evt.assignments[allVoiceRolesH[2].id]) {
                 optionalVoiceCount++;
-              } else if (directorGender === 'M' && vocesMRoles.length >= 3 && !evt.assignments[vocesMRoles[2].id]) {
+              } else if (directorGender === 'M' && allVoiceRolesM.length >= 3 && !evt.assignments[allVoiceRolesM[2].id]) {
                 optionalVoiceCount++;
               }
 
-              const totalConfiguredRoles =
+              const totalConfiguredCount =
                 (directorRole ? 1 : 0) +
-                vocesHRoles.length +
-                vocesMRoles.length +
-                slotRoleIds.filter(rid => {
-                  const r = roleMap.get(rid);
-                  return r && (getRoleCategory(r.name) === 'instrument' || getRoleCategory(r.name) === 'tech');
-                }).length;
+                allVoiceRolesH.length +
+                allVoiceRolesM.length +
+                instrumentRoles.length +
+                techRoles.length +
+                otherRoles.length;
 
-              const adjustedTotalRequired = Math.max(1, totalConfiguredRoles - optionalVoiceCount);
+              const adjustedTotalRequired = Math.max(1, totalConfiguredCount - optionalVoiceCount);
               const isFullyStaffed = assignedCount >= adjustedTotalRequired;
 
-              const instrumentRoles = slotRoleIds
-                .map(rid => roleMap.get(rid))
-                .filter(
-                  (r): r is NonNullable<typeof r> => !!r && getRoleCategory(r.name) === 'instrument'
-                );
+              // Detección de Parejas en descanso
+              const assignedMusiciansSet = new Set(assignedMusicianIds);
+              const coupleAlerts: { musicianName: string; spouseName: string }[] = [];
+              assignedMusiciansSet.forEach(mId => {
+                const spouseId = coupleMap.get(mId);
+                if (spouseId && !assignedMusiciansSet.has(spouseId)) {
+                  const m = musicianMap.get(mId);
+                  const spouse = musicianMap.get(spouseId);
+                  if (m && spouse) {
+                    coupleAlerts.push({ musicianName: m.name, spouseName: spouse.name });
+                  }
+                }
+              });
 
-              const techRoles = slotRoleIds
-                .map(rid => roleMap.get(rid))
-                .filter((r): r is NonNullable<typeof r> => !!r && getRoleCategory(r.name) === 'tech');
+              // Detección de Dobles Roles
+              const musicianAssignmentCount: Record<string, string[]> = {};
+              Object.entries(evt.assignments).forEach(([rId, mId]) => {
+                if (mId && typeof mId === 'string') {
+                  const r = roleMap.get(rId);
+                  if (r) {
+                    musicianAssignmentCount[mId] = [...(musicianAssignmentCount[mId] || []), r.name];
+                  }
+                }
+              });
 
               return (
                 <div
@@ -491,8 +564,8 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-[#888894] mt-0.5 flex items-center gap-1.5">
-                          <span>{evt.slot.label}</span>
+                        <p className="text-xs text-[#888894] mt-0.5 flex items-center gap-1.5 flex-wrap">
+                          <span className="font-medium text-white">{evt.slot.label}</span>
                           <span>•</span>
                           <span className="font-mono text-[11px] text-[#6b6b75]">
                             {formatCardDate(evt.date)}
@@ -500,30 +573,33 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                           {directorMusician && (
                             <>
                               <span>•</span>
-                              <span className="text-white font-medium">Dir: {directorMusician.name}</span>
+                              <span className="text-[#c5a059] font-medium flex items-center gap-1">
+                                <UserCheck size={12} />
+                                <span>Dir: {directorMusician.name}</span>
+                              </span>
                             </>
                           )}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 flex-wrap">
                       <span
-                        className={`font-mono text-[11px] px-3 py-1 rounded-full border uppercase tracking-wider ${
+                        className={`font-mono text-[11px] px-3 py-1 rounded-full border uppercase tracking-wider font-semibold ${
                           isFullyStaffed
-                            ? 'bg-emerald-950/30 text-emerald-300 border-emerald-800/40'
+                            ? 'bg-emerald-950/40 text-emerald-300 border-emerald-800/50'
                             : assignedCount > 0
                             ? 'bg-[#c5a059]/10 text-[#c5a059] border-[#c5a059]/30'
                             : 'bg-[#0a0a0b] text-[#6b6b75] border-[#1f1f23]'
                         }`}
                       >
-                        {assignedCount}/{adjustedTotalRequired} ASIGNADOS
+                        {assignedCount}/{adjustedTotalRequired} CONVOCADOS
                       </span>
 
                       {isPast && (
                         <button
                           onClick={() => toggleExpandPast(evt.shiftKey)}
-                          className="px-3 py-1.5 bg-[#0a0a0b] hover:bg-[#1a1a1d] text-[#a0a0ab] hover:text-white font-mono text-xs uppercase tracking-wider rounded-lg border border-[#2a2a2e] transition-all cursor-pointer"
+                          className="px-3 py-1.5 bg-[#0a0a0b] hover:bg-[#1a1a1d] text-[#a0a0ab] hover:text-white font-mono text-xs uppercase tracking-wider rounded-lg border border-[#2a2a2e] transition-all cursor-pointer min-h-[36px]"
                         >
                           {isExpanded ? 'Minimizar ▲' : 'Ver Detalle ▼'}
                         </button>
@@ -531,8 +607,8 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
 
                       <button
                         onClick={() => onSelectWeek(evt.weekStart)}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1a1a1d] hover:bg-[#c5a059] text-[#c5a059] hover:text-black font-mono text-xs uppercase tracking-wider rounded-lg border border-[#c5a059]/40 hover:border-[#c5a059] transition-all cursor-pointer shadow-sm"
-                        title="Ir a la edición de la semana correspondiente"
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1a1a1d] hover:bg-[#c5a059] text-[#c5a059] hover:text-black font-mono text-xs uppercase tracking-wider rounded-lg border border-[#c5a059]/40 hover:border-[#c5a059] transition-all cursor-pointer shadow-sm min-h-[36px]"
+                        title="Ir a la edición de esta semana en la vista semanal"
                       >
                         <span>Editar Semana</span>
                         <ArrowRight size={13} />
@@ -543,11 +619,28 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                   {/* Cuerpo Detallado del Evento de Agenda (Desplegable si es fecha pasada) */}
                   {isExpanded && (
                     <div className="p-4 sm:p-6 space-y-5 bg-[#121215]">
+                      {/* Avisos de Parejas o Dobles Roles si aplican */}
+                      {coupleAlerts.length > 0 && (
+                        <div className="bg-amber-950/20 border border-amber-800/40 rounded-xl p-3 flex items-start gap-2.5">
+                          <Heart size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                          <div className="text-xs text-amber-200">
+                            <span className="font-bold">Aviso de Parejas: </span>
+                            {coupleAlerts.map((ca, i) => (
+                              <span key={i}>
+                                <strong>{ca.musicianName}</strong> está convocado(a) mientras que su cónyuge{' '}
+                                <strong>{ca.spouseName}</strong> tiene descanso.
+                                {i < coupleAlerts.length - 1 ? ' · ' : ''}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Director Convocado (Destacado) */}
                       <div className="bg-[#0a0a0b] border border-[#232328] rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-[#c5a059]/10 border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059]">
-                            <UserCheck size={16} />
+                          <div className="w-10 h-10 rounded-lg bg-[#c5a059]/10 border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059]">
+                            <UserCheck size={18} />
                           </div>
                           <div>
                             <span className="font-mono text-[10px] text-[#6b6b75] uppercase tracking-widest block">
@@ -559,16 +652,18 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                               </span>
                             ) : (
                               <span className="text-sm text-[#6b6b75] italic">
-                                — Director no definido todavía —
+                                — Director(a) no asignado(a) todavía —
                               </span>
                             )}
                           </div>
                         </div>
 
                         {directorMusician && (
-                          <span className="self-start sm:self-center font-mono text-[10px] text-emerald-400 bg-emerald-950/30 border border-emerald-900/30 px-2.5 py-0.5 rounded">
-                            ✓ Director Asignado
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-900/40 px-2.5 py-1 rounded-md font-semibold">
+                              ✓ Director(a) Asignado(a)
+                            </span>
+                          </div>
                         )}
                       </div>
 
@@ -577,32 +672,43 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                         <div className="flex items-center justify-between">
                           <span className="font-mono text-[11px] uppercase tracking-wider text-[#c5a059] flex items-center gap-1.5 font-semibold">
                             <Mic2 size={13} />
-                            <span>Voces</span>
+                            <span>Equipo Vocal (3 Hombres & 3 Mujeres)</span>
                           </span>
                           <span className="font-mono text-[10px] text-[#6b6b75]">
                             {directorGender === 'H'
-                              ? '2 Voz H + 3 Voz M + Dir (3+3)'
+                              ? '2 Voz H + 3 Voz M + Dir H (3+3)'
                               : directorGender === 'M'
-                              ? '3 Voz H + 2 Voz M + Dir (3+3)'
+                              ? '3 Voz H + 2 Voz M + Dir M (3+3)'
                               : 'Voz h 1, 2, 3 & Voz m 1, 2, 3'}
                           </span>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                          {vocesHRoles.map((r, voiceIdx) => {
+                          {allVoiceRolesH.map((r, voiceIdx) => {
                             const assignedId = evt.assignments[r.id];
                             const musician = assignedId ? musicianMap.get(assignedId) : null;
                             const isOptionalSlot = directorGender === 'H' && voiceIdx === 2;
                             return (
                               <div
                                 key={r.id}
-                                className="flex items-center justify-between text-xs py-2 px-2.5 rounded-lg bg-[#0a0a0b] border border-[#1f1f23]"
+                                className={`flex items-center justify-between text-xs py-2 px-3 rounded-xl border ${
+                                  musician
+                                    ? 'bg-blue-950/20 border-blue-800/40 shadow-sm'
+                                    : 'bg-[#0a0a0b] border-[#1f1f23]'
+                                }`}
                               >
-                                <span className="text-[#a0a0ab] font-mono text-[11px] font-medium">
-                                  {r.name}:
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[9px] font-mono font-bold text-blue-300 bg-blue-950/70 px-1.5 py-0.5 rounded border border-blue-700/50">
+                                    H
+                                  </span>
+                                  <span className="text-[#a0a0ab] font-mono text-[11px] font-medium">
+                                    {r.name}:
+                                  </span>
+                                </div>
                                 {musician ? (
-                                  <span className="text-white font-medium">{musician.name}</span>
+                                  <span className="text-white font-medium truncate max-w-[120px] text-right">
+                                    {musician.name}
+                                  </span>
                                 ) : isOptionalSlot ? (
                                   <span className="text-[#6b6b75] italic text-[10px] font-mono">
                                     — Opcional (Dir H) —
@@ -614,20 +720,31 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                             );
                           })}
 
-                          {vocesMRoles.map((r, voiceIdx) => {
+                          {allVoiceRolesM.map((r, voiceIdx) => {
                             const assignedId = evt.assignments[r.id];
                             const musician = assignedId ? musicianMap.get(assignedId) : null;
                             const isOptionalSlot = directorGender === 'M' && voiceIdx === 2;
                             return (
                               <div
                                 key={r.id}
-                                className="flex items-center justify-between text-xs py-2 px-2.5 rounded-lg bg-[#0a0a0b] border border-[#1f1f23]"
+                                className={`flex items-center justify-between text-xs py-2 px-3 rounded-xl border ${
+                                  musician
+                                    ? 'bg-rose-950/20 border-rose-800/40 shadow-sm'
+                                    : 'bg-[#0a0a0b] border-[#1f1f23]'
+                                }`}
                               >
-                                <span className="text-[#a0a0ab] font-mono text-[11px] font-medium">
-                                  {r.name}:
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[9px] font-mono font-bold text-rose-300 bg-rose-950/70 px-1.5 py-0.5 rounded border border-rose-700/50">
+                                    M
+                                  </span>
+                                  <span className="text-[#a0a0ab] font-mono text-[11px] font-medium">
+                                    {r.name}:
+                                  </span>
+                                </div>
                                 {musician ? (
-                                  <span className="text-white font-medium">{musician.name}</span>
+                                  <span className="text-white font-medium truncate max-w-[120px] text-right">
+                                    {musician.name}
+                                  </span>
                                 ) : isOptionalSlot ? (
                                   <span className="text-[#6b6b75] italic text-[10px] font-mono">
                                     — Opcional (Dir M) —
@@ -641,135 +758,176 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                         </div>
                       </div>
 
-                    {/* Banda / Instrumentos & Técnica */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-                      {/* Instrumentos */}
-                      <div className="space-y-2">
-                        <span className="font-mono text-[11px] uppercase tracking-wider text-[#a0a0ab] flex items-center gap-1.5">
-                          <Music size={13} className="text-[#c5a059]" />
-                          <span>Banda / Instrumentos</span>
-                        </span>
-                        <div className="bg-[#0a0a0b] border border-[#1f1f23] rounded-xl p-3 space-y-1.5">
-                          {instrumentRoles.length === 0 ? (
-                            <span className="text-xs text-[#6b6b75] italic">Sin instrumentos</span>
-                          ) : (
-                            instrumentRoles.map(r => {
+                      {/* Banda / Instrumentos & Multimedia */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                        {/* Instrumentos */}
+                        <div className="space-y-2">
+                          <span className="font-mono text-[11px] uppercase tracking-wider text-[#a0a0ab] flex items-center gap-1.5 font-semibold">
+                            <Music size={13} className="text-[#c5a059]" />
+                            <span>Banda / Instrumentos ({instrumentRoles.length})</span>
+                          </span>
+                          <div className="bg-[#0a0a0b] border border-[#1f1f23] rounded-xl p-3 space-y-2">
+                            {instrumentRoles.length === 0 ? (
+                              <span className="text-xs text-[#6b6b75] italic">Sin instrumentos configurados</span>
+                            ) : (
+                              instrumentRoles.map(r => {
+                                const assignedId = evt.assignments[r.id];
+                                const musician = assignedId ? musicianMap.get(assignedId) : null;
+                                return (
+                                  <div
+                                    key={r.id}
+                                    className={`flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg border ${
+                                      musician
+                                        ? 'bg-[#18181c] border-[#2e2e34]'
+                                        : 'bg-[#121215] border-[#1f1f23]'
+                                    }`}
+                                  >
+                                    <span className="text-[#888894] font-mono text-[11px]">
+                                      {r.name}:
+                                    </span>
+                                    {musician ? (
+                                      <span className="text-white font-medium">{musician.name}</span>
+                                    ) : (
+                                      <span className="text-[#6b6b75] italic text-[11px]">— Vacante —</span>
+                                    )}
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Sonido Multimedia */}
+                        <div className="space-y-2">
+                          <span className="font-mono text-[11px] uppercase tracking-wider text-[#a0a0ab] flex items-center gap-1.5 font-semibold">
+                            <Sliders size={13} className="text-cyan-400" />
+                            <span>Sonido Multimedia ({techRoles.length})</span>
+                          </span>
+                          <div className="bg-[#0a0a0b] border border-[#1f1f23] rounded-xl p-3 space-y-2">
+                            {techRoles.length === 0 ? (
+                              <span className="text-xs text-[#6b6b75] italic">Sin técnica configurada</span>
+                            ) : (
+                              techRoles.map(r => {
+                                const assignedId = evt.assignments[r.id];
+                                const musician = assignedId ? musicianMap.get(assignedId) : null;
+                                return (
+                                  <div
+                                    key={r.id}
+                                    className={`flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg border ${
+                                      musician
+                                        ? 'bg-cyan-950/20 border-cyan-800/40'
+                                        : 'bg-[#121215] border-[#1f1f23]'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[9px] font-mono font-bold text-cyan-300 bg-cyan-950/70 px-1 py-0.5 rounded border border-cyan-700/50">
+                                        Audio
+                                      </span>
+                                      <span className="text-[#888894] font-mono text-[11px]">
+                                        {r.name}:
+                                      </span>
+                                    </div>
+                                    {musician ? (
+                                      <span className="text-cyan-300 font-medium">{musician.name}</span>
+                                    ) : (
+                                      <span className="text-[#6b6b75] italic text-[11px]">— Vacante —</span>
+                                    )}
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Otros roles adicionales */}
+                      {otherRoles.length > 0 && (
+                        <div className="space-y-2 pt-1">
+                          <span className="font-mono text-[11px] uppercase tracking-wider text-[#a0a0ab]">
+                            Otros Roles ({otherRoles.length})
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-[#0a0a0b] p-3 rounded-xl border border-[#1f1f23]">
+                            {otherRoles.map(r => {
                               const assignedId = evt.assignments[r.id];
                               const musician = assignedId ? musicianMap.get(assignedId) : null;
                               return (
                                 <div
                                   key={r.id}
-                                  className="flex items-center justify-between text-xs py-1 px-2 rounded bg-[#141418] border border-[#1f1f23]"
+                                  className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded bg-[#141418] border border-[#1f1f23]"
                                 >
-                                  <span className="text-[#888894] font-mono text-[11px]">
-                                    {r.name}:
-                                  </span>
+                                  <span className="text-[#888894] font-mono text-[11px]">{r.name}:</span>
                                   {musician ? (
                                     <span className="text-white font-medium">{musician.name}</span>
                                   ) : (
-                                    <span className="text-[#6b6b75] italic">— Vacante —</span>
+                                    <span className="text-[#6b6b75] italic text-[11px]">— Vacante —</span>
                                   )}
                                 </div>
                               );
-                            })
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Sonido Multimedia */}
-                      <div className="space-y-2">
-                        <span className="font-mono text-[11px] uppercase tracking-wider text-[#a0a0ab] flex items-center gap-1.5">
-                          <Sliders size={13} className="text-cyan-400" />
-                          <span>Sonido Multimedia</span>
-                        </span>
-                        <div className="bg-[#0a0a0b] border border-[#1f1f23] rounded-xl p-3 space-y-1.5">
-                          {techRoles.length === 0 ? (
-                            <span className="text-xs text-[#6b6b75] italic">Sin técnica</span>
-                          ) : (
-                            techRoles.map(r => {
-                              const assignedId = evt.assignments[r.id];
-                              const musician = assignedId ? musicianMap.get(assignedId) : null;
-                              return (
-                                <div
-                                  key={r.id}
-                                  className="flex items-center justify-between text-xs py-1 px-2 rounded bg-[#141418] border border-[#1f1f23]"
-                                >
-                                  <span className="text-[#888894] font-mono text-[11px]">
-                                    {r.name}:
-                                  </span>
-                                  {musician ? (
-                                    <span className="text-cyan-300 font-medium">{musician.name}</span>
-                                  ) : (
-                                    <span className="text-[#6b6b75] italic">— Vacante —</span>
-                                  )}
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Repertorio / Alabanzas del Turno (Clickeables para ver Letra y Notas) */}
-                    <div className="pt-2 border-t border-[#1f1f23] space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono text-[11px] uppercase tracking-wider text-[#c5a059] flex items-center gap-1.5">
-                          <FileText size={13} />
-                          <span>Repertorio de Alabanzas ({evt.songs.length})</span>
-                        </span>
-                        <span className="text-[10px] text-[#6b6b75] font-mono">
-                          Haz clic sobre una canción para abrir su letra y notas
-                        </span>
-                      </div>
-
-                      {evt.songs.length === 0 ? (
-                        <div className="text-xs text-[#6b6b75] italic bg-[#0a0a0b] p-3 rounded-xl border border-[#1f1f23]">
-                          No hay canciones agregadas a este turno todavía.
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                          {evt.songs.map((song, sIdx) => (
-                            <button
-                              key={song.id || sIdx}
-                              onClick={() => onSelectSong && onSelectSong(song)}
-                              type="button"
-                              className="text-left bg-[#0a0a0b] hover:bg-[#18181d] border border-[#232328] hover:border-[#c5a059] p-2.5 rounded-xl flex items-center justify-between gap-2 transition-all group cursor-pointer"
-                              title="Ver letra y notas de esta canción"
-                            >
-                              <div className="min-w-0 flex items-center gap-2">
-                                <span className="font-mono text-xs text-[#c5a059] font-bold">
-                                  {sIdx + 1}.
-                                </span>
-                                <div className="min-w-0">
-                                  <h5 className="text-xs font-medium text-white group-hover:text-[#c5a059] transition-colors truncate">
-                                    {song.title}
-                                  </h5>
-                                  <p className="text-[10px] text-[#6b6b75] truncate">
-                                    {song.artist || 'Desconocido'}
-                                  </p>
-                                </div>
-                              </div>
-
-                              {song.key && (
-                                <span className="font-mono text-[10px] uppercase font-semibold text-[#c5a059] bg-[#c5a059]/10 border border-[#c5a059]/30 px-1.5 py-0.5 rounded flex-shrink-0">
-                                  {song.key}
-                                </span>
-                              )}
-                            </button>
-                          ))}
+                            })}
+                          </div>
                         </div>
                       )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          });
-        })()}
-      </div>
-    )}
 
-      {/* VISTA 2: CUADRÍCULA DE CALENDARIO VISUAL */}
+                      {/* Repertorio / Alabanzas del Turno (Clickeables para ver Letra y Notas) */}
+                      <div className="pt-3 border-t border-[#1f1f23] space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[11px] uppercase tracking-wider text-[#c5a059] flex items-center gap-1.5 font-semibold">
+                            <FileText size={13} />
+                            <span>Repertorio de Alabanzas ({evt.songs.length})</span>
+                          </span>
+                          <span className="text-[10px] text-[#6b6b75] font-mono">
+                            Haz clic sobre una canción para abrir su letra y notas
+                          </span>
+                        </div>
+
+                        {evt.songs.length === 0 ? (
+                          <div className="text-xs text-[#6b6b75] italic bg-[#0a0a0b] p-3 rounded-xl border border-[#1f1f23]">
+                            No hay canciones agregadas a este turno todavía.
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {evt.songs.map((song, sIdx) => (
+                              <button
+                                key={song.id || sIdx}
+                                onClick={() => onSelectSong && onSelectSong(song)}
+                                type="button"
+                                className="text-left bg-[#0a0a0b] hover:bg-[#18181d] border border-[#232328] hover:border-[#c5a059] p-2.5 rounded-xl flex items-center justify-between gap-2 transition-all group cursor-pointer"
+                                title="Ver letra y notas de esta canción"
+                              >
+                                <div className="min-w-0 flex items-center gap-2">
+                                  <span className="font-mono text-xs text-[#c5a059] font-bold">
+                                    {sIdx + 1}.
+                                  </span>
+                                  <div className="min-w-0">
+                                    <h5 className="text-xs font-medium text-white group-hover:text-[#c5a059] transition-colors truncate">
+                                      {song.title}
+                                    </h5>
+                                    <p className="text-[10px] text-[#6b6b75] truncate">
+                                      {song.artist || 'Desconocido'}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {song.key && (
+                                  <span className="font-mono text-[10px] uppercase font-semibold text-[#c5a059] bg-[#c5a059]/10 border border-[#c5a059]/30 px-1.5 py-0.5 rounded flex-shrink-0">
+                                    {song.key}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            });
+          })()}
+        </div>
+      )}
+
+      {/* VISTA 2: CUADRÍCULA DE CALENDARIO VISUAL (SINCRONIZADA) */}
       {viewMode === 'calendar' && (
         <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl overflow-hidden shadow-2xl">
           {/* Días de la semana (Cabecera) */}
@@ -798,7 +956,7 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                 <div
                   key={idx}
                   onClick={() => onSelectWeek(dayItem.weekStart)}
-                  className={`min-h-[110px] sm:min-h-[135px] p-2 flex flex-col justify-between transition-all cursor-pointer group ${
+                  className={`min-h-[110px] sm:min-h-[145px] p-2 flex flex-col justify-between transition-all cursor-pointer group ${
                     dayItem.isCurrentMonth
                       ? isPastDay
                         ? 'bg-[#121215]/80 opacity-60 hover:opacity-100 hover:bg-[#1a1a1e]'
@@ -823,14 +981,14 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                     </span>
 
                     {daySlots.length > 0 && dayItem.isCurrentMonth && (
-                      <span className="text-[9px] font-mono text-[#c5a059] opacity-75">
+                      <span className="text-[9px] font-mono text-[#c5a059] opacity-80">
                         {daySlots.length === 1 ? '1 Turno' : `${daySlots.length} Turnos`}
                       </span>
                     )}
                   </div>
 
                   {/* Turnos / Actividades del día */}
-                  <div className="mt-1 space-y-1.5 flex-1 flex flex-col justify-center">
+                  <div className="mt-1 space-y-1.5 flex-1 flex flex-col justify-start">
                     {daySlots.map(slot => {
                       const key = `${dateIso}__${slot.id}`;
                       const assignment = state.assignments[key] || {};
@@ -838,13 +996,15 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                       const songs = state.shiftSongs?.[key] || [];
 
                       // Director
-                      const directorRole = state.roles.find(r =>
-                        r.name.toLowerCase().includes('director')
-                      );
+                      const directorRole = state.roles.find(r => getRoleCategory(r.name) === 'director');
                       const directorId = directorRole ? assignment[directorRole.id] : null;
-                      const directorMusician = directorId
-                        ? state.musicians.find(m => m.id === directorId)
-                        : null;
+                      const directorMusician = directorId ? musicianMap.get(directorId) : null;
+
+                      // Nombres de algunos convocados para previsualización
+                      const sampleNames = Array.from(new Set(Object.values(assignment).filter(Boolean)))
+                        .map(mid => musicianMap.get(mid)?.name)
+                        .filter(Boolean)
+                        .slice(0, 3);
 
                       return (
                         <div
@@ -855,7 +1015,7 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                             <span className="font-mono text-[#c5a059] font-semibold">
                               {slot.time} hs
                             </span>
-                            <span className="text-[#6b6b75] truncate max-w-[70px] text-right">
+                            <span className="text-[#6b6b75] truncate max-w-[65px] text-right font-medium">
                               {slot.label}
                             </span>
                           </div>
@@ -868,11 +1028,18 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                             </div>
                           )}
 
+                          {/* Integrantes asignados */}
+                          {sampleNames.length > 0 && !directorMusician && (
+                            <div className="text-[#a0a0ab] truncate text-[9px]">
+                              {sampleNames.join(', ')}
+                            </div>
+                          )}
+
                           {/* Resumen de equipo & canciones */}
                           <div className="flex items-center justify-between text-[#888894] pt-0.5 border-t border-[#1a1a1d]">
-                            <span>{assignedCount} asignados</span>
+                            <span className="font-mono text-[9px]">{assignedCount} asignados</span>
                             {songs.length > 0 && (
-                              <span className="text-[#c5a059] flex items-center gap-0.5">
+                              <span className="text-[#c5a059] flex items-center gap-0.5 font-mono text-[9px]">
                                 <Music size={9} />
                                 <span>{songs.length}</span>
                               </span>
@@ -889,14 +1056,14 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
         </div>
       )}
 
-      {/* VISTA 3: TABLA SIMULTÁNEA DE FECHAS DEL MES */}
+      {/* VISTA 3: TABLA DE FECHAS Y SERVICIOS DEL MES (DINÁMICA & SINCRONIZADA) */}
       {viewMode === 'table' && (
         <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl overflow-hidden shadow-2xl">
-          <div className="p-4 bg-[#1a1a1d] border-b border-[#1f1f23] flex items-center justify-between">
+          <div className="p-4 bg-[#1a1a1d] border-b border-[#1f1f23] flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <TableIcon size={16} className="text-[#c5a059]" />
               <span className="font-serif text-lg text-white font-medium">
-                Resumen de Fechas — {capitalizedMonthName}
+                Resumen de Fechas & Convocatorias — {capitalizedMonthName}
               </span>
             </div>
             <span className="text-[10px] font-mono uppercase tracking-widest text-[#6b6b75]">
@@ -909,10 +1076,9 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
               <thead>
                 <tr className="bg-[#0f0f12] text-[10px] font-mono uppercase tracking-widest text-[#6b6b75] border-b border-[#1f1f23]">
                   <th className="py-3.5 px-4 font-semibold">Semana</th>
-                  <th className="py-3.5 px-4 font-semibold">Ensayo Sábado</th>
-                  <th className="py-3.5 px-4 font-semibold">Culto Dominical</th>
-                  <th className="py-3.5 px-4 font-semibold">Director(a)</th>
-                  <th className="py-3.5 px-4 font-semibold">Voces e Integrantes</th>
+                  <th className="py-3.5 px-4 font-semibold">Servicios Programados</th>
+                  <th className="py-3.5 px-4 font-semibold">Dirección de Alabanza</th>
+                  <th className="py-3.5 px-4 font-semibold">Músicos Convocados</th>
                   <th className="py-3.5 px-4 font-semibold">Alabanzas</th>
                   <th className="py-3.5 px-4 font-semibold text-right">Acción</th>
                 </tr>
@@ -929,40 +1095,58 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                     const weekEnd = new Date(weekMonday);
                     weekEnd.setDate(weekEnd.getDate() + 6);
                     const isPastWeek = weekEnd < todayStart;
-                    const weekLabel = `${weekMonday.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} – ${weekEnd.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`;
+                    const weekLabel = `${weekMonday.toLocaleDateString('es-ES', {
+                      day: 'numeric',
+                      month: 'short',
+                    })} – ${weekEnd.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`;
 
-                    // Sábado
-                    const satDate = dateForDay(weekMonday, 5);
-                    const satKey = saturdaySlot ? `${isoLocal(satDate)}__${saturdaySlot.id}` : '';
-                    const satAssign = satKey ? state.assignments[satKey] || {} : {};
-                    const satCount = Object.values(satAssign).filter(Boolean).length;
-                    const satSongs = satKey ? state.shiftSongs?.[satKey] || [] : [];
+                    // Obtener todos los slots para esta semana con sus asignaciones reales
+                    const weekShifts = sortedSlots.map(slot => {
+                      const shiftDate = dateForDay(weekMonday, slot.day);
+                      const key = `${isoLocal(shiftDate)}__${slot.id}`;
+                      const assign = state.assignments[key] || {};
+                      const count = Object.values(assign).filter(Boolean).length;
+                      const songs = state.shiftSongs?.[key] || [];
 
-                    // Domingo
-                    const sunDate = dateForDay(weekMonday, 6);
-                    const sunKey = sundaySlot ? `${isoLocal(sunDate)}__${sundaySlot.id}` : '';
-                    const sunAssign = sunKey ? state.assignments[sunKey] || {} : {};
-                    const sunCount = Object.values(sunAssign).filter(Boolean).length;
-                    const sunSongs = sunKey ? state.shiftSongs?.[sunKey] || [] : [];
+                      const directorRole = state.roles.find(r => getRoleCategory(r.name) === 'director');
+                      const dirMusicianId = directorRole ? assign[directorRole.id] : null;
+                      const dirMusician = dirMusicianId ? musicianMap.get(dirMusicianId) : null;
 
-                    // Director
-                    const primaryAssign = Object.keys(sunAssign).length > 0 ? sunAssign : satAssign;
-                    const directorRole = state.roles.find(r =>
-                      r.name.toLowerCase().includes('director')
+                      return {
+                        slot,
+                        shiftDate,
+                        key,
+                        assign,
+                        count,
+                        songs,
+                        dirMusician,
+                      };
+                    });
+
+                    // Directores de la semana
+                    const directorsList = Array.from(
+                      new Set(
+                        weekShifts
+                          .map(ws => ws.dirMusician?.name)
+                          .filter((name): name is string => Boolean(name))
+                      )
                     );
-                    const dirMusicianId = directorRole ? primaryAssign[directorRole.id] : null;
-                    const dirMusician = dirMusicianId
-                      ? state.musicians.find(m => m.id === dirMusicianId)
-                      : null;
 
-                    // Unique scheduled musicians in Sunday shift
-                    const assignedMusicians = Array.from(
-                      new Set(Object.values(sunAssign).filter(Boolean))
-                    )
-                      .map(mid => state.musicians.find(m => m.id === mid))
-                      .filter(Boolean);
+                    // Músicos únicos convocados en toda la semana
+                    const allAssignedMusicianIdsInWeek = Array.from(
+                      new Set(
+                        weekShifts.flatMap(ws => Object.values(ws.assign).filter(Boolean))
+                      )
+                    );
+                    const assignedMusicians = allAssignedMusicianIdsInWeek
+                      .map(mid => musicianMap.get(mid))
+                      .filter((m): m is Musician => Boolean(m));
 
-                    const totalSongsCount = satSongs.length + sunSongs.length;
+                    // Total de canciones en la semana
+                    const totalSongsCount = weekShifts.reduce(
+                      (acc, ws) => acc + ws.songs.length,
+                      0
+                    );
 
                     return (
                       <tr
@@ -974,125 +1158,109 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                         }`}
                         onClick={() => onSelectWeek(weekMonday)}
                       >
-                      {/* Semana */}
-                      <td className="py-4 px-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[10px] uppercase font-bold text-[#c5a059] bg-[#c5a059]/10 border border-[#c5a059]/30 px-2 py-0.5 rounded">
-                            Sem {weekIdx + 1}
-                          </span>
-                          <span className="font-serif text-white font-medium">{weekLabel}</span>
-                        </div>
-                      </td>
-
-                      {/* Ensayo Sábado */}
-                      <td className="py-4 px-4 whitespace-nowrap">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-1.5 text-xs text-white">
-                            <Clock size={12} className="text-[#c5a059]" />
-                            <span>{saturdaySlot?.time || '18:00'} hs</span>
-                            <span className="text-[11px] text-[#6b6b75]">
-                              ({formatCardDate(satDate)})
+                        {/* Semana */}
+                        <td className="py-4 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[10px] uppercase font-bold text-[#c5a059] bg-[#c5a059]/10 border border-[#c5a059]/30 px-2 py-0.5 rounded">
+                              Sem {weekIdx + 1}
                             </span>
+                            <span className="font-serif text-white font-medium">{weekLabel}</span>
                           </div>
-                          <span
-                            className={`text-[10px] font-mono px-1.5 py-0.5 rounded border inline-block ${
-                              satCount > 0
-                                ? 'bg-emerald-950/30 text-emerald-300 border-emerald-800/40'
-                                : 'bg-[#0a0a0b] text-[#6b6b75] border-[#1f1f23]'
-                            }`}
-                          >
-                            {satCount} convocados
-                          </span>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Culto Dominical */}
-                      <td className="py-4 px-4 whitespace-nowrap">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-1.5 text-xs text-white">
-                            <Clock size={12} className="text-[#c5a059]" />
-                            <span>{sundaySlot?.time || '10:00'} hs</span>
-                            <span className="text-[11px] text-[#6b6b75]">
-                              ({formatCardDate(sunDate)})
-                            </span>
-                          </div>
-                          <span
-                            className={`text-[10px] font-mono px-1.5 py-0.5 rounded border inline-block ${
-                              sunCount > 0
-                                ? 'bg-emerald-950/30 text-emerald-300 border-emerald-800/40'
-                                : 'bg-[#0a0a0b] text-[#6b6b75] border-[#1f1f23]'
-                            }`}
-                          >
-                            {sunCount} convocados
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Director(a) */}
-                      <td className="py-4 px-4 whitespace-nowrap">
-                        {dirMusician ? (
-                          <div className="flex items-center gap-1.5">
-                            <UserCheck size={14} className="text-[#c5a059]" />
-                            <span className="text-xs font-medium text-white block">
-                              {dirMusician.name}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-[#6b6b75] italic">— Sin director —</span>
-                        )}
-                      </td>
-
-                      {/* Integrantes Convocados */}
-                      <td className="py-4 px-4 max-w-xs">
-                        {assignedMusicians.length > 0 ? (
-                          <div className="flex items-center gap-1 flex-wrap text-xs text-[#c0c0cc]">
-                            {assignedMusicians.slice(0, 4).map(m => (
-                              <span
-                                key={m.id}
-                                className="bg-[#0a0a0b] px-1.5 py-0.5 rounded border border-[#1f1f23] text-[11px]"
-                              >
-                                {m.name}
-                              </span>
+                        {/* Servicios Programados */}
+                        <td className="py-4 px-4 whitespace-nowrap">
+                          <div className="space-y-1.5">
+                            {weekShifts.map((ws, sIdx) => (
+                              <div key={sIdx} className="flex items-center gap-2 text-xs">
+                                <span className="font-mono text-[10px] uppercase font-bold text-[#c5a059]">
+                                  {DAYS_OF_WEEK[ws.slot.day].substring(0, 3)}:
+                                </span>
+                                <span className="text-white font-medium">{ws.slot.time} hs</span>
+                                <span className="text-[11px] text-[#6b6b75]">
+                                  ({formatCardDate(ws.shiftDate)})
+                                </span>
+                                <span
+                                  className={`text-[9px] font-mono px-1.5 py-0.5 rounded border inline-block ${
+                                    ws.count > 0
+                                      ? 'bg-emerald-950/40 text-emerald-300 border-emerald-800/40'
+                                      : 'bg-[#0a0a0b] text-[#6b6b75] border-[#1f1f23]'
+                                  }`}
+                                >
+                                  {ws.count} convocados
+                                </span>
+                              </div>
                             ))}
-                            {assignedMusicians.length > 4 && (
-                              <span className="text-[10px] font-mono text-[#c5a059]">
-                                +{assignedMusicians.length - 4} más
-                              </span>
-                            )}
                           </div>
-                        ) : (
-                          <span className="text-xs text-[#6b6b75] italic">— Pendiente —</span>
-                        )}
-                      </td>
+                        </td>
 
-                      {/* Alabanzas */}
-                      <td className="py-4 px-4 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5 text-xs text-[#a0a0ab]">
-                          <Music size={13} className="text-[#c5a059]" />
-                          <span>
-                            {totalSongsCount > 0
-                              ? `${totalSongsCount} alabanzas`
-                              : '0 seleccionadas'}
-                          </span>
-                        </div>
-                      </td>
+                        {/* Director(a) */}
+                        <td className="py-4 px-4 whitespace-nowrap">
+                          {directorsList.length > 0 ? (
+                            <div className="space-y-1">
+                              {directorsList.map((dirName, dIdx) => (
+                                <div key={dIdx} className="flex items-center gap-1.5 text-xs text-white">
+                                  <UserCheck size={13} className="text-[#c5a059]" />
+                                  <span className="font-medium">{dirName}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-[#6b6b75] italic">— Sin director —</span>
+                          )}
+                        </td>
 
-                      {/* Acción */}
-                      <td className="py-4 px-4 text-right whitespace-nowrap">
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            onSelectWeek(weekMonday);
-                          }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a1d] hover:bg-[#c5a059] text-[#c5a059] hover:text-black font-mono text-xs uppercase tracking-wider rounded-lg border border-[#c5a059]/40 hover:border-[#c5a059] transition-all cursor-pointer shadow-sm"
-                        >
-                          <span>Ver Semana</span>
-                          <ArrowRight size={12} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        {/* Integrantes Convocados */}
+                        <td className="py-4 px-4 max-w-xs">
+                          {assignedMusicians.length > 0 ? (
+                            <div className="flex items-center gap-1 flex-wrap text-xs text-[#c0c0cc]">
+                              {assignedMusicians.slice(0, 4).map(m => (
+                                <span
+                                  key={m.id}
+                                  className="bg-[#0a0a0b] px-1.5 py-0.5 rounded border border-[#1f1f23] text-[11px]"
+                                >
+                                  {m.name}
+                                </span>
+                              ))}
+                              {assignedMusicians.length > 4 && (
+                                <span className="text-[10px] font-mono text-[#c5a059] bg-[#c5a059]/10 px-1 py-0.5 rounded">
+                                  +{assignedMusicians.length - 4} más
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-[#6b6b75] italic">— Pendiente —</span>
+                          )}
+                        </td>
+
+                        {/* Alabanzas */}
+                        <td className="py-4 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5 text-xs text-[#a0a0ab]">
+                            <Music size={13} className="text-[#c5a059]" />
+                            <span>
+                              {totalSongsCount > 0
+                                ? `${totalSongsCount} alabanzas`
+                                : '0 seleccionadas'}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Acción */}
+                        <td className="py-4 px-4 text-right whitespace-nowrap">
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              onSelectWeek(weekMonday);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a1d] hover:bg-[#c5a059] text-[#c5a059] hover:text-black font-mono text-xs uppercase tracking-wider rounded-lg border border-[#c5a059]/40 hover:border-[#c5a059] transition-all cursor-pointer shadow-sm min-h-[36px]"
+                          >
+                            <span>Ver Semana</span>
+                            <ArrowRight size={12} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
