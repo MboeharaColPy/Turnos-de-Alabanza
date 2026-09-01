@@ -30,14 +30,48 @@ export interface Couple {
   bId: string;
 }
 
+export interface SongAttachment {
+  id: string;
+  name: string;
+  url: string;
+  type?: 'pdf' | 'image' | 'link';
+}
+
 export interface SongItem {
   id: string;
   title: string;
-  artist?: string;
-  key?: string; // Tono (ej: Sol, C, Em)
+  artist?: string; // Legacy singular string
+  artists?: string[]; // Multiple artists support
+  key?: string; // Tono (ej: C, G, Em, Am)
   tempo?: string;
+  bpm?: number;
+  timeSignature?: string; // ej: "4/4", "6/8", "3/4"
+  category?: string; // ej: "Adoración", "Alabanza", "Júbilo", "Comunión", "Especial", "Apertura"
+  sequence?: string[]; // ej: ["IN", "V1", "C", "V2", "C", "PTE", "C", "OUT"]
   notes?: string;
-  lyrics?: string; // Letra y notas / acordes formateados
+  lyrics?: string; // Letra y acordes (en cifrado americano, sin necesidad de corchetes)
+  youtubeUrl?: string;
+  attachments?: SongAttachment[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  senderName: string;
+  text: string;
+  timestamp: string;
+  isAnnouncement?: boolean;
+  isPinned?: boolean;
+}
+
+export interface Notice {
+  id: string;
+  title: string;
+  content: string;
+  author: string;
+  date: string;
+  isImportant?: boolean;
 }
 
 // Key format: `${isoDate}__${slotId}`
@@ -51,6 +85,8 @@ export interface AppState {
   shiftSongs: Record<string, SongItem[]>;
   songCatalog: SongItem[];
   couples: Couple[];
+  chatMessages?: ChatMessage[];
+  notices?: Notice[];
   adminPassword?: string;
   seeded: boolean;
   lastUpdated?: string;

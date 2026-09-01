@@ -10,29 +10,35 @@ export function getMonday(d: Date | string): Date {
   return date;
 }
 
-export function dateForDay(weekStart: Date, dayIndex: number): Date {
+export function dateForDay(weekStart: Date | string, dayIndex: number): Date {
   const d = new Date(weekStart);
   d.setDate(d.getDate() + dayIndex);
   return d;
 }
 
-export function isoLocal(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+export function isoLocal(d: Date | string): string {
+  const date = d instanceof Date ? d : new Date(d);
+  if (isNaN(date.getTime())) return '';
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
 
-export function formatWeekRange(start: Date): string {
-  const end = new Date(start);
+export function formatWeekRange(start: Date | string): string {
+  const startDate = start instanceof Date ? start : new Date(start);
+  if (isNaN(startDate.getTime())) return '';
+  const end = new Date(startDate);
   end.setDate(end.getDate() + 6);
-  const s = start.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  const s = startDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
   const e = end.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
   return `${s} – ${e}`;
 }
 
-export function formatCardDate(d: Date): string {
-  return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+export function formatCardDate(d: Date | string): string {
+  const date = d instanceof Date ? d : new Date(d);
+  if (isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 }
 
 /**
@@ -67,6 +73,63 @@ export function isPastLastSundayOfMonth(year: number, month: number, referenceDa
   const lastSundayDay = lastDayOfMonth.getDate() - lastDayOfMonth.getDay();
   const lastSunday = new Date(year, month, lastSundayDay, 23, 59, 59, 999);
   return referenceDate > lastSunday;
+}
+
+/**
+ * Obtiene la próxima fecha en la que se ejecuta un Slot (por día de la semana 0..6 y hora HH:mm)
+ */
+export function getNextUpcomingDateForSlot(dayOfWeekIndex: number, timeStr: string): Date {
+  const now = new Date();
+  const [hours, minutes] = (timeStr || '10:00').split(':').map(Number);
+  
+  // Buscar hoy o los próximos 7 días
+  for (let i = 0; i < 7; i++) {
+    const candidate = new Date(now);
+    candidate.setDate(now.getDate() + i);
+    candidate.setHours(hours || 0, minutes || 0, 0, 0);
+
+    // Ajuste de día: en nuestro array 0=Lunes, 1=Martes... 6=Domingo
+    // En JS estándar: 0=Domingo, 1=Lunes... 6=Sábado
+    const candidateJsDay = candidate.getDay(); // 0..6 (0=Dom)
+    const convertedIndex = candidateJsDay === 0 ? 6 : candidateJsDay - 1;
+
+    if (convertedIndex === dayOfWeekIndex) {
+      if (candidate >= now || i > 0) {
+        return candidate;
+      }
+    }
+  }
+
+  // Si no se encontró en esta semana, calcular la próxima
+  const fallback = new Date(now);
+  fallback.setDate(now.getDate() + 7);
+  return fallback;
+}
+
+export function formatDateDisplay(dateInput: Date | string | number | null | undefined): string {
+  if (!dateInput) return '';
+  let d: Date;
+  if (dateInput instanceof Date) {
+    d = dateInput;
+  } else if (typeof dateInput === 'string') {
+    // If it's YYYY-MM-DD, parse year, month, day to avoid UTC timezone day shifts
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+      const [y, m, day] = dateInput.split('-').map(Number);
+      d = new Date(y, m - 1, day, 12, 0, 0);
+    } else {
+      d = new Date(dateInput);
+    }
+  } else {
+    d = new Date(dateInput);
+  }
+
+  if (isNaN(d.getTime())) return String(dateInput);
+
+  return d.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
 }
 
 export function generateWhatsAppSummary(state: AppState, weekStart: Date): string {

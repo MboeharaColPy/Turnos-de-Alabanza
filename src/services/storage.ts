@@ -89,6 +89,43 @@ export function getInitialDefaultState(): AppState {
     },
   ];
 
+  const defaultNotices = [
+    {
+      id: 'not_1',
+      title: 'Puntualidad en el Ensayo General',
+      content: 'Recordamos a todo el ministerio estar 15 minutos antes de la hora acordada para afinar instrumentos y tener un tiempo de oración juntos antes de comenzar.',
+      author: 'Dirección de Alabanza',
+      date: new Date().toISOString().split('T')[0],
+      isImportant: true,
+    },
+    {
+      id: 'not_2',
+      title: 'Repertorio y Cifrados Actualizados',
+      content: 'Ya se encuentran disponibles en la sección Canciones todas las letras con acordes, tempos en BPM y mapa de estructura para el servicio de este fin de semana.',
+      author: 'Ministerio de Alabanza',
+      date: new Date().toISOString().split('T')[0],
+      isImportant: false,
+    },
+  ];
+
+  const defaultChatMessages = [
+    {
+      id: 'msg_1',
+      senderName: 'Jairo (Director)',
+      text: '¡Dios les bendiga equipo! Bienvenidos a la plataforma de gestión y cancionero en vivo.',
+      timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
+      isAnnouncement: true,
+      isPinned: true,
+    },
+    {
+      id: 'msg_2',
+      senderName: 'Carolina (Piano)',
+      text: 'Hola a todos, ya revisé las notas de las canciones en el repertorio. ¡Todo listo para el ensayo!',
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+      isAnnouncement: false,
+    },
+  ];
+
   return {
     roles,
     musicians,
@@ -97,6 +134,8 @@ export function getInitialDefaultState(): AppState {
     shiftSongs: {},
     songCatalog: INITIAL_FULL_SONG_CATALOG,
     couples,
+    notices: defaultNotices,
+    chatMessages: defaultChatMessages,
     adminPassword: 'alabanza2026',
     seeded: true,
     lastUpdated: new Date().toISOString(),
@@ -303,6 +342,8 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
     shiftSongs: parsed.shiftSongs && typeof parsed.shiftSongs === 'object' ? parsed.shiftSongs : {},
     songCatalog,
     couples: Array.isArray(parsed.couples) ? parsed.couples : fallbackDefault.couples,
+    notices: Array.isArray(parsed.notices) && parsed.notices.length > 0 ? parsed.notices : fallbackDefault.notices,
+    chatMessages: Array.isArray(parsed.chatMessages) && parsed.chatMessages.length > 0 ? parsed.chatMessages : fallbackDefault.chatMessages,
     adminPassword: parsed.adminPassword || 'alabanza2026',
     seeded: !!parsed.seeded,
     lastUpdated: parsed.lastUpdated || new Date().toISOString(),
@@ -369,6 +410,8 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
       shiftSongs: state.shiftSongs || {},
       songCatalog: state.songCatalog || INITIAL_FULL_SONG_CATALOG,
       couples: state.couples || [],
+      notices: state.notices || [],
+      chatMessages: state.chatMessages || [],
       adminPassword: state.adminPassword || 'alabanza2026',
       seeded: !!state.seeded,
       lastUpdated: new Date().toISOString(),

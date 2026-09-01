@@ -302,144 +302,184 @@ export const OFFICIAL_SONG_LIST: { title: string; artist: string }[] = [
   { title: "Pueblos Todos Batid Las Manos / Se Detuvo El Sol / Esta Es La Iglesia Del Señor", artist: "Coros Celestiales" }
 ];
 
-const SAMPLE_LYRICS_MAP: Record<string, { key: string; lyrics: string }> = {
-  "Pueblos Todos Batid Las Manos / Se Detuvo El Sol / Esta Es La Iglesia Del Señor": {
-    key: "Rem",
+// Recent songs added in the last 2 days (2026-08-31 to 2026-09-01) with clean American chords
+const RECENT_SONGS_MAP: Record<string, { key: string; bpm: number; category: string; lyrics: string; createdAt: string }> = {
+  "10.000 Razones": {
+    key: "G",
+    bpm: 73,
+    category: "Adoración",
+    createdAt: "2026-08-31T14:30:00.000Z",
+    lyrics: `[Coro]
+C        G        D       Em        C
+Que todo lo que soy alabe al Señor, con todo mi corazón
+G        D           C   Em
+De Su grande amor cantaré, alaba al Señor
+C     D      G
+Alaba a Dios, oh alma mía
+
+[Estrofa 1]
+         C           G
+Sale el sol, es un nuevo amanecer
+D         Em
+Cantaré a Ti otra vez
+C          G             D         Em
+Sea lo que venga y lo que esté por delante
+C           G             D    G
+Cantaré al llegar el atardecer
+
+[Estrofa 2]
+         C             G
+Tu amor no tiene fin, grande es Tu bondad
+D            Em
+Tu Nombre dulce es y digno de alabar
+C          G              D        Em
+Por todo lo que has hecho cantaré por siempre
+C              G              D      G
+Diez mil razones para Tu amor cantar`
+  },
+  "Cuan grande es Dios": {
+    key: "G",
+    bpm: 78,
+    category: "Adoración",
+    createdAt: "2026-09-01T08:00:00.000Z",
     lyrics: `[Intro]
-[Rem]  [La7]  [Rem]  [La7]  [Rem]
+G   Em7   C2   D
+
+[Estrofa 1]
+    G                          Em7
+El rey de majestad, vestido en majestad
+                 C2
+La tierra gozo tendrá, la tierra gozo tendrá
+    G                       Em7
+El se cubre con la luz, huye la oscuridad
+               C2
+Al escuchar Su voz, al escuchar Su voz
+
+[Coro]
+      G
+Cuan grande es Dios, cántale
+      Em7
+Cuan grande es Dios, y todos lo verán
+      C2           D          G
+Cuan grande, cuan grande es Dios
+
+[Estrofa 2]
+    G                           Em7
+De edad en edad El es, el tiempo en Sus manos está
+               C2
+Principio y el fin, principio y el fin
+    G                     Em7
+La Trinidad en Dios, Padre Hijo y Espíritu
+               C2
+Cordero y el León, Cordero y el León
+
+[Puente]
+    G
+Tu Nombre sobre todo es
+    Em7
+Tu eres digno de alabar
+      C2             D          G
+Y mi ser cantará, cuan grande es Dios`
+  },
+  "Pueblos Todos Batid Las Manos / Se Detuvo El Sol / Esta Es La Iglesia Del Señor": {
+    key: "Dm",
+    bpm: 130,
+    category: "Júbilo",
+    createdAt: "2026-09-01T09:15:00.000Z",
+    lyrics: `[Intro]
+Dm   A7   Dm   A7   Dm
 
 [Parte 1: Pueblos Todos Batid Las Manos]
-[Rem]
+Dm
 Pueblos todos batid las manos
-[La7]               [Rem]
+A7                 Dm
 Alabad al Dios de Israel
-[Rem]
+Dm
 Pueblos todos batid las manos
-[La7]               [Rem]
+A7                 Dm
 Alabad al Dios de Israel
 
 [Coro 1]
-[Solm]             [Rem]
+Gm                Dm
 Cantad a Dios, cantad
-[La7]                  [Rem]
+A7                    Dm
 Cantad a nuestro Rey, cantad
-[Solm]             [Rem]
+Gm                Dm
 Porque Dios es el Rey de toda la tierra
-[La7]            [Rem]
+A7               Dm
 Cantad a Dios alabanza
 
 [Parte 2: Se Detuvo El Sol]
-[Rem]                  [La7]
+Dm                    A7
 Allá en Gabaón el sol se detuvo
-                     [Rem]
+                       Dm
 Y en el valle de Ajalón la luna paró
-[Rem]                  [La7]
+Dm                    A7
 Allá en Gabaón el sol se detuvo
-                     [Rem]
+                       Dm
 Y en el valle de Ajalón la luna paró
 
 [Coro 2]
-[Solm]              [Rem]
+Gm                 Dm
 Porque Josué oraba, porque Josué creía
-[La7]                  [Rem]
+A7                    Dm
 Y el Dios de los cielos la victoria daba
-[Solm]              [Rem]
+Gm                 Dm
 Porque Josué oraba, porque Josué creía
-[La7]                  [Rem]
+A7                    Dm
 Y el Dios de los cielos la victoria daba
 
 [Parte 3: Esta Es La Iglesia Del Señor]
-[Rem]                     [La7]
+Dm                       A7
 Esta es la iglesia del Señor
-                      [Rem]
+                         Dm
 Casa de Dios, puerta del cielo
-[Rem]                     [La7]
+Dm                       A7
 Esta es la iglesia del Señor
-                      [Rem]
+                         Dm
 Casa de Dios, puerta del cielo
 
 [Final]
-[Solm]             [Rem]
+Gm                Dm
 Él la llamó para alabanza de Su Nombre
-[La7]                  [Rem]
+A7                    Dm
 Para que todos conozcan Su poder
-[Rem]  [La7]  [Rem]`
-  },
-  "Cuan grande es Dios": {
-    key: "Sol",
-    lyrics: `[Intro]
-[Sol]  [Mim7]  [Do2]  [Re]
-
-[Estrofa 1]
-El [Sol]rey de majestad, vestido en [Mim7]majestad
-La tierra gozo tendrá, la [Do2]tierra gozo tendrá
-El se [Sol]cubre con la luz, huye la [Mim7]oscuridad
-Al escuchar Su voz, al [Do2]escuchar Su voz
-
-[Coro]
-Cuan [Sol]grande es Dios, cántale
-Cuan [Mim7]grande es Dios, y todos lo verán
-Cuan [Do2]grande, cuan [Re]grande es [Sol]Dios
-
-[Estrofa 2]
-De [Sol]edad en edad El es, el tiempo [Mim7]en Sus manos está
-Principio y el fin, prin[Do2]cipio y el fin
-La [Sol]Trinidad en Dios, Padre [Mim7]Hijo y Espíritu
-Cordero y el León, Cor[Do2]dero y el León
-
-[Puente]
-Tu [Sol]Nombre sobre todo es
-Tu [Mim7]eres digno de alabar
-Y mi [Do2]ser cantará, cuan [Re]grande es [Sol]Dios`
-  },
-  "10.000 Razones": {
-    key: "Sol",
-    lyrics: `[Coro]
-Que [Do]todo lo que [Sol]soy alabe al [Re]Señor, [Mim]con todo mi [Do]corazón
-[Sol]De Su grande a[Re]mor cantaré, [Do]alaba [Mim]al Señor
-[Do]Alaba a [Re]Dios, [Sol]oh alma mía
-
-[Estrofa 1]
-Sale el [Do]sol, es un [Sol]nuevo amanecer
-[Re]Cantaré a [Mim]Ti otra vez
-[Do]Sea lo que [Sol]venga y lo que [Re]esté por de[Mim]lante
-[Do]Cantaré al [Sol]llegar el a[Re]tarde[Sol]cer`
-  },
-  "Al estar aquí": {
-    key: "La",
-    lyrics: `[Estrofa]
-[La]Al estar en la pre[Do#m]sencia de Tu divinidad
-[Re]Y al contemplar la her[Sim]mosura de Tu santi[Mi]dad
-[La]Mi espíritu se a[Do#m]legra en Tu majestad
-[Re]Te adoro a Ti, [Sim]Te adoro a [Mi]Ti
-
-[Coro]
-[La]Porque Tu eres [Do#m]Santo, Dios
-[Re]Te adoro a Ti, [Sim]Te adoro a [Mi]Ti
-[La]Porque Tu eres [Do#m]Santo, Dios
-[Re]Te adoro a Ti, [Sim]Te adoro a [Mi]Ti`
-  },
-  "A quien iré": {
-    key: "Sol",
-    lyrics: `[Estrofa]
-[Sol]¿A quién iré en [Re/Fa#]necesidad?
-[Mim]¿A quién iré en [Sim]busca de paz?
-[Do]¿Y quién podrá mi [Sol]alma saciar de [Lam7]gozo? [Re]
-
-[Coro]
-[Sol]Jesús, Tú [Re]eres mi refugio
-[Mim]Jesús, Tú [Sim]eres mi sustento
-[Do]En Ti con[Sol]fiaré, [Lam7]mi Dios de [Re]amor`
+Dm   A7   Dm`
   }
 };
 
 export const INITIAL_FULL_SONG_CATALOG: SongItem[] = OFFICIAL_SONG_LIST.map((item, index) => {
-  const sample = SAMPLE_LYRICS_MAP[item.title];
+  const recent = RECENT_SONGS_MAP[item.title];
+  if (recent) {
+    return {
+      id: `cat_song_${index + 1}`,
+      title: item.title,
+      artist: item.artist,
+      artists: [item.artist],
+      key: recent.key,
+      bpm: recent.bpm,
+      category: recent.category,
+      timeSignature: '4/4',
+      lyrics: recent.lyrics,
+      notes: '',
+      createdAt: recent.createdAt,
+      updatedAt: recent.createdAt,
+    };
+  }
+
+  // Las demás canciones quedan completamente en blanco en letra y notas
   return {
     id: `cat_song_${index + 1}`,
     title: item.title,
     artist: item.artist,
-    key: sample ? sample.key : '',
-    lyrics: sample ? sample.lyrics : undefined,
+    artists: [item.artist],
+    key: '',
+    bpm: undefined,
+    category: 'General',
+    timeSignature: '4/4',
+    lyrics: '',
+    notes: '',
+    createdAt: '2026-08-20T10:00:00.000Z',
+    updatedAt: '2026-08-20T10:00:00.000Z',
   };
 });

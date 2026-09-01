@@ -29,6 +29,8 @@ import {
 
 interface MusiciansViewProps {
   state: AppState;
+  isAdmin?: boolean;
+  onRequestAdmin?: () => void;
   onSaveMusician: (musician: Musician) => void;
   onDeleteMusician: (musicianId: string) => void;
   onSaveCouple: (couple: Couple) => void;
@@ -56,6 +58,8 @@ const getVoiceRoleIdsForGender = (roles: Role[], g: Gender): string[] => {
 
 export const MusiciansView: React.FC<MusiciansViewProps> = ({
   state,
+  isAdmin = false,
+  onRequestAdmin,
   onSaveMusician,
   onDeleteMusician,
   onSaveCouple,
@@ -102,6 +106,10 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
 
   // Open modal for creating a new musician
   const handleOpenNewModal = () => {
+    if (!isAdmin) {
+      if (onRequestAdmin) onRequestAdmin();
+      return;
+    }
     setEditingId(null);
     setName('');
     setGender('H');
@@ -112,6 +120,10 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
 
   // Open modal for editing an existing musician
   const handleStartEdit = (m: Musician) => {
+    if (!isAdmin) {
+      if (onRequestAdmin) onRequestAdmin();
+      return;
+    }
     setEditingId(m.id);
     setName(m.name);
     setGender(m.gender || 'H');
@@ -247,8 +259,20 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
     handleCloseModal();
   };
 
+  const handlePromptDelete = (id: string, name: string) => {
+    if (!isAdmin) {
+      if (onRequestAdmin) onRequestAdmin();
+      return;
+    }
+    setDeleteConfirmMusician({ id, name });
+  };
+
   const handleAddCouple = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      if (onRequestAdmin) onRequestAdmin();
+      return;
+    }
     if (!couplePersonA || !couplePersonB) {
       showToast('Selecciona a ambas personas de la pareja.');
       return;
@@ -606,7 +630,7 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
                           <Pencil size={12} />
                         </button>
                         <button
-                          onClick={() => setDeleteConfirmMusician({ id: m.id, name: m.name })}
+                          onClick={() => handlePromptDelete(m.id, m.name)}
                           className="w-7 h-7 rounded-lg bg-[#141418] hover:bg-red-600 text-[#888894] hover:text-white border border-[#24242a] hover:border-red-600 flex items-center justify-center transition-all cursor-pointer shadow-sm"
                           title="Eliminar integrante"
                         >
@@ -763,7 +787,7 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
                             <Pencil size={12} />
                           </button>
                           <button
-                            onClick={() => setDeleteConfirmMusician({ id: m.id, name: m.name })}
+                            onClick={() => handlePromptDelete(m.id, m.name)}
                             className="p-1.5 rounded-lg bg-[#141418] hover:bg-red-600 text-[#888894] hover:text-white transition-colors cursor-pointer"
                             title="Eliminar integrante"
                           >
@@ -839,7 +863,7 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
                         <Pencil size={13} />
                       </button>
                       <button
-                        onClick={() => setDeleteConfirmMusician({ id: m.id, name: m.name })}
+                        onClick={() => handlePromptDelete(m.id, m.name)}
                         className="p-2 rounded-xl bg-[#141418] hover:bg-red-600 text-[#888894] hover:text-white border border-[#24242a] hover:border-red-600 transition-all cursor-pointer"
                         title="Eliminar integrante"
                       >
@@ -1042,6 +1066,10 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
                       </div>
                       <button
                         onClick={() => {
+                          if (!isAdmin) {
+                            if (onRequestAdmin) onRequestAdmin();
+                            return;
+                          }
                           onDeleteCouple(couple.id);
                           showToast(`Pareja de ${ma.name} y ${mb.name} desvinculada.`);
                         }}

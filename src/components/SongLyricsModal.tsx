@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { SongItem } from '../types';
+import { SongItem, SongAttachment } from '../types';
 import {
   parseLyricsLineTokens,
   transposeSongText,
   transposeSingleChord,
   isSectionHeader,
   isChordLine,
-  CHORD_ROOTS_ANGLO,
-  CHORD_ROOTS_LATIN,
+  ALL_STANDARD_KEYS,
+  getCapoTransposedKey,
 } from '../utils/chordUtils';
 import {
-  convertSongNotation,
+  InstrumentType,
   extractUniqueChords,
-  getChordDiagram,
+  convertLatinToAngloChord,
 } from '../utils/chordDiagrams';
 import { GuitarChordDiagram } from './GuitarChordDiagram';
 import {
@@ -28,7 +28,6 @@ import {
   Check,
   Plus,
   Minus,
-  HelpCircle,
   Play,
   Pause,
   Maximize2,
@@ -39,27 +38,108 @@ import {
   Square,
   Volume2,
   VolumeX,
-  ChevronUp,
-  ChevronDown,
-  Info,
   Layers,
   ArrowUp,
   Activity,
   KeyRound,
+  ChevronLeft,
+  ChevronRight,
+  ListOrdered,
+  EyeOff,
+  Video,
+  FileText,
+  ExternalLink,
+  ChevronDown,
+  Paperclip,
+  Clock,
+  Settings2,
 } from 'lucide-react';
 
 interface SongLyricsModalProps {
   song: SongItem | null;
   isAdmin: boolean;
   onClose: () => void;
-  onSaveSongLyrics?: (songId: string, updatedLyrics: string, updatedKey?: string) => void;
+  onSaveSongLyrics?: (
+    songId: string,
+    updatedLyrics: string,
+    updatedKey?: string,
+    updatedBpm?: number,
+    updatedYoutubeUrl?: string,
+    updatedAttachments?: SongAttachment[]
+  ) => void;
   onRequestAdmin?: () => void;
   showToast: (msg: string) => void;
+  allSongs?: SongItem[];
+  onNavigateToSong?: (song: SongItem) => void;
 }
 
 type TextSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl';
-type NotationSystem = 'latin' | 'anglo';
-type ChordDisplayMode = 'all' | 'lyrics-only' | 'chords-only';
+
+export interface StructureSection {
+  id: string;
+  code: string;
+  label: string;
+  lineIndex: number;
+}
+
+export function getSectionBadgeCode(headerText: string): { code: string; colorClass: string } {
+  const clean = headerText.replace(/[[\]]/g, '').toLowerCase().trim();
+
+  if (clean.includes('intro')) {
+    return { code: 'IN', colorClass: 'bg-blue-500/15 text-blue-300 border-blue-500/40' };
+  }
+  if (clean.includes('verso 1') || clean.includes('estrofa 1') || clean === 'verso' || clean === 'estrofa') {
+    return { code: 'V1', colorClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' };
+  }
+  if (clean.includes('verso 2') || clean.includes('estrofa 2')) {
+    return { code: 'V2', colorClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' };
+  }
+  if (clean.includes('verso 3') || clean.includes('estrofa 3')) {
+    return { code: 'V3', colorClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' };
+  }
+  if (clean.includes('verso 4') || clean.includes('estrofa 4')) {
+    return { code: 'V4', colorClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' };
+  }
+  if (clean.includes('pre') || clean.includes('pre-coro') || clean.includes('precoro')) {
+    return { code: 'PC', colorClass: 'bg-purple-500/15 text-purple-300 border-purple-500/40' };
+  }
+  if (clean.includes('coro 2') || clean.includes('estribillo 2')) {
+    return { code: 'C2', colorClass: 'bg-amber-500/20 text-amber-300 border-amber-500/50 font-bold' };
+  }
+  if (clean.includes('coro') || clean.includes('estribillo')) {
+    return { code: 'C', colorClass: 'bg-amber-500/20 text-amber-300 border-amber-500/50 font-bold' };
+  }
+  if (clean.includes('puente') || clean.includes('bridge')) {
+    return { code: 'PTE', colorClass: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40' };
+  }
+  if (clean.includes('solo')) {
+    return { code: 'SOLO', colorClass: 'bg-rose-500/15 text-rose-300 border-rose-500/40' };
+  }
+  if (clean.includes('inter') || clean.includes('instrumental')) {
+    return { code: 'INST', colorClass: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40' };
+  }
+  if (clean.includes('final') || clean.includes('outro')) {
+    return { code: 'OUT', colorClass: 'bg-orange-500/15 text-orange-300 border-orange-500/40' };
+  }
+
+  const short = clean.substring(0, 3).toUpperCase();
+  return { code: short || 'SEC', colorClass: 'bg-[#1e1e24] text-[#c5a059] border-[#c5a059]/40' };
+}
+
+// Convert YouTube URL to Embed URL
+function getYouTubeEmbedUrl(url?: string): string | null {
+  if (!url) return null;
+  try {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    if (match && match[2].length === 11) {
+      return `https://www.youtube-nocookie.com/embed/${match[2]}?autoplay=0&rel=0`;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 
 export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
   song,
@@ -68,116 +148,135 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
   onSaveSongLyrics,
   onRequestAdmin,
   showToast,
+  allSongs = [],
+  onNavigateToSong,
 }) => {
   if (!song) return null;
 
-  const defaultLyrics = song.lyrics || `[Intro]
-[Sol]  [Re]  [Mim]  [Do]
-
-[Estrofa 1]
-[Sol]                   [Re]
-Pueblos todos batid las manos
-[Mim]               [Do]
-Alabad al Dios de Israel
-[Sol]                [Re]
-Porque el Señor es Altísimo
-     [Do]           [Re]        [Sol]
-Y es Rey grande sobre toda la tierra
-
-[Coro]
-[Do]                   [Re]
-Cantad a Dios, cantad
-[Mim]                  [Sim]
-Cantad a nuestro Rey, cantad
-     [Do]            [Re]
-Porque Dios es el Rey de toda la tierra
-[Sol]  [Re]  [Mim]  [Do]`;
+  const defaultLyrics = song.lyrics || '';
 
   const [rawText, setRawText] = useState(defaultLyrics);
   const [editedText, setEditedText] = useState(defaultLyrics);
-  const [currentKey, setCurrentKey] = useState(song.key || 'Sol');
+  const [currentKey, setCurrentKey] = useState<string>(() => convertLatinToAngloChord(song.key || 'G'));
   const [transposeOffset, setTransposeOffset] = useState(0);
   const [capoFret, setCapoFret] = useState(0);
-  const [notation, setNotation] = useState<NotationSystem>('latin');
-  const [chordDisplayMode, setChordDisplayMode] = useState<ChordDisplayMode>('all');
+  const [showChords, setShowChords] = useState(true);
+  const [selectedInstrument, setSelectedInstrument] = useState<InstrumentType>('guitar');
   const [textSize, setTextSize] = useState<TextSize>('md');
   const [columnsCount, setColumnsCount] = useState<1 | 2>(1);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
+  // Tools dropdown & Media panels
+  const [showToolsDropdown, setShowToolsDropdown] = useState(false);
+  const [showYouTubePanel, setShowYouTubePanel] = useState(false);
+  const [youtubeUrlInput, setYoutubeUrlInput] = useState(song.youtubeUrl || '');
+  const [attachments, setAttachments] = useState<SongAttachment[]>(song.attachments || []);
+  const [showAttachmentsPanel, setShowAttachmentsPanel] = useState(false);
+  const [newAttachmentName, setNewAttachmentName] = useState('');
+  const [newAttachmentUrl, setNewAttachmentUrl] = useState('');
+
   // Auto-scroll state
   const [isAutoScrolling, setIsAutoScrolling] = useState(false);
-  const [scrollSpeed, setScrollSpeed] = useState<number>(30); // px per second
+  const [scrollSpeed, setScrollSpeed] = useState<number>(30);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Metronome state
+  // Metronome & BPM state
   const [isMetronomeActive, setIsMetronomeActive] = useState(false);
-  const [bpm, setBpm] = useState<number>(() => {
-    if (song.tempo) {
-      const match = song.tempo.match(/\d+/);
-      if (match) return parseInt(match[0], 10);
-    }
-    return 120;
-  });
+  const [bpm, setBpm] = useState<number>(() => song.bpm || 120);
   const [metronomeSound, setMetronomeSound] = useState(false);
   const [metronomeBeat, setMetronomeBeat] = useState(0);
   const tapTimesRef = useRef<number[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
 
-  // UI Panels / Modals
+  // UI Panels
   const [viewMode, setViewMode] = useState<'view' | 'edit'>('view');
   const [copied, setCopied] = useState(false);
-  const [showSyntaxGuide, setShowSyntaxGuide] = useState(false);
   const [showChordDiagramsBar, setShowChordDiagramsBar] = useState(false);
   const [selectedChordForPopover, setSelectedChordForPopover] = useState<string | null>(null);
 
   // Initialize state when song changes
   useEffect(() => {
-    const text = song.lyrics || defaultLyrics;
+    const text = song.lyrics || '';
     setRawText(text);
     setEditedText(text);
-    setCurrentKey(song.key || 'Sol');
+    setCurrentKey(convertLatinToAngloChord(song.key || 'G'));
+    setBpm(song.bpm || 120);
+    setYoutubeUrlInput(song.youtubeUrl || '');
+    setAttachments(song.attachments || []);
     setTransposeOffset(0);
     setCapoFret(0);
     setViewMode('view');
     setIsAutoScrolling(false);
     setIsMetronomeActive(false);
-  }, [song.id, song.lyrics, song.key]);
+    setShowToolsDropdown(false);
+  }, [song.id, song.lyrics, song.key, song.bpm, song.youtubeUrl, song.attachments]);
 
-  // Transposed & Notation-adjusted text calculation
+  // Transposed text calculation (considering semitones and Capo)
   const displayedText = useMemo(() => {
     let result = editedText;
-    if (transposeOffset !== 0) {
-      result = transposeSongText(result, transposeOffset);
-    }
-    if (notation === 'anglo') {
-      result = convertSongNotation(result, 'anglo');
-    } else {
-      result = convertSongNotation(result, 'latin');
+    // If Capo is used, fingered chords shift down by capoFret semitones
+    const effectiveOffset = transposeOffset - capoFret;
+    if (effectiveOffset !== 0) {
+      result = transposeSongText(result, effectiveOffset);
     }
     return result;
-  }, [editedText, transposeOffset, notation]);
+  }, [editedText, transposeOffset, capoFret]);
 
-  // Displayed Root Key
-  const displayedKey = useMemo(() => {
-    if (!currentKey) return currentKey;
-    let key = currentKey;
-    if (transposeOffset !== 0) {
-      key = transposeSingleChord(key, transposeOffset);
-    }
-    if (notation === 'anglo') {
-      key = convertSongNotation(`[${key}]`, 'anglo').replace(/^\[|\]$/g, '');
-    } else {
-      key = convertSongNotation(`[${key}]`, 'latin').replace(/^\[|\]$/g, '');
-    }
-    return key;
-  }, [currentKey, transposeOffset, notation]);
+  // Displayed Sounding Key vs Fingered Key
+  const soundingKey = useMemo(() => {
+    if (!currentKey) return 'G';
+    return transposeOffset !== 0 ? transposeSingleChord(currentKey, transposeOffset) : currentKey;
+  }, [currentKey, transposeOffset]);
 
-  // Extract unique chords for top diagram ribbon
+  const fingeredKey = useMemo(() => {
+    if (capoFret === 0) return soundingKey;
+    return transposeSingleChord(soundingKey, -capoFret);
+  }, [soundingKey, capoFret]);
+
+  // Extract unique chords for chord diagrams
   const songUniqueChords = useMemo(() => {
     return extractUniqueChords(displayedText);
   }, [displayedText]);
 
-  // Auto-scroll animation loop
+  // Render lines
+  const renderedLines = useMemo(() => {
+    return displayedText.split('\n');
+  }, [displayedText]);
+
+  // Structure sections
+  const structureSections = useMemo(() => {
+    const sections: StructureSection[] = [];
+    renderedLines.forEach((line, idx) => {
+      const trimmed = line.trim();
+      if (isSectionHeader(trimmed)) {
+        const { code } = getSectionBadgeCode(trimmed);
+        sections.push({
+          id: `sec_${idx}`,
+          code,
+          label: trimmed,
+          lineIndex: idx,
+        });
+      }
+    });
+    return sections;
+  }, [renderedLines]);
+
+  // Navigation between songs
+  const currentSongIndex = useMemo(() => {
+    return allSongs.findIndex(s => s.id === song.id);
+  }, [allSongs, song.id]);
+
+  const prevSong = currentSongIndex > 0 ? allSongs[currentSongIndex - 1] : null;
+  const nextSong = currentSongIndex >= 0 && currentSongIndex < allSongs.length - 1 ? allSongs[currentSongIndex + 1] : null;
+
+  const scrollToSection = (lineIndex: number) => {
+    const el = document.getElementById(`section-node-${lineIndex}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  // Auto-scroll loop
   useEffect(() => {
     if (!isAutoScrolling || !scrollContainerRef.current) return;
 
@@ -185,7 +284,7 @@ Porque Dios es el Rey de toda la tierra
     let lastTime = performance.now();
 
     const step = (time: number) => {
-      const delta = (time - lastTime) / 1000; // in seconds
+      const delta = (time - lastTime) / 1000;
       lastTime = time;
 
       if (scrollContainerRef.current) {
@@ -234,7 +333,7 @@ Porque Dios es el Rey de toda la tierra
             osc.start();
             osc.stop(ctx.currentTime + 0.04);
           } catch {
-            // Audio context failed or blocked by browser
+            // Audio context not allowed or blocked
           }
         }
 
@@ -251,7 +350,6 @@ Porque Dios es el Rey de toda la tierra
     const times = tapTimesRef.current;
     times.push(now);
 
-    // Keep only last 4 taps
     if (times.length > 4) times.shift();
 
     if (times.length >= 2) {
@@ -267,7 +365,6 @@ Porque Dios es el Rey de toda la tierra
     }
   };
 
-  // Transpose controls
   const handleTranspose = (delta: number) => {
     setTransposeOffset(prev => prev + delta);
   };
@@ -277,7 +374,6 @@ Porque Dios es el Rey de toda la tierra
     setCapoFret(0);
   };
 
-  // Font size selector mapping
   const textSizeClass = {
     sm: 'text-xs sm:text-sm',
     md: 'text-sm sm:text-base',
@@ -286,12 +382,10 @@ Porque Dios es el Rey de toda la tierra
     '2xl': 'text-xl sm:text-2xl',
   }[textSize];
 
-  // Print function
   const handlePrint = () => {
     window.print();
   };
 
-  // Copy to clipboard
   const handleCopy = () => {
     navigator.clipboard.writeText(displayedText);
     setCopied(true);
@@ -299,12 +393,33 @@ Porque Dios es el Rey de toda la tierra
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Reset to original saved
   const handleResetToSaved = () => {
     setEditedText(rawText);
     setTransposeOffset(0);
     setCapoFret(0);
     showToast('Restaurado a la versión original guardada.');
+  };
+
+  // Add attachment
+  const handleAddAttachment = () => {
+    if (!newAttachmentName.trim() || !newAttachmentUrl.trim()) {
+      showToast('Por favor ingresa un nombre y un enlace válido.');
+      return;
+    }
+    const newAtt: SongAttachment = {
+      id: `att_${Date.now()}`,
+      name: newAttachmentName.trim(),
+      url: newAttachmentUrl.trim(),
+      type: newAttachmentUrl.toLowerCase().includes('.pdf') ? 'pdf' : 'link',
+    };
+    setAttachments(prev => [...prev, newAtt]);
+    setNewAttachmentName('');
+    setNewAttachmentUrl('');
+    showToast('Adjunto añadido.');
+  };
+
+  const handleRemoveAttachment = (attId: string) => {
+    setAttachments(prev => prev.filter(a => a.id !== attId));
   };
 
   // Save changes (Admin only)
@@ -315,16 +430,13 @@ Porque Dios es el Rey de toda la tierra
     }
 
     if (onSaveSongLyrics) {
-      onSaveSongLyrics(song.id, editedText, currentKey);
+      onSaveSongLyrics(song.id, editedText, currentKey, bpm, youtubeUrlInput, attachments);
       setRawText(editedText);
-      showToast(`¡Letra y acordes de "${song.title}" guardados oficialmente!`);
+      showToast(`¡Cambios guardados para "${song.title}"!`);
     }
   };
 
-  // Render formatted lines
-  const renderedLines = useMemo(() => {
-    return displayedText.split('\n');
-  }, [displayedText]);
+  const youtubeEmbedUrl = getYouTubeEmbedUrl(youtubeUrlInput);
 
   return (
     <div
@@ -342,7 +454,7 @@ Porque Dios es el Rey de toda la tierra
         onClick={e => e.stopPropagation()}
       >
         {/* ======================================================== */}
-        {/* 1. HEADER: Título, Tono, BPM, Acciones & Controles Principales */}
+        {/* 1. HEADER: Título, Tono, BPM, Navegación & Botón Menú Herramientas */}
         {/* ======================================================== */}
         <div className="p-3.5 sm:p-5 bg-[#1a1a1d] border-b border-[#232328] flex flex-col md:flex-row md:items-center justify-between gap-3 flex-shrink-0">
           {/* Título & Meta */}
@@ -353,76 +465,300 @@ Porque Dios es el Rey de toda la tierra
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#c5a059] font-bold">
-                  Letra & Acordes
+                  Cancionero · Cifrado Americano
                 </span>
 
-                {displayedKey && (
-                  <span className="font-mono text-xs font-semibold px-2 py-0.5 bg-[#0a0a0b] text-[#c5a059] border border-[#c5a059]/40 rounded flex items-center gap-1">
-                    <KeyRound size={10} />
-                    <span>Tono: {displayedKey}</span>
-                    {transposeOffset !== 0 && (
-                      <span className="text-[10px] text-[#888894]">
-                        ({transposeOffset > 0 ? `+${transposeOffset}` : transposeOffset})
-                      </span>
-                    )}
-                  </span>
-                )}
+                {/* Tono Selector Editable */}
+                <div className="flex items-center gap-1 bg-[#0a0a0b] px-2 py-0.5 rounded border border-[#c5a059]/40">
+                  <KeyRound size={11} className="text-[#c5a059]" />
+                  <span className="text-[10px] font-mono text-[#888894]">Tono:</span>
+                  {isAdmin && viewMode === 'edit' ? (
+                    <select
+                      value={currentKey}
+                      onChange={e => setCurrentKey(e.target.value)}
+                      className="bg-transparent font-mono text-xs font-bold text-[#c5a059] focus:outline-none cursor-pointer"
+                    >
+                      {ALL_STANDARD_KEYS.map(k => (
+                        <option key={k} value={k} className="bg-[#141418] text-white">
+                          {k}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="font-mono text-xs font-bold text-[#c5a059]">
+                      {soundingKey}
+                      {transposeOffset !== 0 && (
+                        <span className="text-[10px] text-[#888894] ml-1">
+                          ({transposeOffset > 0 ? `+${transposeOffset}` : transposeOffset})
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
 
+                {/* Capo Display */}
                 {capoFret > 0 && (
                   <span className="text-[10px] font-mono text-amber-300 bg-amber-950/40 border border-amber-800/40 px-2 py-0.5 rounded">
-                    Capo: {capoFret}º traste
+                    Capo {capoFret} ({fingeredKey})
                   </span>
                 )}
 
-                {song.tempo && (
-                  <span className="text-[10px] font-mono text-[#888894] bg-[#0a0a0b] px-2 py-0.5 rounded border border-[#1f1f23]">
-                    {song.tempo}
-                  </span>
+                {/* BPM Editable */}
+                <div className="flex items-center gap-1 bg-[#0a0a0b] px-2 py-0.5 rounded border border-[#1f1f23]">
+                  <Clock size={11} className="text-[#888894]" />
+                  <span className="text-[10px] font-mono text-[#888894]">BPM:</span>
+                  {isAdmin && viewMode === 'edit' ? (
+                    <input
+                      type="number"
+                      value={bpm}
+                      onChange={e => setBpm(Math.max(40, Math.min(260, parseInt(e.target.value, 10) || 120)))}
+                      className="w-12 bg-transparent font-mono text-xs font-bold text-white focus:outline-none text-center"
+                    />
+                  ) : (
+                    <span className="text-[10px] font-mono text-white font-bold">{bpm}</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 mt-1">
+                <h3 className="font-serif text-lg sm:text-2xl text-white font-medium tracking-tight">
+                  {song.title}
+                </h3>
+
+                {/* Navegación Entre Canciones del Setlist */}
+                {allSongs.length > 1 && onNavigateToSong && (
+                  <div className="flex items-center bg-[#0a0a0b] border border-[#26262b] rounded-lg p-0.5 ml-1 shadow-sm">
+                    <button
+                      onClick={() => prevSong && onNavigateToSong(prevSong)}
+                      disabled={!prevSong}
+                      className="p-1 text-[#888894] hover:text-[#c5a059] disabled:opacity-30 disabled:hover:text-[#888894] transition-colors cursor-pointer"
+                      title={prevSong ? `Anterior: ${prevSong.title}` : 'No hay anterior'}
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span className="text-[10px] font-mono text-[#888894] px-2 border-x border-[#232328]">
+                      {currentSongIndex + 1}/{allSongs.length}
+                    </span>
+                    <button
+                      onClick={() => nextSong && onNavigateToSong(nextSong)}
+                      disabled={!nextSong}
+                      className="p-1 text-[#888894] hover:text-[#c5a059] disabled:opacity-30 disabled:hover:text-[#888894] transition-colors cursor-pointer"
+                      title={nextSong ? `Siguiente: ${nextSong.title}` : 'No hay siguiente'}
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
                 )}
               </div>
 
-              <h3 className="font-serif text-lg sm:text-2xl text-white font-medium tracking-tight">
-                {song.title}
-              </h3>
-              {song.artist && <p className="text-xs text-[#888894] italic">{song.artist}</p>}
+              {song.artist && <p className="text-xs text-[#888894] italic mt-0.5">{song.artist}</p>}
             </div>
           </div>
 
-          {/* Botones de Control Superiores */}
+          {/* Acciones Rápidas del Header */}
           <div className="flex items-center gap-2 flex-wrap self-end md:self-center">
-            {/* View / Edit Mode toggle */}
+            {/* Toggle Ver Acordes vs Solo Letra */}
+            <button
+              onClick={() => setShowChords(!showChords)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 border transition-all cursor-pointer ${
+                showChords
+                  ? 'bg-[#1a1a1d] text-[#c5a059] border-[#c5a059]/40 font-bold'
+                  : 'bg-[#0a0a0b] text-[#888894] border-[#232328] hover:text-white'
+              }`}
+              title={showChords ? 'Ocultar acordes y mostrar solo letra' : 'Mostrar acordes musicales'}
+            >
+              {showChords ? <Eye size={13} /> : <EyeOff size={13} />}
+              <span>{showChords ? 'Acordes ON' : 'Solo Letra'}</span>
+            </button>
+
+            {/* View / Edit Mode */}
             <div className="flex bg-[#0a0a0b] p-1 rounded-xl border border-[#232328]">
               <button
                 onClick={() => setViewMode('view')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer ${
+                className={`px-3 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer ${
                   viewMode === 'view'
                     ? 'bg-[#1a1a1d] text-[#c5a059] border border-[#c5a059]/30 font-medium'
                     : 'text-[#6b6b75] hover:text-white'
                 }`}
-                title="Vista de acordes interactiva"
+                title="Vista interactiva"
               >
                 <Eye size={13} />
-                <span>Acordes</span>
+                <span>Ver</span>
               </button>
               <button
                 onClick={() => setViewMode('edit')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer ${
+                className={`px-3 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer ${
                   viewMode === 'edit'
                     ? 'bg-[#1a1a1d] text-[#c5a059] border border-[#c5a059]/30 font-medium'
                     : 'text-[#6b6b75] hover:text-white'
                 }`}
-                title="Editar letra y notas"
+                title="Editar letra, acordes y configuración"
               >
                 <Edit3 size={13} />
                 <span>{isAdmin ? 'Editar' : 'Probar'}</span>
               </button>
             </div>
 
-            {/* Pantalla Completa / Modo Atril */}
+            {/* MENÚ DESPLEGABLE DE HERRAMIENTAS (Transposición, Capo, Metrónomo, Diagramas, etc.) */}
+            <div className="relative">
+              <button
+                onClick={() => setShowToolsDropdown(!showToolsDropdown)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 border transition-all cursor-pointer ${
+                  showToolsDropdown
+                    ? 'bg-[#c5a059] text-black font-bold border-[#c5a059]'
+                    : 'bg-[#0a0a0b] text-[#c5a059] border-[#c5a059]/40 hover:bg-[#1a1a1d]'
+                }`}
+                title="Abrir panel de herramientas de la canción"
+              >
+                <Settings2 size={14} />
+                <span>Herramientas</span>
+                <ChevronDown size={13} className={showToolsDropdown ? 'rotate-180 transition-transform' : 'transition-transform'} />
+              </button>
+
+              {/* Menú Desplegable Flotante */}
+              {showToolsDropdown && (
+                <div
+                  className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-[#141418] border border-[#2a2a32] rounded-2xl p-4 shadow-2xl z-50 animate-fadeIn"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between pb-2 mb-3 border-b border-[#232328]">
+                    <span className="text-xs font-mono font-bold uppercase text-[#c5a059] flex items-center gap-1.5">
+                      <Sliders size={13} />
+                      <span>Herramientas Musicales</span>
+                    </span>
+                    <button
+                      onClick={() => setShowToolsDropdown(false)}
+                      className="text-[#888894] hover:text-white p-1 cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3.5 text-xs">
+                    {/* Transposición */}
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] font-mono text-[#888894] mb-1.5">
+                        <span>Transportar Tonalidad</span>
+                        {transposeOffset !== 0 && (
+                          <button
+                            onClick={handleResetTranspose}
+                            className="text-[#c5a059] hover:underline cursor-pointer"
+                          >
+                            Restablecer
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between bg-[#0a0a0b] border border-[#232328] rounded-xl p-1">
+                        <button
+                          onClick={() => handleTranspose(-1)}
+                          className="px-3 py-1.5 bg-[#141418] hover:bg-[#1f1f23] text-white rounded-lg font-mono font-bold cursor-pointer"
+                        >
+                          -1 Semitono
+                        </button>
+                        <span className="font-mono text-xs font-bold text-[#c5a059]">
+                          {transposeOffset === 0 ? 'Original' : `${transposeOffset > 0 ? '+' : ''}${transposeOffset}`}
+                        </span>
+                        <button
+                          onClick={() => handleTranspose(1)}
+                          className="px-3 py-1.5 bg-[#141418] hover:bg-[#1f1f23] text-white rounded-lg font-mono font-bold cursor-pointer"
+                        >
+                          +1 Semitono
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Capo */}
+                    <div>
+                      <label className="block text-[11px] font-mono text-[#888894] mb-1">
+                        Cejilla / Capodastro (Traste)
+                      </label>
+                      <select
+                        value={capoFret}
+                        onChange={e => setCapoFret(parseInt(e.target.value, 10))}
+                        className="w-full bg-[#0a0a0b] text-white border border-[#232328] rounded-xl px-3 py-2 text-xs font-mono focus:outline-none cursor-pointer"
+                      >
+                        <option value={0}>Sin Capo (Tocar al natural)</option>
+                        <option value={1}>Capo en Traste 1</option>
+                        <option value={2}>Capo en Traste 2</option>
+                        <option value={3}>Capo en Traste 3</option>
+                        <option value={4}>Capo en Traste 4</option>
+                        <option value={5}>Capo en Traste 5</option>
+                        <option value={6}>Capo en Traste 6</option>
+                        <option value={7}>Capo en Traste 7</option>
+                      </select>
+                      {capoFret > 0 && (
+                        <p className="text-[10px] text-amber-300 font-mono mt-1">
+                          Tocar acordes en postura de <strong>{fingeredKey}</strong> (suena en <strong>{soundingKey}</strong>)
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Instrumento para Diagramas */}
+                    <div>
+                      <label className="block text-[11px] font-mono text-[#888894] mb-1">
+                        Instrumento para Diagramas
+                      </label>
+                      <div className="grid grid-cols-2 gap-1 bg-[#0a0a0b] p-1 rounded-xl border border-[#232328]">
+                        {(
+                          [
+                            { id: 'guitar', label: '🎸 Guitarra' },
+                            { id: 'piano', label: '🎹 Piano' },
+                            { id: 'ukulele', label: '🪕 Ukelele' },
+                            { id: 'bass', label: '🎸 Bajo' },
+                          ] as const
+                        ).map(inst => (
+                          <button
+                            key={inst.id}
+                            onClick={() => {
+                              setSelectedInstrument(inst.id);
+                              setShowChordDiagramsBar(true);
+                            }}
+                            className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                              selectedInstrument === inst.id
+                                ? 'bg-[#1f1f23] text-[#c5a059] font-bold border border-[#c5a059]/40'
+                                : 'text-[#888894] hover:text-white'
+                            }`}
+                          >
+                            {inst.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Multimedia / Enlaces */}
+                    <div className="pt-2 border-t border-[#232328] flex items-center justify-between">
+                      <button
+                        onClick={() => {
+                          setShowYouTubePanel(!showYouTubePanel);
+                          setShowToolsDropdown(false);
+                        }}
+                        className="flex items-center gap-1.5 text-xs text-[#888894] hover:text-red-400 font-mono cursor-pointer"
+                      >
+                        <Video size={13} />
+                        <span>Video YouTube</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowAttachmentsPanel(!showAttachmentsPanel);
+                          setShowToolsDropdown(false);
+                        }}
+                        className="flex items-center gap-1.5 text-xs text-[#888894] hover:text-[#c5a059] font-mono cursor-pointer"
+                      >
+                        <Paperclip size={13} />
+                        <span>Partituras ({attachments.length})</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Pantalla Completa */}
             <button
               onClick={() => setIsFullScreen(!isFullScreen)}
               className="p-2 rounded-xl bg-[#0a0a0b] hover:bg-[#1f1f23] text-[#888894] hover:text-white border border-[#232328] transition-colors cursor-pointer"
-              title={isFullScreen ? 'Salir de pantalla completa' : 'Modo Atril / Pantalla Completa'}
+              title={isFullScreen ? 'Salir de pantalla completa' : 'Modo Pantalla Completa'}
             >
               {isFullScreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
             </button>
@@ -457,100 +793,12 @@ Porque Dios es el Rey de toda la tierra
         </div>
 
         {/* ======================================================== */}
-        {/* 2. TOOLBAR PRINCIPAL: Transportador, Notación, Zoom, Auto-Scroll, Metrónomo */}
+        {/* 2. SUB-TOOLBAR: Auto-Scroll, Metrónomo, Zoom, Columnas & Diagramas */}
         {/* ======================================================== */}
         <div className="px-3 sm:px-5 py-2.5 bg-[#101013] border-b border-[#1f1f23] flex flex-wrap items-center justify-between gap-2.5 text-xs flex-shrink-0">
-          {/* GRUPO 1: Transposición & Tono */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-[#6b6b75]">
-              Tono:
-            </span>
-            <div className="flex items-center bg-[#0a0a0b] border border-[#232328] rounded-lg p-0.5">
-              <button
-                onClick={() => handleTranspose(-1)}
-                className="px-2 py-1 hover:bg-[#1f1f23] text-[#a0a0ab] hover:text-white rounded transition-colors cursor-pointer flex items-center gap-0.5"
-                title="Bajar medio tono (-1 semitono)"
-              >
-                <Minus size={11} />
-                <span className="font-mono text-[10px]">-1</span>
-              </button>
-
-              <span className="px-2 py-0.5 font-mono text-[11px] font-bold text-[#c5a059] border-x border-[#232328] min-w-[55px] text-center">
-                {transposeOffset === 0
-                  ? 'Original'
-                  : `${transposeOffset > 0 ? '+' : ''}${transposeOffset}`}
-              </span>
-
-              <button
-                onClick={() => handleTranspose(1)}
-                className="px-2 py-1 hover:bg-[#1f1f23] text-[#a0a0ab] hover:text-white rounded transition-colors cursor-pointer flex items-center gap-0.5"
-                title="Subir medio tono (+1 semitono)"
-              >
-                <Plus size={11} />
-                <span className="font-mono text-[10px]">+1</span>
-              </button>
-            </div>
-
-            {transposeOffset !== 0 && (
-              <button
-                onClick={handleResetTranspose}
-                className="text-[10px] font-mono uppercase text-[#c5a059] hover:underline cursor-pointer px-1"
-              >
-                Reset
-              </button>
-            )}
-
-            {/* Capo selector */}
-            <div className="flex items-center gap-1 ml-1">
-              <span className="font-mono text-[10px] uppercase text-[#6b6b75] hidden sm:inline">
-                Capo:
-              </span>
-              <select
-                value={capoFret}
-                onChange={e => setCapoFret(parseInt(e.target.value, 10))}
-                className="bg-[#0a0a0b] text-[#a0a0ab] hover:text-white border border-[#232328] rounded-lg px-1.5 py-1 text-[10px] font-mono focus:outline-none cursor-pointer"
-                title="Posición de cejilla / Capodastro"
-              >
-                <option value={0}>Sin Capo</option>
-                <option value={1}>Capo 1</option>
-                <option value={2}>Capo 2</option>
-                <option value={3}>Capo 3</option>
-                <option value={4}>Capo 4</option>
-                <option value={5}>Capo 5</option>
-                <option value={6}>Capo 6</option>
-              </select>
-            </div>
-
-            {/* Notación Cifrado: Latino (Do, Re) ⇄ Americano (C, D) */}
-            <div className="flex bg-[#0a0a0b] p-0.5 rounded-lg border border-[#232328] ml-1">
-              <button
-                onClick={() => setNotation('latin')}
-                className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors cursor-pointer ${
-                  notation === 'latin'
-                    ? 'bg-[#1a1a1d] text-[#c5a059] font-bold'
-                    : 'text-[#6b6b75] hover:text-white'
-                }`}
-                title="Cifrado Latino (Do, Re, Mi, Fa, Sol, La, Si)"
-              >
-                Latino
-              </button>
-              <button
-                onClick={() => setNotation('anglo')}
-                className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors cursor-pointer ${
-                  notation === 'anglo'
-                    ? 'bg-[#1a1a1d] text-[#c5a059] font-bold'
-                    : 'text-[#6b6b75] hover:text-white'
-                }`}
-                title="Cifrado Americano (C, D, E, F, G, A, B)"
-              >
-                Americano
-              </button>
-            </div>
-          </div>
-
-          {/* GRUPO 2: Auto-Scroll & Metrónomo */}
+          {/* Controles de Ensayo: Auto-scroll & Metrónomo */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Auto-Scroll Controller */}
+            {/* Auto-Scroll */}
             <div className="flex items-center bg-[#0a0a0b] border border-[#232328] rounded-lg p-0.5">
               <button
                 onClick={() => setIsAutoScrolling(!isAutoScrolling)}
@@ -584,7 +832,7 @@ Porque Dios es el Rey de toda la tierra
               </div>
             </div>
 
-            {/* Metrónomo / BPM */}
+            {/* Metrónomo */}
             <div className="flex items-center bg-[#0a0a0b] border border-[#232328] rounded-lg p-0.5">
               <button
                 onClick={() => setIsMetronomeActive(!isMetronomeActive)}
@@ -593,7 +841,7 @@ Porque Dios es el Rey de toda la tierra
                     ? 'bg-amber-400 text-black font-bold'
                     : 'hover:bg-[#1a1a1d] text-[#888894] hover:text-white'
                 }`}
-                title="Activar metrónomo para ensayo"
+                title="Activar metrónomo"
               >
                 <Activity
                   size={12}
@@ -607,14 +855,14 @@ Porque Dios es el Rey de toda la tierra
                   <button
                     onClick={handleTapTempo}
                     className="px-2 py-1 hover:bg-[#1f1f23] text-[#c5a059] text-[10px] font-mono font-bold border-l border-[#232328] cursor-pointer"
-                    title="Marca el pulso haciendo clics seguidos"
+                    title="Marca el pulso (TAP)"
                   >
                     TAP
                   </button>
                   <button
                     onClick={() => setMetronomeSound(!metronomeSound)}
                     className="p-1 hover:bg-[#1f1f23] text-[#888894] hover:text-white border-l border-[#232328] cursor-pointer"
-                    title={metronomeSound ? 'Silenciar sonido' : 'Activar sonido de clic'}
+                    title={metronomeSound ? 'Silenciar sonido' : 'Activar clic audible'}
                   >
                     {metronomeSound ? (
                       <Volume2 size={12} className="text-emerald-400" />
@@ -625,8 +873,11 @@ Porque Dios es el Rey de toda la tierra
                 </>
               )}
             </div>
+          </div>
 
-            {/* Tamaño de Letra (A- / A+) */}
+          {/* Opciones de Visualización */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Tamaño de Letra */}
             <div className="flex items-center bg-[#0a0a0b] border border-[#232328] rounded-lg p-0.5">
               <button
                 onClick={() => {
@@ -635,7 +886,7 @@ Porque Dios es el Rey de toda la tierra
                   if (curIdx > 0) setTextSize(sizes[curIdx - 1]);
                 }}
                 className="px-2 py-1 hover:bg-[#1f1f23] text-[#888894] hover:text-white rounded text-[11px] font-mono cursor-pointer"
-                title="Reducir tamaño de letra"
+                title="Reducir letra"
               >
                 A-
               </button>
@@ -649,13 +900,13 @@ Porque Dios es el Rey de toda la tierra
                   if (curIdx < sizes.length - 1) setTextSize(sizes[curIdx + 1]);
                 }}
                 className="px-2 py-1 hover:bg-[#1f1f23] text-[#888894] hover:text-white rounded text-[11px] font-mono cursor-pointer"
-                title="Aumentar tamaño de letra"
+                title="Aumentar letra"
               >
                 A+
               </button>
             </div>
 
-            {/* Columnas (1 Col / 2 Col) */}
+            {/* Columnas */}
             <button
               onClick={() => setColumnsCount(columnsCount === 1 ? 2 : 1)}
               className="p-1.5 rounded-lg bg-[#0a0a0b] hover:bg-[#1f1f23] text-[#888894] hover:text-[#c5a059] border border-[#232328] transition-colors cursor-pointer hidden md:flex"
@@ -664,7 +915,7 @@ Porque Dios es el Rey de toda la tierra
               {columnsCount === 1 ? <Columns size={13} /> : <Square size={13} />}
             </button>
 
-            {/* Botón Ver Acordes / Diagramas */}
+            {/* Diagramas de Acordes */}
             <button
               onClick={() => setShowChordDiagramsBar(!showChordDiagramsBar)}
               className={`px-2.5 py-1 rounded-lg text-[10px] font-mono uppercase tracking-wider flex items-center gap-1 border transition-colors cursor-pointer ${
@@ -672,7 +923,7 @@ Porque Dios es el Rey de toda la tierra
                   ? 'bg-[#1a1a1d] text-[#c5a059] border-[#c5a059]/40 font-bold'
                   : 'bg-[#0a0a0b] text-[#888894] hover:text-white border-[#232328]'
               }`}
-              title="Mostrar u ocultar diagramas de guitarra de los acordes"
+              title="Mostrar u ocultar diagramas visuales de acordes"
             >
               <Layers size={12} />
               <span>Diagramas ({songUniqueChords.length})</span>
@@ -681,18 +932,179 @@ Porque Dios es el Rey de toda la tierra
         </div>
 
         {/* ======================================================== */}
-        {/* 3. RIBBON DESPLEGABLE DE DIAGRAMAS DE ACORDES DE GUITARRA */}
+        {/* 3. MINI REPRODUCTOR DE YOUTUBE (COMPACTO Y COLAPSABLE) */}
+        {/* ======================================================== */}
+        {showYouTubePanel && (
+          <div className="bg-[#0b0b0e] border-b border-[#232328] p-3 flex flex-col md:flex-row items-center gap-3 animate-fadeIn">
+            <div className="flex-1 w-full flex items-center gap-2">
+              <Video size={16} className="text-red-400 flex-shrink-0" />
+              <input
+                type="text"
+                value={youtubeUrlInput}
+                onChange={e => setYoutubeUrlInput(e.target.value)}
+                placeholder="Pega el enlace de YouTube aquí (ej: https://www.youtube.com/watch?v=...)"
+                className="w-full bg-[#141418] border border-[#232328] rounded-lg px-3 py-1.5 text-xs text-white placeholder-[#6b6b75] focus:outline-none focus:border-red-500 font-mono"
+              />
+              <button
+                onClick={() => setShowYouTubePanel(false)}
+                className="p-1.5 text-[#888894] hover:text-white rounded cursor-pointer"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {youtubeEmbedUrl && (
+              <div className="w-full md:w-64 h-36 rounded-xl overflow-hidden border border-[#232328] shadow-md flex-shrink-0">
+                <iframe
+                  src={youtubeEmbedUrl}
+                  title="YouTube video reference"
+                  className="w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* 4. PANEL DE ADJUNTOS / PARTITURAS (PDF / IMÁGENES) */}
+        {/* ======================================================== */}
+        {showAttachmentsPanel && (
+          <div className="bg-[#0b0b0e] border-b border-[#232328] p-3.5 animate-fadeIn">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-mono uppercase tracking-wider text-[#c5a059] flex items-center gap-1.5 font-bold">
+                <FileText size={14} />
+                <span>Partituras y Documentos Adjuntos ({attachments.length})</span>
+              </span>
+              <button
+                onClick={() => setShowAttachmentsPanel(false)}
+                className="text-[#888894] hover:text-white p-1 cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap mb-3">
+              {attachments.map(att => (
+                <div
+                  key={att.id}
+                  className="flex items-center gap-2 bg-[#141418] border border-[#26262b] rounded-lg px-2.5 py-1 text-xs text-white"
+                >
+                  <FileText size={12} className="text-[#c5a059]" />
+                  <a
+                    href={att.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-[#c5a059] underline flex items-center gap-1"
+                  >
+                    <span>{att.name}</span>
+                    <ExternalLink size={10} />
+                  </a>
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleRemoveAttachment(att.id)}
+                      className="text-red-400 hover:text-red-300 ml-1 cursor-pointer"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {attachments.length === 0 && (
+                <span className="text-xs text-[#6b6b75] italic">No hay partituras adjuntas todavía.</span>
+              )}
+            </div>
+
+            {isAdmin && (
+              <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-[#1f1f23]">
+                <input
+                  type="text"
+                  placeholder="Nombre (ej: Partitura Piano)"
+                  value={newAttachmentName}
+                  onChange={e => setNewAttachmentName(e.target.value)}
+                  className="bg-[#141418] border border-[#232328] rounded-lg px-2.5 py-1 text-xs text-white placeholder-[#6b6b75]"
+                />
+                <input
+                  type="text"
+                  placeholder="URL del archivo PDF o enlace"
+                  value={newAttachmentUrl}
+                  onChange={e => setNewAttachmentUrl(e.target.value)}
+                  className="bg-[#141418] border border-[#232328] rounded-lg px-2.5 py-1 text-xs text-white placeholder-[#6b6b75] flex-1 min-w-[200px]"
+                />
+                <button
+                  onClick={handleAddAttachment}
+                  className="px-3 py-1 bg-[#c5a059] text-black font-semibold rounded-lg text-xs hover:bg-[#d4b068] transition-colors cursor-pointer"
+                >
+                  Añadir
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* 5. MAPA DE ESTRUCTURA (PILLS INTERACTIVAS IN, V1, C, PC, PTE, OUT) */}
+        {/* ======================================================== */}
+        {structureSections.length > 0 && viewMode === 'view' && (
+          <div className="bg-[#0b0b0d] border-b border-[#1c1c20] px-4 py-2 flex items-center gap-2 overflow-x-auto flex-shrink-0">
+            <span className="text-[10px] font-mono uppercase text-[#c5a059] font-bold flex items-center gap-1.5 flex-shrink-0 pr-1">
+              <ListOrdered size={12} />
+              <span>Estructura:</span>
+            </span>
+
+            <div className="flex items-center gap-1.5 flex-nowrap">
+              {structureSections.map((sec, sIdx) => {
+                const { code, colorClass } = getSectionBadgeCode(sec.label);
+                return (
+                  <button
+                    key={sec.id || sIdx}
+                    onClick={() => scrollToSection(sec.lineIndex)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold uppercase tracking-wider border transition-all hover:scale-105 cursor-pointer shadow-sm flex items-center gap-1 flex-shrink-0 ${colorClass}`}
+                    title={`Ir a ${sec.label}`}
+                  >
+                    <span>{code}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* 6. RIBBON DE DIAGRAMAS PARA GUITARRA / PIANO / UKELELE / BAJO */}
         {/* ======================================================== */}
         {showChordDiagramsBar && songUniqueChords.length > 0 && (
           <div className="bg-[#0e0e12] border-b border-[#232328] px-4 py-3 overflow-x-auto flex-shrink-0 animate-fadeIn">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-[#c5a059] flex items-center gap-1.5">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-[#c5a059] flex items-center gap-1.5 font-bold">
                 <Music size={12} />
-                <span>Acordes utilizados en esta canción ({songUniqueChords.length}):</span>
+                <span>
+                  Diagramas para{' '}
+                  {selectedInstrument === 'piano'
+                    ? 'Piano'
+                    : selectedInstrument === 'ukulele'
+                    ? 'Ukelele'
+                    : selectedInstrument === 'bass'
+                    ? 'Bajo'
+                    : 'Guitarra'}{' '}
+                  ({songUniqueChords.length} acordes):
+                </span>
               </span>
-              <span className="text-[10px] text-[#6b6b75] font-mono">
-                Pasa el mouse o haz clic sobre un acorde para ampliar
-              </span>
+              <div className="flex items-center gap-1 text-[10px] font-mono text-[#888894]">
+                <span>Cambiar:</span>
+                {(['guitar', 'piano', 'ukulele', 'bass'] as const).map(inst => (
+                  <button
+                    key={inst}
+                    onClick={() => setSelectedInstrument(inst)}
+                    className={`px-1.5 py-0.5 rounded uppercase font-bold cursor-pointer ${
+                      selectedInstrument === inst ? 'bg-[#c5a059] text-black' : 'hover:text-white'
+                    }`}
+                  >
+                    {inst}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="flex items-center gap-3 overflow-x-auto pb-1">
@@ -702,7 +1114,12 @@ Porque Dios es el Rey de toda la tierra
                   onClick={() => setSelectedChordForPopover(chord)}
                   className="cursor-pointer flex-shrink-0"
                 >
-                  <GuitarChordDiagram chordName={chord} size="sm" showTitle={true} />
+                  <GuitarChordDiagram
+                    chordName={chord}
+                    instrument={selectedInstrument}
+                    size="sm"
+                    showTitle={true}
+                  />
                 </div>
               ))}
             </div>
@@ -710,7 +1127,7 @@ Porque Dios es el Rey de toda la tierra
         )}
 
         {/* ======================================================== */}
-        {/* 4. POPOVER FLOTANTE DE ACORDE SELECCIONADO */}
+        {/* 7. MODAL FLOTANTE DE ACORDE INDIVIDUAL */}
         {/* ======================================================== */}
         {selectedChordForPopover && (
           <div
@@ -718,7 +1135,7 @@ Porque Dios es el Rey de toda la tierra
             onClick={() => setSelectedChordForPopover(null)}
           >
             <div
-              className="bg-[#141418] border border-[#c5a059]/40 rounded-2xl p-5 shadow-2xl max-w-xs w-full flex flex-col items-center animate-scaleIn"
+              className="bg-[#141418] border border-[#c5a059]/40 rounded-2xl p-5 shadow-2xl max-w-sm w-full flex flex-col items-center animate-scaleIn"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between w-full mb-3 pb-2 border-b border-[#232328]">
@@ -736,17 +1153,42 @@ Porque Dios es el Rey de toda la tierra
                 </button>
               </div>
 
-              <GuitarChordDiagram chordName={selectedChordForPopover} size="lg" showTitle={false} />
+              {/* Selector de Instrumento en Popover */}
+              <div className="flex items-center gap-1 bg-[#0a0a0b] p-1 rounded-xl border border-[#232328] mb-3 w-full justify-center">
+                {(
+                  [
+                    { id: 'guitar', label: 'Guitarra' },
+                    { id: 'piano', label: 'Piano' },
+                    { id: 'ukulele', label: 'Ukelele' },
+                    { id: 'bass', label: 'Bajo' },
+                  ] as const
+                ).map(inst => (
+                  <button
+                    key={inst.id}
+                    onClick={() => setSelectedInstrument(inst.id)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium transition-colors cursor-pointer ${
+                      selectedInstrument === inst.id
+                        ? 'bg-[#1f1f23] text-[#c5a059] font-bold border border-[#c5a059]/40'
+                        : 'text-[#888894] hover:text-white'
+                    }`}
+                  >
+                    {inst.label}
+                  </button>
+                ))}
+              </div>
 
-              <p className="text-[11px] text-[#888894] font-mono mt-3 text-center">
-                Posición en diapasón de guitarra estándar (E A D G B e).
-              </p>
+              <GuitarChordDiagram
+                chordName={selectedChordForPopover}
+                instrument={selectedInstrument}
+                size="lg"
+                showTitle={false}
+              />
             </div>
           </div>
         )}
 
         {/* ======================================================== */}
-        {/* 5. CUERPO PRINCIPAL (VISOR CON ESTILO CIFRADO WEB O EDITOR) */}
+        {/* 8. VISOR PRINCIPAL / EDITOR */}
         {/* ======================================================== */}
         <div
           ref={scrollContainerRef}
@@ -758,67 +1200,96 @@ Porque Dios es el Rey de toda la tierra
                 columnsCount === 2 ? 'md:columns-2 md:gap-8' : ''
               }`}
             >
-              {renderedLines.map((line, lineIdx) => {
-                const trimmed = line.trim();
+              {renderedLines.length === 0 || (renderedLines.length === 1 && !renderedLines[0].trim()) ? (
+                <div className="text-center py-12 text-[#6b6b75]">
+                  <Music size={32} className="mx-auto mb-2 text-[#34343d]" />
+                  <p className="text-sm font-sans text-[#a0a0ab]">Esta canción no tiene letra cargada aún.</p>
+                  {isAdmin && (
+                    <button
+                      onClick={() => setViewMode('edit')}
+                      className="mt-3 px-4 py-2 bg-[#1a1a1d] hover:bg-[#232328] text-[#c5a059] rounded-xl text-xs font-mono uppercase tracking-wider border border-[#c5a059]/30 transition-colors cursor-pointer"
+                    >
+                      Escribir o pegar letra y acordes
+                    </button>
+                  )}
+                </div>
+              ) : (
+                renderedLines.map((line, lineIdx) => {
+                  const trimmed = line.trim();
 
-                // Empty line separator
-                if (!trimmed) {
-                  return <div key={lineIdx} className="h-4" />;
-                }
+                  if (!trimmed) {
+                    return <div key={lineIdx} className="h-4" />;
+                  }
 
-                // Section headers: [Intro], [Estrofa 1], [Coro], [Puente]
-                if (isSectionHeader(trimmed)) {
+                  // Sección: [Intro], [Estrofa 1], [Coro], [Puente]
+                  if (isSectionHeader(trimmed)) {
+                    const { code, colorClass } = getSectionBadgeCode(trimmed);
+                    return (
+                      <div
+                        key={lineIdx}
+                        id={`section-node-${lineIdx}`}
+                        className="pt-5 pb-2 break-inside-avoid scroll-mt-6 flex items-center gap-2"
+                      >
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 font-bold text-xs rounded-lg border tracking-wider shadow-sm ${colorClass}`}
+                        >
+                          <span className="font-mono">{code}</span>
+                          <span className="text-[#a0a0ab] font-sans font-normal text-[11px]">
+                            · {trimmed.replace(/[[\]]/g, '')}
+                          </span>
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  // Si el usuario eligió "Ocultar Acordes" (Solo Letra):
+                  const isLineAllChords = isChordLine(line);
+                  if (!showChords && isLineAllChords) {
+                    return null; // Ocultar línea completa de acordes
+                  }
+
+                  const tokens = parseLyricsLineTokens(line);
+
                   return (
-                    <div key={lineIdx} className="pt-4 pb-1.5 break-inside-avoid">
-                      <span className="inline-block px-3 py-1 bg-[#1a1a1d] text-[#c5a059] font-bold text-xs rounded-lg border border-[#c5a059]/40 tracking-wider shadow-sm">
-                        {trimmed}
-                      </span>
-                    </div>
-                  );
-                }
-
-                // Parse tokens for lyrics and chords
-                const tokens = parseLyricsLineTokens(line);
-                const isLineAllChords = isChordLine(line);
-
-                return (
-                  <div
-                    key={lineIdx}
-                    className={`whitespace-pre-wrap ${
-                      isLineAllChords ? 'text-[#c5a059] font-bold py-0.5' : 'text-[#f0f0f5] py-0.5'
-                    }`}
-                  >
-                    {tokens.map((token, tIdx) => {
-                      if (token.isChord) {
+                    <div
+                      key={lineIdx}
+                      className={`whitespace-pre-wrap ${
+                        isLineAllChords ? 'text-[#c5a059] font-bold py-0.5' : 'text-[#f0f0f5] py-0.5'
+                      }`}
+                    >
+                      {tokens.map((token, tIdx) => {
+                        if (token.isChord) {
+                          if (!showChords) return null; // No renderizar acorde incrustado
+                          return (
+                            <span
+                              key={tIdx}
+                              onClick={() => setSelectedChordForPopover(token.text)}
+                              className="inline-block font-bold text-[#c5a059] bg-[#c5a059]/10 hover:bg-[#c5a059]/25 px-1.5 py-0.5 rounded mx-0.5 border border-[#c5a059]/30 hover:border-[#c5a059] transition-all cursor-pointer select-text"
+                              title={`Ver diagrama de acorde: ${token.text}`}
+                            >
+                              {token.text}
+                            </span>
+                          );
+                        }
                         return (
-                          <span
-                            key={tIdx}
-                            onClick={() => setSelectedChordForPopover(token.text)}
-                            className="inline-block font-bold text-[#c5a059] bg-[#c5a059]/10 hover:bg-[#c5a059]/25 px-1.5 py-0.5 rounded mx-0.5 border border-[#c5a059]/30 hover:border-[#c5a059] transition-all cursor-pointer select-text"
-                            title={`Ver diagrama de acorde: ${token.text}`}
-                          >
+                          <span key={tIdx} className="text-[#f0f0f5]">
                             {token.text}
                           </span>
                         );
-                      }
-                      return (
-                        <span key={tIdx} className="text-[#f0f0f5]">
-                          {token.text}
-                        </span>
-                      );
-                    })}
-                  </div>
-                );
-              })}
+                      })}
+                    </div>
+                  );
+                })
+              )}
             </div>
           ) : (
             /* Modo Editor / Modificación */
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <label className="text-xs font-mono uppercase tracking-wider text-[#6b6b75] block">
                   {isAdmin
-                    ? 'Editor Oficial de Letra y Notas (Sincroniza en la nube)'
-                    : 'Editor Interactivo de Ensayo (Prueba notas y estructura)'}
+                    ? 'Editor de Canción (Cifrado Americano sin necesidad de corchetes)'
+                    : 'Editor Interactivo (Modo Práctica)'}
                 </label>
                 <button
                   type="button"
@@ -834,19 +1305,20 @@ Porque Dios es el Rey de toda la tierra
                 value={editedText}
                 onChange={e => setEditedText(e.target.value)}
                 rows={18}
-                placeholder="Escribe o pega aquí la letra y los acordes de la alabanza..."
+                placeholder={`Pega aquí la letra y notas. Ej:\n\n[Intro]\nG  Em7  C  D\n\n[Estrofa 1]\n      G                Em7\nTu fidelidad es grande\n       C        D        G\nTu fidelidad incomparable es`}
                 className="w-full bg-[#121215] border border-[#26262b] focus:border-[#c5a059] rounded-xl p-4 sm:p-5 font-mono text-sm leading-relaxed text-white focus:outline-none transition-colors shadow-inner resize-y"
-                style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
               />
 
-              <div className="text-[11px] font-mono text-[#6b6b75] flex items-center justify-between flex-wrap gap-2">
-                <span>{editedText.split('\n').length} líneas · Formato cifrado enriquecido</span>
-                <span>Los acordes como [Sol], [Re] o *Sol se resaltan y transportan automáticamente.</span>
+              <div className="text-[11px] font-mono text-[#888894] flex items-center justify-between flex-wrap gap-2">
+                <span>{editedText.split('\n').filter(l => l.trim()).length} líneas de letra</span>
+                <span className="text-[#c5a059]">
+                  Reconocimiento automático: Escribe notas como C, G, Am, D7 directamente sobre la letra.
+                </span>
               </div>
             </div>
           )}
 
-          {/* Floating Auto-Scroll Controls Bar when scrolling */}
+          {/* Botón flotante para pausar auto-scroll */}
           {isAutoScrolling && (
             <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-[#141418]/95 border border-[#c5a059] rounded-full px-5 py-2 shadow-2xl flex items-center gap-3 z-40 backdrop-blur-md animate-fadeIn">
               <button
@@ -856,26 +1328,9 @@ Porque Dios es el Rey de toda la tierra
               >
                 <Pause size={14} />
               </button>
-
               <span className="font-mono text-xs text-[#c5a059] font-bold">
                 Auto-Scroll ({scrollSpeed}px/s)
               </span>
-
-              <div className="flex items-center gap-1 border-l border-[#232328] pl-2">
-                <button
-                  onClick={() => setScrollSpeed(prev => Math.max(10, prev - 10))}
-                  className="px-2 py-0.5 bg-[#0a0a0b] hover:bg-[#1f1f23] rounded text-white text-xs font-mono cursor-pointer"
-                >
-                  -
-                </button>
-                <button
-                  onClick={() => setScrollSpeed(prev => Math.min(120, prev + 10))}
-                  className="px-2 py-0.5 bg-[#0a0a0b] hover:bg-[#1f1f23] rounded text-white text-xs font-mono cursor-pointer"
-                >
-                  +
-                </button>
-              </div>
-
               <button
                 onClick={() => {
                   if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
@@ -890,19 +1345,19 @@ Porque Dios es el Rey de toda la tierra
         </div>
 
         {/* ======================================================== */}
-        {/* 6. FOOTER: Indicador de Permisos & Botones de Guardar */}
+        {/* 9. FOOTER: Permisos & Botón Guardar */}
         {/* ======================================================== */}
         <div className="p-3.5 sm:p-5 bg-[#1a1a1d] border-t border-[#232328] flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
           <div className="text-xs text-[#6b6b75]">
             {isAdmin ? (
-              <span className="text-emerald-400 font-mono text-[11px] flex items-center gap-1.5">
+              <span className="text-emerald-400 font-mono text-[11px] flex items-center gap-1.5 font-bold">
                 <Sparkles size={13} />
-                <span>Modo Administrador: Los cambios se guardan en tiempo real en la nube.</span>
+                <span>Modo Administrador: Los cambios se sincronizan en la nube.</span>
               </span>
             ) : (
               <span className="font-mono text-[11px] text-[#888894] flex items-center gap-1.5">
                 <Lock size={12} className="text-[#c5a059]" />
-                <span>Modo Músico / Visualizador: Transporta acordes, usa metrónomo y auto-scroll libremente.</span>
+                <span>Modo Músico: Transporta acordes, usa metrónomo y auto-scroll libremente.</span>
               </span>
             )}
           </div>
@@ -918,10 +1373,10 @@ Porque Dios es el Rey de toda la tierra
             {isAdmin ? (
               <button
                 onClick={handleSaveOfficial}
-                className="flex items-center gap-2 px-5 py-2 bg-[#c5a059] hover:bg-[#d4b068] text-black font-semibold rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-[#c5a059]/10 cursor-pointer"
+                className="flex items-center gap-2 px-6 py-2.5 bg-[#c5a059] hover:bg-[#d4b068] text-black font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-[#c5a059]/20 cursor-pointer hover:scale-102"
               >
-                <Save size={14} />
-                <span>Guardar Oficialmente</span>
+                <Save size={15} />
+                <span>Guardar Cambios</span>
               </button>
             ) : (
               onRequestAdmin && (
@@ -930,7 +1385,7 @@ Porque Dios es el Rey de toda la tierra
                   className="flex items-center gap-1.5 px-4 py-2 bg-[#1f1f23] hover:bg-[#28282e] text-[#c5a059] rounded-xl text-xs font-mono uppercase tracking-wider border border-[#c5a059]/30 cursor-pointer transition-colors"
                 >
                   <Lock size={12} />
-                  <span>Desbloquear Edición Admin</span>
+                  <span>Desbloquear Edición</span>
                 </button>
               )
             )}

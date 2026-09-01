@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { AppState, Musician, Role, Slot, SongItem, Couple } from './types';
+import { AppState, Musician, Role, Slot, SongItem, Couple, SongAttachment } from './types';
 import {
   loadStoredState,
   saveCloudState,
@@ -13,6 +13,8 @@ import {
 } from './services/storage';
 import { Header, ActiveTab } from './components/Header';
 import { BottomNavigation } from './components/BottomNavigation';
+import { DashboardHomeView } from './components/DashboardHomeView';
+import { EventsAgendaView } from './components/EventsAgendaView';
 import { MonthCalendarView } from './components/MonthCalendarView';
 import { WeekView } from './components/WeekView';
 import { SongCatalogView } from './components/SongCatalogView';
@@ -22,16 +24,29 @@ import { ConfigView } from './components/ConfigView';
 import { SongLyricsModal } from './components/SongLyricsModal';
 import { ConflictExplainerModal } from './components/ConflictExplainerModal';
 import { getMonday } from './utils/dateUtils';
-import { Lock, KeyRound, ShieldAlert, X, Eye, EyeOff } from 'lucide-react';
+import { KeyRound, ShieldAlert, X, Eye, EyeOff, Check, ShieldCheck } from 'lucide-react';
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadStoredState());
-  const [activeTab, setActiveTab] = useState<ActiveTab>('mes');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('inicio');
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getMonday(new Date()));
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isCloudConnected, setIsCloudConnected] = useState(true);
   const [showGlobalExplainerModal, setShowGlobalExplainerModal] = useState(false);
+
+  // Theme State: Dark or Light mode
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    return (localStorage.getItem('alabanza_theme') as 'dark' | 'light') || 'dark';
+  });
+
+  const handleToggleTheme = () => {
+    setTheme(prev => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('alabanza_theme', next);
+      return next;
+    });
+  };
 
   // Admin Auth State
   const [isAdmin, setIsAdmin] = useState<boolean>(() => {
@@ -123,8 +138,8 @@ export default function App() {
     setIsAdmin(false);
     sessionStorage.removeItem('alabanza_admin_auth');
     showToast('Sesión de administrador cerrada.');
-    if (activeTab === 'estadisticas' || activeTab === 'musicos' || activeTab === 'config') {
-      setActiveTab('mes');
+    if (activeTab === 'estadisticas' || activeTab === 'config') {
+      setActiveTab('inicio');
     }
   };
 
@@ -142,7 +157,7 @@ export default function App() {
       ...prev,
       adminPassword: newPassword,
     }));
-    showToast('Contraseña de administrador actualizada.');
+    showToast('¡Contraseña de administrador actualizada con éxito!');
   };
 
   // --- Handlers de Asignaciones ---
@@ -260,7 +275,14 @@ export default function App() {
   };
 
   // Guardar letra y notas de una canción
-  const handleSaveSongLyrics = (songId: string, updatedLyrics: string, updatedKey?: string) => {
+  const handleSaveSongLyrics = (
+    songId: string,
+    updatedLyrics: string,
+    updatedKey?: string,
+    updatedBpm?: number,
+    updatedYoutubeUrl?: string,
+    updatedAttachments?: SongAttachment[]
+  ) => {
     updateStateAndSave(prev => {
       // 1. Update in songCatalog
       const updatedCatalog = (prev.songCatalog || []).map(s => {
@@ -269,6 +291,9 @@ export default function App() {
             ...s,
             lyrics: updatedLyrics,
             ...(updatedKey ? { key: updatedKey } : {}),
+            ...(updatedBpm !== undefined ? { bpm: updatedBpm } : {}),
+            ...(updatedYoutubeUrl !== undefined ? { youtubeUrl: updatedYoutubeUrl } : {}),
+            ...(updatedAttachments !== undefined ? { attachments: updatedAttachments } : {}),
           };
         }
         return s;
@@ -284,6 +309,9 @@ export default function App() {
               ...s,
               lyrics: updatedLyrics,
               ...(updatedKey ? { key: updatedKey } : {}),
+              ...(updatedBpm !== undefined ? { bpm: updatedBpm } : {}),
+              ...(updatedYoutubeUrl !== undefined ? { youtubeUrl: updatedYoutubeUrl } : {}),
+              ...(updatedAttachments !== undefined ? { attachments: updatedAttachments } : {}),
             };
           }
           return s;
@@ -304,10 +332,13 @@ export default function App() {
             ...curr,
             lyrics: updatedLyrics,
             ...(updatedKey ? { key: updatedKey } : {}),
+            ...(updatedBpm !== undefined ? { bpm: updatedBpm } : {}),
+            ...(updatedYoutubeUrl !== undefined ? { youtubeUrl: updatedYoutubeUrl } : {}),
+            ...(updatedAttachments !== undefined ? { attachments: updatedAttachments } : {}),
           }
         : curr
     );
-    showToast('¡Letra y notas de la canción guardadas!');
+    showToast('¡Letra, tono y ajustes de la canción guardados!');
   };
 
   // Navegar de mes a semana
@@ -318,6 +349,10 @@ export default function App() {
 
   // --- Handlers de Músicos ---
   const handleSaveMusician = (musician: Musician) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     updateStateAndSave(prev => {
       const existsIndex = prev.musicians.findIndex(m => m.id === musician.id);
       let updatedMusicians: Musician[];
@@ -335,6 +370,10 @@ export default function App() {
   };
 
   const handleDeleteMusician = (musicianId: string) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     updateStateAndSave(prev => {
       const nextMusicians = prev.musicians.filter(m => m.id !== musicianId);
       const nextAssignments: Record<string, Record<string, string>> = {};
@@ -364,6 +403,10 @@ export default function App() {
 
   // --- Handlers de Roles ---
   const handleSaveRole = (role: Role) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     updateStateAndSave(prev => {
       const existsIndex = prev.roles.findIndex(r => r.id === role.id);
       let updatedRoles: Role[];
@@ -381,6 +424,10 @@ export default function App() {
   };
 
   const handleDeleteRole = (roleId: string) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     updateStateAndSave(prev => {
       const nextRoles = prev.roles.filter(r => r.id !== roleId);
       const nextMusicians = prev.musicians.map(m => ({
@@ -416,6 +463,10 @@ export default function App() {
 
   // --- Handlers de Slots ---
   const handleSaveSlot = (slot: Slot) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     updateStateAndSave(prev => {
       const existsIndex = prev.slots.findIndex(s => s.id === slot.id);
       let updatedSlots: Slot[];
@@ -433,6 +484,10 @@ export default function App() {
   };
 
   const handleDeleteSlot = (slotId: string) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     updateStateAndSave(prev => {
       const nextSlots = prev.slots.filter(s => s.id !== slotId);
       const nextAssignments: Record<string, Record<string, string>> = {};
@@ -451,6 +506,10 @@ export default function App() {
 
   // --- Handlers de Parejas ---
   const handleSaveCouple = (couple: Couple) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     updateStateAndSave(prev => {
       const existsIndex = prev.couples.findIndex(c => c.id === couple.id);
       let updated: Couple[];
@@ -468,6 +527,10 @@ export default function App() {
   };
 
   const handleDeleteCouple = (coupleId: string) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     updateStateAndSave(prev => ({
       ...prev,
       couples: prev.couples.filter(c => c.id !== coupleId),
@@ -476,6 +539,10 @@ export default function App() {
 
   // --- Handlers de Datos Generales ---
   const handleResetAllData = async (fresh: AppState) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     setState(fresh);
     saveStoredState(fresh);
     await saveCloudState(fresh);
@@ -483,6 +550,10 @@ export default function App() {
   };
 
   const handleImportState = async (imported: AppState) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     setState(imported);
     saveStoredState(imported);
     await saveCloudState(imported);
@@ -490,13 +561,19 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0b] text-[#e0e0e0] font-sans selection:bg-[#c5a059] selection:text-black pb-24">
+    <div
+      className={`min-h-screen font-sans selection:bg-[#c5a059] selection:text-black pb-24 transition-colors duration-200 ${
+        theme === 'light'
+          ? 'bg-[#f4f5f8] text-[#1c1d22]'
+          : 'bg-[#0a0a0b] text-[#e0e0e0]'
+      }`}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
         {/* Header Principal */}
         <Header
           activeTab={activeTab}
           onTabChange={tab => {
-            if ((tab === 'estadisticas' || tab === 'musicos' || tab === 'config') && !isAdmin) {
+            if ((tab === 'estadisticas' || tab === 'config') && !isAdmin) {
               handleRequestAdminModal(tab);
             } else {
               setActiveTab(tab);
@@ -508,11 +585,62 @@ export default function App() {
           isSaving={isSaving}
           isCloudConnected={isCloudConnected}
           onRefresh={handleRefresh}
-          onOpenExplainer={() => setShowGlobalExplainerModal(true)}
+          onOpenExplainer={isAdmin ? () => setShowGlobalExplainerModal(true) : undefined}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
+          onChangeAdminPassword={handleUpdateAdminPassword}
         />
 
         {/* Contenido según pestaña activa */}
         <main>
+          {/* 1. INICIO */}
+          {activeTab === 'inicio' && (
+            <DashboardHomeView
+              state={state}
+              isAdmin={isAdmin}
+              onNavigateTab={tab => {
+                if ((tab === 'estadisticas' || tab === 'config') && !isAdmin) {
+                  handleRequestAdminModal(tab);
+                } else {
+                  setActiveTab(tab);
+                }
+              }}
+              onSelectSong={song => setSelectedSongForLyrics(song)}
+            />
+          )}
+
+          {/* 2. CANCIONES (REPERTORIO Y CATÁLOGO) */}
+          {(activeTab === 'canciones' || activeTab === 'cancionero') && (
+            <SongCatalogView
+              songs={state.songCatalog || []}
+              isAdmin={isAdmin}
+              onAddSong={handleAddSongDirectToCatalog}
+              onSelectSong={song => setSelectedSongForLyrics(song)}
+            />
+          )}
+
+          {/* 3. CALENDARIO (AGENDA GENERAL DE CULTOS) */}
+          {(activeTab === 'calendario' || activeTab === 'eventos') && (
+            <EventsAgendaView
+              state={state}
+              isAdmin={isAdmin}
+              currentWeekStart={currentWeekStart}
+              onWeekChange={setCurrentWeekStart}
+              onApplySchedule={handleApplySchedule}
+              onSelectWeek={handleSelectWeekFromMonth}
+              onSelectSong={song => setSelectedSongForLyrics(song)}
+              onOpenCatalog={() => setActiveTab('canciones')}
+              onUpdateAssignment={handleUpdateAssignment}
+              onUpdateSongs={handleUpdateSongs}
+              onAddToCatalog={handleAddToCatalog}
+              onClearWeek={handleClearWeek}
+              onRestoreWeek={handleRestoreWeek}
+              showToast={showToast}
+              onRequestAdmin={() => handleRequestAdminModal()}
+            />
+          )}
+
+          {/* Vistas directas mes / semana si se invocan */}
           {activeTab === 'mes' && (
             <MonthCalendarView
               state={state}
@@ -535,7 +663,7 @@ export default function App() {
               onUpdateSongs={handleUpdateSongs}
               onAddToCatalog={handleAddToCatalog}
               onSelectSong={song => setSelectedSongForLyrics(song)}
-              onOpenCatalog={() => setActiveTab('cancionero')}
+              onOpenCatalog={() => setActiveTab('canciones')}
               onClearWeek={handleClearWeek}
               onRestoreWeek={handleRestoreWeek}
               onApplySchedule={handleApplySchedule}
@@ -544,22 +672,12 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'cancionero' && (
-            <SongCatalogView
-              songs={state.songCatalog || []}
-              isAdmin={isAdmin}
-              onAddSong={handleAddSongDirectToCatalog}
-              onSelectSong={song => setSelectedSongForLyrics(song)}
-            />
-          )}
-
-          {activeTab === 'estadisticas' && (
-            <StatsView state={state} />
-          )}
-
+          {/* 4. MÚSICOS & PAREJAS (Visible para todos, editable por admin) */}
           {activeTab === 'musicos' && (
             <MusiciansView
               state={state}
+              isAdmin={isAdmin}
+              onRequestAdmin={() => handleRequestAdminModal('musicos')}
               onSaveMusician={handleSaveMusician}
               onDeleteMusician={handleDeleteMusician}
               onSaveCouple={handleSaveCouple}
@@ -568,6 +686,12 @@ export default function App() {
             />
           )}
 
+          {/* 5. REPORTES / ESTADÍSTICAS (Solo Admin) */}
+          {activeTab === 'estadisticas' && (
+            <StatsView state={state} />
+          )}
+
+          {/* 6. CONFIGURACIÓN / AJUSTES (Solo Admin) */}
           {activeTab === 'config' && (
             <ConfigView
               state={state}
@@ -588,7 +712,7 @@ export default function App() {
       <BottomNavigation
         activeTab={activeTab}
         onTabChange={tab => {
-          if ((tab === 'estadisticas' || tab === 'musicos' || tab === 'config') && !isAdmin) {
+          if ((tab === 'estadisticas' || tab === 'config') && !isAdmin) {
             handleRequestAdminModal(tab);
           } else {
             setActiveTab(tab);
@@ -598,11 +722,13 @@ export default function App() {
         onToggleAdminModal={() => handleRequestAdminModal()}
       />
 
-      {/* Modal Guía Visual de Reglas y Conflictos */}
-      <ConflictExplainerModal
-        isOpen={showGlobalExplainerModal}
-        onClose={() => setShowGlobalExplainerModal(false)}
-      />
+      {/* Modal Guía Visual de Reglas y Conflictos (Solo Admin) */}
+      {isAdmin && (
+        <ConflictExplainerModal
+          isOpen={showGlobalExplainerModal}
+          onClose={() => setShowGlobalExplainerModal(false)}
+        />
+      )}
 
       {/* Modal de Letra, Notas y Acordes de Alabanzas */}
       {selectedSongForLyrics && (
@@ -613,28 +739,30 @@ export default function App() {
           onSaveSongLyrics={handleSaveSongLyrics}
           onRequestAdmin={() => handleRequestAdminModal()}
           showToast={showToast}
+          allSongs={state.songCatalog || []}
+          onNavigateToSong={song => setSelectedSongForLyrics(song)}
         />
       )}
 
       {/* Modal de Acceso de Administrador */}
       {showAdminModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#141418] border border-[#2a2a2e] rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="bg-[#141418] border border-[#2a2a2e] rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 animate-scaleIn">
+            <div className="flex items-center justify-between pb-2 border-b border-[#232328]">
               <div className="flex items-center gap-2 text-[#c5a059]">
                 <KeyRound size={20} />
                 <h3 className="font-serif text-lg text-white font-medium">Acceso Administrador</h3>
               </div>
               <button
                 onClick={() => setShowAdminModal(false)}
-                className="text-[#6b6b75] hover:text-white p-1"
+                className="text-[#6b6b75] hover:text-white p-1 cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
             <p className="text-xs text-[#a0a0ab]">
-              Ingresa la contraseña de administración para gestionar músicos, parejas, roles, turnos y estadísticas.
+              Ingresa la contraseña de administración para editar músicos, parejas, roles, turnos y ver reportes.
             </p>
 
             <form onSubmit={handleAdminLogin} className="space-y-4">
@@ -653,7 +781,7 @@ export default function App() {
                       setAdminPasswordError(false);
                     }}
                     placeholder="Contraseña..."
-                    className="w-full bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none pr-10"
+                    className="w-full bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none pr-10 font-mono"
                   />
                   <button
                     type="button"
@@ -665,24 +793,24 @@ export default function App() {
                 </div>
 
                 {adminPasswordError && (
-                  <p className="text-xs text-red-400 mt-1.5 flex items-center gap-1">
+                  <p className="text-xs text-red-400 mt-1.5 flex items-center gap-1 font-mono">
                     <ShieldAlert size={12} />
                     <span>Contraseña incorrecta. Por favor reintenta.</span>
                   </p>
                 )}
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2 pt-2 border-t border-[#232328]">
                 <button
                   type="button"
                   onClick={() => setShowAdminModal(false)}
-                  className="px-4 py-2 bg-[#1a1a1d] hover:bg-[#252529] text-[#6b6b75] hover:text-white rounded-lg text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-[#1a1a1d] hover:bg-[#252529] text-[#6b6b75] hover:text-white rounded-xl text-xs uppercase tracking-wider transition-colors cursor-pointer font-mono"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#c5a059] hover:bg-[#d4b068] text-black font-semibold rounded-lg text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-[#c5a059] hover:bg-[#d4b068] text-black font-bold rounded-xl text-xs uppercase tracking-wider transition-colors cursor-pointer font-mono shadow-md shadow-[#c5a059]/20"
                 >
                   Desbloquear
                 </button>
