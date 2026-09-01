@@ -9,7 +9,7 @@ Es una aplicación para definir los turnos de un grupo de alabanza y consultar e
 ### 📱 Opción 1: Descarga directa (Android)
 Puedes descargar directamente el archivo ejecutable para Android (.apk) e instalarlo en tu dispositivo:
 
-- **[⬇️ Descargar APK (Última versión)](https://github.com/MboeharaColPy/Turnos-de-Alabanza/releases/latest)**
+- **[⬇️ Descargar APK (Última versión)](https://github.com/MboeharaColPy/Turnos-de-Alabanza/releases/tag/v2.9.0)**
 
 **Instrucciones:**
 1. Descarga el archivo `.apk` desde el enlace anterior
