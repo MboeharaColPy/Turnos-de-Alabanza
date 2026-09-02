@@ -27,7 +27,7 @@ interface SongCatalogViewProps {
   onAddSong?: (song: Omit<SongItem, 'id'>) => void;
   onUpdateSong?: (song: SongItem) => void;
   onDeleteSong?: (id: string) => void;
-  onSelectSong?: (song: SongItem) => void;
+  onSelectSong?: (song: SongItem, contextSongs?: SongItem[]) => void;
 }
 
 export const CATEGORIES = [
@@ -59,8 +59,7 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
   // Modal Agregar Alabanza
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const [newArtistChoice, setNewArtistChoice] = useState<string>('');
-  const [customNewArtist, setCustomNewArtist] = useState('');
+  const [artistInput, setArtistInput] = useState('');
   const [newCategory, setNewCategory] = useState('Adoración');
   const [newKey, setNewKey] = useState('G');
   const [newBpm, setNewBpm] = useState<number | ''>(80);
@@ -121,10 +120,7 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
     e.preventDefault();
     if (!newTitle.trim()) return;
 
-    let finalArtist = newArtistChoice;
-    if (newArtistChoice === '__NEW__' || !newArtistChoice) {
-      finalArtist = customNewArtist.trim() || 'Desconocido';
-    }
+    const finalArtist = artistInput.trim() || 'Desconocido';
 
     if (onAddSong) {
       onAddSong({
@@ -143,8 +139,7 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
 
     // Reset form
     setNewTitle('');
-    setNewArtistChoice('');
-    setCustomNewArtist('');
+    setArtistInput('');
     setNewCategory('Adoración');
     setNewKey('G');
     setNewBpm(80);
@@ -180,7 +175,7 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
             {isAdmin && onAddSong && (
               <button
                 onClick={() => {
-                  setNewArtistChoice(uniqueArtists[0] || '__NEW__');
+                  setArtistInput('');
                   setShowAddModal(true);
                 }}
                 className="flex items-center gap-2 px-4 py-2.5 bg-[#c5a059] hover:bg-[#d4b068] text-black rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-[#c5a059]/20"
@@ -305,7 +300,7 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
           {filteredSongs.map((song, index) => (
             <div
               key={song.id || `s_${index}`}
-              onClick={() => onSelectSong && onSelectSong(song)}
+              onClick={() => onSelectSong && onSelectSong(song, filteredSongs)}
               className="bg-[#141418] border border-[#1f1f23] hover:border-[#c5a059] rounded-xl p-4 transition-all group flex flex-col justify-between shadow-md cursor-pointer hover:bg-[#18181d]"
             >
               <div className="flex items-start justify-between gap-3">
@@ -370,7 +365,7 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
                 {filteredSongs.map((song, idx) => (
                   <tr
                     key={song.id || idx}
-                    onClick={() => onSelectSong && onSelectSong(song)}
+                    onClick={() => onSelectSong && onSelectSong(song, filteredSongs)}
                     className="hover:bg-[#1a1a1f] cursor-pointer transition-colors"
                   >
                     <td className="py-3 px-4 text-[#6b6b75]">{idx + 1}</td>
@@ -410,7 +405,7 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
           {filteredSongs.map((song, idx) => (
             <div
               key={song.id || idx}
-              onClick={() => onSelectSong && onSelectSong(song)}
+              onClick={() => onSelectSong && onSelectSong(song, filteredSongs)}
               className="p-3 sm:px-5 flex items-center justify-between hover:bg-[#1a1a1f] cursor-pointer transition-colors"
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -472,30 +467,44 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
                 />
               </div>
 
-              {/* Artista con desplegable y opción de agregar nuevo */}
+              {/* Artista con autocompletado y selección rápida */}
               <div>
-                <label className="block text-xs font-mono uppercase text-[#888894] mb-1">Artista / Autor</label>
-                <select
-                  value={newArtistChoice}
-                  onChange={e => setNewArtistChoice(e.target.value)}
-                  className="w-full bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-xl px-3 py-2 text-xs text-white focus:outline-none cursor-pointer mb-2 font-mono"
-                >
-                  <option value="__NEW__">➕ Añadir nuevo artista...</option>
-                  {uniqueArtists.map(artist => (
-                    <option key={artist} value={artist}>
-                      {artist}
-                    </option>
-                  ))}
-                </select>
-
-                {newArtistChoice === '__NEW__' && (
+                <label className="block text-xs font-mono uppercase text-[#888894] mb-1">
+                  Artista / Autor / Intérprete
+                </label>
+                <div className="relative">
                   <input
                     type="text"
-                    value={customNewArtist}
-                    onChange={e => setCustomNewArtist(e.target.value)}
-                    placeholder="Escribe el nombre del nuevo artista..."
-                    className="w-full bg-[#0a0a0b] border border-[#c5a059]/50 focus:border-[#c5a059] rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none animate-fadeIn"
+                    list="artists-catalog-list"
+                    value={artistInput}
+                    onChange={e => setArtistInput(e.target.value)}
+                    placeholder="Escribe o selecciona un artista (Ej: Miel San Marcos, Marcos Witt, Hillsong...)"
+                    className="w-full bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none"
                   />
+                  <datalist id="artists-catalog-list">
+                    {uniqueArtists.map(artist => (
+                      <option key={artist} value={artist} />
+                    ))}
+                  </datalist>
+                </div>
+                {uniqueArtists.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2 max-h-16 overflow-y-auto pr-1">
+                    <span className="text-[10px] text-[#888894] self-center mr-1">Sugeridos:</span>
+                    {uniqueArtists.slice(0, 8).map(a => (
+                      <button
+                        key={a}
+                        type="button"
+                        onClick={() => setArtistInput(a)}
+                        className={`text-[10px] font-mono px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
+                          artistInput === a
+                            ? 'bg-[#c5a059]/20 text-[#c5a059] border-[#c5a059]/40'
+                            : 'bg-[#0a0a0b] text-[#888894] hover:text-white border-[#242429]'
+                        }`}
+                      >
+                        {a}
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
 

@@ -20,6 +20,10 @@ import {
   Smartphone,
   CheckCircle2,
   ArrowUpCircle,
+  Eye,
+  EyeOff,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -69,8 +73,13 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
   const [slotTime, setSlotTime] = useState('10:00');
   const [slotRoleIds, setSlotRoleIds] = useState<string[]>([]);
 
-  // Admin password state
-  const [adminPasswordInput, setAdminPasswordInput] = useState(state.adminPassword || 'alabanza2026');
+  // Admin password change state
+  const [currentPasswordInput, setCurrentPasswordInput] = useState('');
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [passwordStatus, setPasswordStatus] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
 
   // Confirmation Modals
   const [deleteConfirmSlot, setDeleteConfirmSlot] = useState<{ id: string; label: string } | null>(null);
@@ -86,13 +95,6 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
       setSlotRoleIds(state.roles.map(r => r.id));
     }
   }, [state.roles]);
-
-  // Sync admin password when state changes
-  useEffect(() => {
-    if (state.adminPassword) {
-      setAdminPasswordInput(state.adminPassword);
-    }
-  }, [state.adminPassword]);
 
   // --- Handlers for Roles ---
   const handleRoleSubmit = (e: React.FormEvent) => {
@@ -183,12 +185,53 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
   // --- Password Handler ---
   const handleSavePassword = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adminPasswordInput.trim()) {
-      showToast('La contraseña de administración no puede estar vacía.');
+    setPasswordStatus(null);
+
+    const currentPwd = (state.adminPassword || 'alabanza2026').trim();
+    const enteredCurrent = currentPasswordInput.trim();
+    const enteredNew = newPasswordInput.trim();
+    const enteredConfirm = confirmPasswordInput.trim();
+
+    // 1. Validar contraseña actual si se ha configurado
+    if (enteredCurrent !== currentPwd) {
+      setPasswordStatus({
+        type: 'error',
+        message: 'La contraseña actual ingresada es incorrecta. Verifica e intenta de nuevo.',
+      });
+      showToast('Contraseña actual incorrecta.');
       return;
     }
-    onUpdateAdminPassword(adminPasswordInput.trim());
-    showToast('Contraseña de administrador actualizada.');
+
+    // 2. Validar longitud mínima
+    if (enteredNew.length < 6) {
+      setPasswordStatus({
+        type: 'error',
+        message: 'La nueva contraseña debe tener al menos 6 caracteres.',
+      });
+      showToast('La nueva clave debe tener al menos 6 caracteres.');
+      return;
+    }
+
+    // 3. Validar coincidencia
+    if (enteredNew !== enteredConfirm) {
+      setPasswordStatus({
+        type: 'error',
+        message: 'La nueva contraseña y su confirmación no coinciden.',
+      });
+      showToast('Las contraseñas no coinciden.');
+      return;
+    }
+
+    // Guardar
+    onUpdateAdminPassword(enteredNew);
+    setCurrentPasswordInput('');
+    setNewPasswordInput('');
+    setConfirmPasswordInput('');
+    setPasswordStatus({
+      type: 'success',
+      message: '¡Contraseña de administrador actualizada correctamente! Tu sesión activa se mantiene.',
+    });
+    showToast('Contraseña de administrador actualizada con éxito.');
   };
 
   // --- Handlers for Backup / Export / Reset ---
@@ -244,33 +287,113 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
           </div>
           <div>
             <h2 className="font-serif text-xl font-light text-white">
-              Contraseña del <span className="italic text-[#c5a059]">Modo Administrador</span>
+              Seguridad & <span className="italic text-[#c5a059]">Contraseña del Administrador</span>
             </h2>
             <p className="text-xs text-[#6b6b75]">
-              Protege las vistas de Músicos, Roles, Estadísticas y edición de turnos para los visitantes del enlace público.
+              Protege las asignaciones, configuración de roles, catálogo y estadísticas frente a visitantes públicos.
             </p>
           </div>
         </div>
 
-        <form onSubmit={handleSavePassword} className="flex flex-col sm:flex-row items-end gap-3 max-w-lg">
-          <div className="w-full">
-            <label className="block text-[10px] font-mono text-[#6b6b75] uppercase tracking-wider mb-1">
-              Contraseña de Acceso
-            </label>
-            <input
-              type="text"
-              value={adminPasswordInput}
-              onChange={e => setAdminPasswordInput(e.target.value)}
-              required
-              className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-3.5 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none font-mono"
-            />
-          </div>
-          <button
-            type="submit"
-            className="w-full sm:w-auto px-4 py-2.5 bg-[#c5a059] hover:bg-[#d4b068] text-black font-semibold text-xs uppercase tracking-wider rounded-lg transition-all cursor-pointer whitespace-nowrap"
+        {passwordStatus && (
+          <div
+            className={`p-3 rounded-xl border text-xs flex items-center gap-2.5 animate-fadeIn ${
+              passwordStatus.type === 'error'
+                ? 'bg-red-950/40 border-red-800/60 text-red-200'
+                : 'bg-emerald-950/40 border-emerald-800/60 text-emerald-200'
+            }`}
           >
-            Actualizar Clave
-          </button>
+            {passwordStatus.type === 'error' ? (
+              <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
+            ) : (
+              <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0" />
+            )}
+            <span>{passwordStatus.message}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSavePassword} className="space-y-4 max-w-xl">
+          {/* Contraseña Actual */}
+          <div>
+            <label className="block text-[10px] font-mono text-[#888894] uppercase tracking-wider mb-1">
+              Contraseña Actual *
+            </label>
+            <div className="relative">
+              <input
+                type={showCurrentPassword ? 'text' : 'password'}
+                value={currentPasswordInput}
+                onChange={e => setCurrentPasswordInput(e.target.value)}
+                placeholder="Ingresa tu contraseña actual..."
+                required
+                className="w-full bg-[#0a0a0b] text-white text-xs rounded-xl px-3.5 py-2.5 pr-10 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6b6b75] hover:text-[#c5a059] cursor-pointer"
+                title={showCurrentPassword ? 'Ocultar' : 'Mostrar'}
+              >
+                {showCurrentPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Nueva Contraseña y Confirmación */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-mono text-[#888894] uppercase tracking-wider mb-1">
+                Nueva Contraseña * (Mín. 6 car.)
+              </label>
+              <div className="relative">
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={newPasswordInput}
+                  onChange={e => setNewPasswordInput(e.target.value)}
+                  placeholder="Nueva clave..."
+                  required
+                  minLength={6}
+                  className="w-full bg-[#0a0a0b] text-white text-xs rounded-xl px-3.5 py-2.5 pr-10 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6b6b75] hover:text-[#c5a059] cursor-pointer"
+                  title={showNewPassword ? 'Ocultar' : 'Mostrar'}
+                >
+                  {showNewPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-mono text-[#888894] uppercase tracking-wider mb-1">
+                Confirmar Nueva Contraseña *
+              </label>
+              <input
+                type={showNewPassword ? 'text' : 'password'}
+                value={confirmPasswordInput}
+                onChange={e => setConfirmPasswordInput(e.target.value)}
+                placeholder="Repite la nueva clave..."
+                required
+                minLength={6}
+                className="w-full bg-[#0a0a0b] text-white text-xs rounded-xl px-3.5 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1">
+            <div className="flex items-center gap-1.5 text-[11px] text-[#888894] font-mono">
+              <ShieldCheck size={13} className="text-[#c5a059]" />
+              <span>Sincronización instantánea y cifrada en la nube</span>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full sm:w-auto px-5 py-2.5 bg-[#c5a059] hover:bg-[#d4b068] text-black font-semibold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md shadow-[#c5a059]/20"
+            >
+              Guardar Nueva Clave
+            </button>
+          </div>
         </form>
       </div>
 

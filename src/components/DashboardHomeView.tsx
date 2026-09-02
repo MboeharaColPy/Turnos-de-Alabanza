@@ -24,7 +24,7 @@ interface DashboardHomeViewProps {
   state: AppState;
   isAdmin: boolean;
   onNavigateTab: (tab: ActiveTab) => void;
-  onSelectSong: (song: SongItem) => void;
+  onSelectSong: (song: SongItem, contextSongs?: SongItem[]) => void;
   onSelectDateEvent?: (isoDate: string) => void;
 }
 
@@ -215,7 +215,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                     {nextMainEvent.songs.map((song, sIdx) => (
                       <div
                         key={song.id || sIdx}
-                        onClick={() => onSelectSong(song)}
+                        onClick={() => onSelectSong(song, nextMainEvent.songs)}
                         className="flex items-center justify-between p-2.5 bg-[#0a0a0b] hover:bg-[#1a1a1e] border border-[#232328] hover:border-[#c5a059]/40 rounded-xl cursor-pointer transition-all group"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">

@@ -10,6 +10,7 @@ body {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: #0a0a0b;
   color: #e0e0e0;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .font-serif {
@@ -22,17 +23,136 @@ body {
 
 /* Sophisticated Dark scrollbars */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0a0a0b;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1f1f23;
-  border-radius: 2px;
+  background: #26262e;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2a2a2e;
+  background: #3b3b44;
 }
+
+/* =========================================================
+   SOPHISTICATED LIGHT THEME SYSTEM
+   ========================================================= */
+body.light-theme,
+.light-theme,
+[data-theme="light"] {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Container Backgrounds in Light Mode */
+.light-theme .bg-\[\#0a0a0b\],
+.light-theme .bg-\[\#0b0b0e\],
+.light-theme .bg-\[\#0c0c0e\],
+.light-theme .bg-\[\#0d0d10\],
+.light-theme .bg-\[\#101013\],
+.light-theme .bg-\[\#121215\],
+.light-theme .bg-\[\#121216\],
+.light-theme .bg-\[\#141418\],
+.light-theme .bg-\[\#18181c\],
+.light-theme .bg-\[\#1a1a1d\],
+.light-theme .bg-\[\#1a1a1e\],
+.light-theme .bg-\[\#1e1e24\],
+.light-theme .bg-\[\#1f1f23\],
+.light-theme .bg-\[\#252529\],
+.light-theme .bg-\[\#25252a\] {
+  background-color: #ffffff !important;
+}
+
+/* Hover States in Light Mode */
+.light-theme .hover\:bg-\[\#141418\]:hover,
+.light-theme .hover\:bg-\[\#1a1a1d\]:hover,
+.light-theme .hover\:bg-\[\#1a1a1e\]:hover,
+.light-theme .hover\:bg-\[\#1f1f23\]:hover,
+.light-theme .hover\:bg-\[\#232328\]:hover,
+.light-theme .hover\:bg-\[\#252529\]:hover,
+.light-theme .hover\:bg-\[\#25252a\]:hover,
+.light-theme .hover\:bg-\[\#282830\]:hover {
+  background-color: #f1f5f9 !important;
+}
+
+/* Subtle Card Backdrops & Input Backgrounds */
+.light-theme input,
+.light-theme select,
+.light-theme textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+.light-theme input::placeholder,
+.light-theme textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Typography Colors in Light Mode */
+.light-theme .text-white {
+  color: #0f172a !important;
+}
+.light-theme .text-\[\#e0e0e0\] {
+  color: #1e293b !important;
+}
+.light-theme .text-\[\#a0a0ab\],
+.light-theme .text-\[\#8e8e99\],
+.light-theme .text-\[\#888894\] {
+  color: #475569 !important;
+}
+.light-theme .text-\[\#6b6b75\] {
+  color: #64748b !important;
+}
+
+/* Border Colors in Light Mode */
+.light-theme .border-\[\#1f1f23\],
+.light-theme .border-\[\#232328\],
+.light-theme .border-\[\#26262b\],
+.light-theme .border-\[\#26262e\],
+.light-theme .border-\[\#2a2a2e\],
+.light-theme .border-\[\#2a2a30\],
+.light-theme .border-\[\#2a2a32\],
+.light-theme .border-\[\#33333d\] {
+  border-color: #e2e8f0 !important;
+}
+
+/* Golden / Amber Tone Accents in Light Mode */
+.light-theme .text-\[\#c5a059\] {
+  color: #b45309 !important; /* Rich warm amber for high contrast */
+}
+.light-theme .border-\[\#c5a059\]\/30,
+.light-theme .border-\[\#c5a059\]\/40,
+.light-theme .border-\[\#c5a059\]\/50 {
+  border-color: rgba(180, 83, 9, 0.3) !important;
+}
+.light-theme .bg-\[\#c5a059\]\/10 {
+  background-color: rgba(180, 83, 9, 0.08) !important;
+}
+
+/* Modal Backdrops & Overlays in Light Mode */
+.light-theme .bg-black\/80,
+.light-theme .bg-black\/85,
+.light-theme .bg-black\/90 {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+}
+
+/* Shadow enhancements in light mode */
+.light-theme .shadow-md,
+.light-theme .shadow-xl,
+.light-theme .shadow-2xl {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.07), 0 2px 6px -1px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Light mode lyrics styling */
+.light-theme pre {
+  color: #0f172a !important;
+}
+.light-theme .chord-token {
+  color: #b45309 !important;
+  font-weight: 700 !important;
+}
+
 

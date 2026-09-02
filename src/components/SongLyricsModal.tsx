@@ -7,7 +7,6 @@ import {
   isSectionHeader,
   isChordLine,
   ALL_STANDARD_KEYS,
-  getCapoTransposedKey,
 } from '../utils/chordUtils';
 import {
   InstrumentType,
@@ -33,7 +32,6 @@ import {
   Maximize2,
   Minimize2,
   Printer,
-  Sliders,
   Columns,
   Square,
   Volume2,
@@ -49,10 +47,10 @@ import {
   Video,
   FileText,
   ExternalLink,
-  ChevronDown,
   Paperclip,
   Clock,
-  Settings2,
+  Pin,
+  HelpCircle,
 } from 'lucide-react';
 
 interface SongLyricsModalProps {
@@ -86,47 +84,46 @@ export function getSectionBadgeCode(headerText: string): { code: string; colorCl
   const clean = headerText.replace(/[[\]]/g, '').toLowerCase().trim();
 
   if (clean.includes('intro')) {
-    return { code: 'IN', colorClass: 'bg-blue-500/15 text-blue-300 border-blue-500/40' };
+    return { code: 'IN', colorClass: 'bg-blue-500/15 text-blue-400 border-blue-500/40' };
   }
   if (clean.includes('verso 1') || clean.includes('estrofa 1') || clean === 'verso' || clean === 'estrofa') {
-    return { code: 'V1', colorClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' };
+    return { code: 'V1', colorClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40' };
   }
   if (clean.includes('verso 2') || clean.includes('estrofa 2')) {
-    return { code: 'V2', colorClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' };
+    return { code: 'V2', colorClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40' };
   }
   if (clean.includes('verso 3') || clean.includes('estrofa 3')) {
-    return { code: 'V3', colorClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' };
+    return { code: 'V3', colorClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40' };
   }
   if (clean.includes('verso 4') || clean.includes('estrofa 4')) {
-    return { code: 'V4', colorClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' };
+    return { code: 'V4', colorClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40' };
   }
   if (clean.includes('pre') || clean.includes('pre-coro') || clean.includes('precoro')) {
-    return { code: 'PC', colorClass: 'bg-purple-500/15 text-purple-300 border-purple-500/40' };
+    return { code: 'PC', colorClass: 'bg-purple-500/15 text-purple-400 border-purple-500/40' };
   }
   if (clean.includes('coro 2') || clean.includes('estribillo 2')) {
-    return { code: 'C2', colorClass: 'bg-amber-500/20 text-amber-300 border-amber-500/50 font-bold' };
+    return { code: 'C2', colorClass: 'bg-amber-500/20 text-amber-400 border-amber-500/50 font-bold' };
   }
   if (clean.includes('coro') || clean.includes('estribillo')) {
-    return { code: 'C', colorClass: 'bg-amber-500/20 text-amber-300 border-amber-500/50 font-bold' };
+    return { code: 'C', colorClass: 'bg-amber-500/20 text-amber-400 border-amber-500/50 font-bold' };
   }
   if (clean.includes('puente') || clean.includes('bridge')) {
-    return { code: 'PTE', colorClass: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40' };
+    return { code: 'PTE', colorClass: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/40' };
   }
   if (clean.includes('solo')) {
-    return { code: 'SOLO', colorClass: 'bg-rose-500/15 text-rose-300 border-rose-500/40' };
+    return { code: 'SOLO', colorClass: 'bg-rose-500/15 text-rose-400 border-rose-500/40' };
   }
   if (clean.includes('inter') || clean.includes('instrumental')) {
-    return { code: 'INST', colorClass: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40' };
+    return { code: 'INST', colorClass: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/40' };
   }
   if (clean.includes('final') || clean.includes('outro')) {
-    return { code: 'OUT', colorClass: 'bg-orange-500/15 text-orange-300 border-orange-500/40' };
+    return { code: 'OUT', colorClass: 'bg-orange-500/15 text-orange-400 border-orange-500/40' };
   }
 
   const short = clean.substring(0, 3).toUpperCase();
   return { code: short || 'SEC', colorClass: 'bg-[#1e1e24] text-[#c5a059] border-[#c5a059]/40' };
 }
 
-// Convert YouTube URL to Embed URL
 function getYouTubeEmbedUrl(url?: string): string | null {
   if (!url) return null;
   try {
@@ -160,20 +157,35 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
   const [currentKey, setCurrentKey] = useState<string>(() => convertLatinToAngloChord(song.key || 'G'));
   const [transposeOffset, setTransposeOffset] = useState(0);
   const [capoFret, setCapoFret] = useState(0);
-  const [showChords, setShowChords] = useState(true);
+  
+  // Persisted Chords vs Lyrics preference per device
+  const [showChords, setShowChords] = useState<boolean>(() => {
+    const saved = localStorage.getItem('alabanza_view_chords');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const handleToggleShowChords = (val: boolean) => {
+    setShowChords(val);
+    localStorage.setItem('alabanza_view_chords', String(val));
+  };
+
   const [selectedInstrument, setSelectedInstrument] = useState<InstrumentType>('guitar');
   const [textSize, setTextSize] = useState<TextSize>('md');
   const [columnsCount, setColumnsCount] = useState<1 | 2>(1);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
-  // Tools dropdown & Media panels
-  const [showToolsDropdown, setShowToolsDropdown] = useState(false);
+  // YouTube separate panel & attachments
   const [showYouTubePanel, setShowYouTubePanel] = useState(false);
   const [youtubeUrlInput, setYoutubeUrlInput] = useState(song.youtubeUrl || '');
   const [attachments, setAttachments] = useState<SongAttachment[]>(song.attachments || []);
   const [showAttachmentsPanel, setShowAttachmentsPanel] = useState(false);
   const [newAttachmentName, setNewAttachmentName] = useState('');
   const [newAttachmentUrl, setNewAttachmentUrl] = useState('');
+
+  // Key selector popover
+  const [showKeyPickerPopover, setShowKeyPickerPopover] = useState(false);
+  const [showCapoPickerPopover, setShowCapoPickerPopover] = useState(false);
+  const [showScrollSpeedPopover, setShowScrollSpeedPopover] = useState(false);
 
   // Auto-scroll state
   const [isAutoScrolling, setIsAutoScrolling] = useState(false);
@@ -208,13 +220,13 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
     setViewMode('view');
     setIsAutoScrolling(false);
     setIsMetronomeActive(false);
-    setShowToolsDropdown(false);
+    setShowKeyPickerPopover(false);
+    setShowCapoPickerPopover(false);
   }, [song.id, song.lyrics, song.key, song.bpm, song.youtubeUrl, song.attachments]);
 
   // Transposed text calculation (considering semitones and Capo)
   const displayedText = useMemo(() => {
     let result = editedText;
-    // If Capo is used, fingered chords shift down by capoFret semitones
     const effectiveOffset = transposeOffset - capoFret;
     if (effectiveOffset !== 0) {
       result = transposeSongText(result, effectiveOffset);
@@ -222,7 +234,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
     return result;
   }, [editedText, transposeOffset, capoFret]);
 
-  // Displayed Sounding Key vs Fingered Key
+  // Sounding Key vs Fingered Key
   const soundingKey = useMemo(() => {
     if (!currentKey) return 'G';
     return transposeOffset !== 0 ? transposeSingleChord(currentKey, transposeOffset) : currentKey;
@@ -261,7 +273,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
     return sections;
   }, [renderedLines]);
 
-  // Navigation between songs
+  // Navigation between songs strictly in the provided setlist context
   const currentSongIndex = useMemo(() => {
     return allSongs.findIndex(s => s.id === song.id);
   }, [allSongs, song.id]);
@@ -333,7 +345,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
             osc.start();
             osc.stop(ctx.currentTime + 0.04);
           } catch {
-            // Audio context not allowed or blocked
+            // Audio context blocked
           }
         }
 
@@ -374,6 +386,32 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
     setCapoFret(0);
   };
 
+  // Set Key directly from Key Picker
+  const handleSelectNewKey = (newKeyPicked: string) => {
+    setCurrentKey(newKeyPicked);
+    setTransposeOffset(0);
+    setShowKeyPickerPopover(false);
+  };
+
+  // Permanently Save current sounding key as official base key (Admin)
+  const handleSaveCurrentKeyAsBase = () => {
+    if (!isAdmin) {
+      if (onRequestAdmin) onRequestAdmin();
+      return;
+    }
+    const newOfficialKey = soundingKey;
+    const newOfficialText = displayedText;
+    setCurrentKey(newOfficialKey);
+    setTransposeOffset(0);
+    setCapoFret(0);
+    setEditedText(newOfficialText);
+    setRawText(newOfficialText);
+    if (onSaveSongLyrics) {
+      onSaveSongLyrics(song.id, newOfficialText, newOfficialKey, bpm, youtubeUrlInput, attachments);
+      showToast(`¡Tono base fijado y guardado en "${newOfficialKey}"!`);
+    }
+  };
+
   const textSizeClass = {
     sm: 'text-xs sm:text-sm',
     md: 'text-sm sm:text-base',
@@ -397,7 +435,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
     setEditedText(rawText);
     setTransposeOffset(0);
     setCapoFret(0);
-    showToast('Restaurado a la versión original guardada.');
+    showToast('Restaurado a la versión guardada.');
   };
 
   // Add attachment
@@ -449,62 +487,56 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
         className={`bg-[#141418] border border-[#26262b] flex flex-col shadow-2xl overflow-hidden transition-all ${
           isFullScreen
             ? 'w-full h-full rounded-none border-none'
-            : 'w-full max-w-5xl h-[94vh] rounded-2xl my-auto'
+            : 'w-full max-w-6xl h-[95vh] rounded-2xl my-auto'
         }`}
         onClick={e => e.stopPropagation()}
       >
         {/* ======================================================== */}
-        {/* 1. HEADER: Título, Tono, BPM, Navegación & Botón Menú Herramientas */}
+        {/* 1. HEADER: Título, Tono, Setlist Nav, Video YouTube & Slider Acordes */}
         {/* ======================================================== */}
-        <div className="p-3.5 sm:p-5 bg-[#1a1a1d] border-b border-[#232328] flex flex-col md:flex-row md:items-center justify-between gap-3 flex-shrink-0">
+        <div className="p-3 sm:p-4 bg-[#1a1a1d] border-b border-[#232328] flex flex-col lg:flex-row lg:items-center justify-between gap-3 flex-shrink-0">
           {/* Título & Meta */}
-          <div className="flex items-start sm:items-center gap-3">
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-[#c5a059]/10 border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059] flex-shrink-0">
               <Music size={20} />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#c5a059] font-bold">
                   Cancionero · Cifrado Americano
                 </span>
 
-                {/* Tono Selector Editable */}
-                <div className="flex items-center gap-1 bg-[#0a0a0b] px-2 py-0.5 rounded border border-[#c5a059]/40">
+                {/* Tono Actual con indicador si está transportado */}
+                <button
+                  onClick={() => setShowKeyPickerPopover(!showKeyPickerPopover)}
+                  className="inline-flex items-center gap-1.5 bg-[#0a0a0b] hover:bg-[#1f1f23] px-2 py-0.5 rounded-lg border border-[#c5a059]/40 cursor-pointer transition-colors"
+                  title="Haz clic para cambiar el tono de la canción"
+                >
                   <KeyRound size={11} className="text-[#c5a059]" />
                   <span className="text-[10px] font-mono text-[#888894]">Tono:</span>
-                  {isAdmin && viewMode === 'edit' ? (
-                    <select
-                      value={currentKey}
-                      onChange={e => setCurrentKey(e.target.value)}
-                      className="bg-transparent font-mono text-xs font-bold text-[#c5a059] focus:outline-none cursor-pointer"
-                    >
-                      {ALL_STANDARD_KEYS.map(k => (
-                        <option key={k} value={k} className="bg-[#141418] text-white">
-                          {k}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className="font-mono text-xs font-bold text-[#c5a059]">
-                      {soundingKey}
-                      {transposeOffset !== 0 && (
-                        <span className="text-[10px] text-[#888894] ml-1">
-                          ({transposeOffset > 0 ? `+${transposeOffset}` : transposeOffset})
-                        </span>
-                      )}
-                    </span>
-                  )}
-                </div>
+                  <span className="font-mono text-xs font-bold text-[#c5a059]">
+                    {soundingKey}
+                    {transposeOffset !== 0 && (
+                      <span className="text-[10px] text-amber-300 ml-1">
+                        ({transposeOffset > 0 ? `+${transposeOffset}` : transposeOffset})
+                      </span>
+                    )}
+                  </span>
+                </button>
 
                 {/* Capo Display */}
                 {capoFret > 0 && (
-                  <span className="text-[10px] font-mono text-amber-300 bg-amber-950/40 border border-amber-800/40 px-2 py-0.5 rounded">
+                  <button
+                    onClick={() => setShowCapoPickerPopover(!showCapoPickerPopover)}
+                    className="text-[10px] font-mono text-amber-300 bg-amber-950/40 border border-amber-800/40 px-2 py-0.5 rounded-lg cursor-pointer hover:bg-amber-900/40"
+                    title="Cejilla activa"
+                  >
                     Capo {capoFret} ({fingeredKey})
-                  </span>
+                  </button>
                 )}
 
-                {/* BPM Editable */}
-                <div className="flex items-center gap-1 bg-[#0a0a0b] px-2 py-0.5 rounded border border-[#1f1f23]">
+                {/* BPM */}
+                <div className="flex items-center gap-1 bg-[#0a0a0b] px-2 py-0.5 rounded-lg border border-[#1f1f23]">
                   <Clock size={11} className="text-[#888894]" />
                   <span className="text-[10px] font-mono text-[#888894]">BPM:</span>
                   {isAdmin && viewMode === 'edit' ? (
@@ -520,272 +552,136 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 mt-1">
-                <h3 className="font-serif text-lg sm:text-2xl text-white font-medium tracking-tight">
+              <div className="flex items-center gap-2 mt-0.5 min-w-0">
+                <h3 className="font-serif text-lg sm:text-xl text-white font-medium tracking-tight truncate">
                   {song.title}
                 </h3>
-
-                {/* Navegación Entre Canciones del Setlist */}
-                {allSongs.length > 1 && onNavigateToSong && (
-                  <div className="flex items-center bg-[#0a0a0b] border border-[#26262b] rounded-lg p-0.5 ml-1 shadow-sm">
-                    <button
-                      onClick={() => prevSong && onNavigateToSong(prevSong)}
-                      disabled={!prevSong}
-                      className="p-1 text-[#888894] hover:text-[#c5a059] disabled:opacity-30 disabled:hover:text-[#888894] transition-colors cursor-pointer"
-                      title={prevSong ? `Anterior: ${prevSong.title}` : 'No hay anterior'}
-                    >
-                      <ChevronLeft size={16} />
-                    </button>
-                    <span className="text-[10px] font-mono text-[#888894] px-2 border-x border-[#232328]">
-                      {currentSongIndex + 1}/{allSongs.length}
-                    </span>
-                    <button
-                      onClick={() => nextSong && onNavigateToSong(nextSong)}
-                      disabled={!nextSong}
-                      className="p-1 text-[#888894] hover:text-[#c5a059] disabled:opacity-30 disabled:hover:text-[#888894] transition-colors cursor-pointer"
-                      title={nextSong ? `Siguiente: ${nextSong.title}` : 'No hay siguiente'}
-                    >
-                      <ChevronRight size={16} />
-                    </button>
-                  </div>
+                {song.artist && (
+                  <span className="text-xs text-[#8e8e99] italic truncate">
+                    — {song.artist}
+                  </span>
                 )}
               </div>
-
-              {song.artist && <p className="text-xs text-[#888894] italic mt-0.5">{song.artist}</p>}
             </div>
           </div>
 
-          {/* Acciones Rápidas del Header */}
-          <div className="flex items-center gap-2 flex-wrap self-end md:self-center">
-            {/* Toggle Ver Acordes vs Solo Letra */}
+          {/* Acciones Centrales & Derechas del Header */}
+          <div className="flex items-center gap-2 flex-wrap justify-between lg:justify-end">
+            {/* Navegación Entre Canciones (Exclusiva de la lista contextual / semanal) */}
+            {allSongs.length > 1 && onNavigateToSong && (
+              <div className="flex items-center bg-[#0a0a0b] border border-[#26262b] rounded-xl p-0.5 shadow-sm">
+                <button
+                  onClick={() => prevSong && onNavigateToSong(prevSong)}
+                  disabled={!prevSong}
+                  className="p-1.5 text-[#888894] hover:text-[#c5a059] disabled:opacity-30 disabled:hover:text-[#888894] transition-colors cursor-pointer rounded-lg"
+                  title={prevSong ? `Anterior en la lista: ${prevSong.title}` : 'Primera de la lista'}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="text-[10px] font-mono text-[#888894] px-2 font-medium">
+                  {currentSongIndex + 1}/{allSongs.length}
+                </span>
+                <button
+                  onClick={() => nextSong && onNavigateToSong(nextSong)}
+                  disabled={!nextSong}
+                  className="p-1.5 text-[#888894] hover:text-[#c5a059] disabled:opacity-30 disabled:hover:text-[#888894] transition-colors cursor-pointer rounded-lg"
+                  title={nextSong ? `Siguiente en la lista: ${nextSong.title}` : 'Última de la lista'}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+
+            {/* BOTÓN YOUTUBE INDEPENDIENTE (Fuera de herramientas) */}
             <button
-              onClick={() => setShowChords(!showChords)}
+              onClick={() => setShowYouTubePanel(!showYouTubePanel)}
               className={`px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 border transition-all cursor-pointer ${
-                showChords
-                  ? 'bg-[#1a1a1d] text-[#c5a059] border-[#c5a059]/40 font-bold'
-                  : 'bg-[#0a0a0b] text-[#888894] border-[#232328] hover:text-white'
+                showYouTubePanel
+                  ? 'bg-red-500/20 text-red-400 border-red-500/50 font-bold shadow-sm'
+                  : youtubeUrlInput
+                  ? 'bg-[#0a0a0b] text-red-400 border-red-500/30 hover:bg-red-950/20'
+                  : 'bg-[#0a0a0b] text-[#8e8e99] border-[#232328] hover:text-white'
               }`}
-              title={showChords ? 'Ocultar acordes y mostrar solo letra' : 'Mostrar acordes musicales'}
+              title="Reproducir o configurar video de YouTube"
             >
-              {showChords ? <Eye size={13} /> : <EyeOff size={13} />}
-              <span>{showChords ? 'Acordes ON' : 'Solo Letra'}</span>
+              <Video size={14} className={youtubeUrlInput ? 'text-red-500' : ''} />
+              <span>{youtubeUrlInput ? (showYouTubePanel ? 'Ocultar Video' : 'Video YouTube') : '+ Video'}</span>
             </button>
 
-            {/* View / Edit Mode */}
+            {/* DESLIZABLE SEGMENTADO: ACORDES vs SOLO LETRA (Guardado por dispositivo) */}
+            <div className="flex items-center bg-[#0a0a0b] p-1 rounded-xl border border-[#232328]">
+              <button
+                onClick={() => handleToggleShowChords(true)}
+                className={`px-3 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                  showChords
+                    ? 'bg-[#c5a059] text-black font-bold shadow-sm'
+                    : 'text-[#888894] hover:text-white'
+                }`}
+                title="Mostrar acordes sobre la letra"
+              >
+                <Music size={12} />
+                <span>Acordes</span>
+              </button>
+              <button
+                onClick={() => handleToggleShowChords(false)}
+                className={`px-3 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                  !showChords
+                    ? 'bg-[#c5a059] text-black font-bold shadow-sm'
+                    : 'text-[#888894] hover:text-white'
+                }`}
+                title="Mostrar solo letra sin acordes"
+              >
+                <EyeOff size={12} />
+                <span>Solo Letra</span>
+              </button>
+            </div>
+
+            {/* Selector Modo Ver / Editar */}
             <div className="flex bg-[#0a0a0b] p-1 rounded-xl border border-[#232328]">
               <button
                 onClick={() => setViewMode('view')}
-                className={`px-3 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer ${
                   viewMode === 'view'
                     ? 'bg-[#1a1a1d] text-[#c5a059] border border-[#c5a059]/30 font-medium'
                     : 'text-[#6b6b75] hover:text-white'
                 }`}
-                title="Vista interactiva"
+                title="Modo Lectura e Interpretación"
               >
-                <Eye size={13} />
+                <Eye size={12} />
                 <span>Ver</span>
               </button>
               <button
                 onClick={() => setViewMode('edit')}
-                className={`px-3 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer ${
                   viewMode === 'edit'
                     ? 'bg-[#1a1a1d] text-[#c5a059] border border-[#c5a059]/30 font-medium'
                     : 'text-[#6b6b75] hover:text-white'
                 }`}
-                title="Editar letra, acordes y configuración"
+                title="Editar letra y notas"
               >
-                <Edit3 size={13} />
+                <Edit3 size={12} />
                 <span>{isAdmin ? 'Editar' : 'Probar'}</span>
               </button>
             </div>
 
-            {/* MENÚ DESPLEGABLE DE HERRAMIENTAS (Transposición, Capo, Metrónomo, Diagramas, etc.) */}
-            <div className="relative">
-              <button
-                onClick={() => setShowToolsDropdown(!showToolsDropdown)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 border transition-all cursor-pointer ${
-                  showToolsDropdown
-                    ? 'bg-[#c5a059] text-black font-bold border-[#c5a059]'
-                    : 'bg-[#0a0a0b] text-[#c5a059] border-[#c5a059]/40 hover:bg-[#1a1a1d]'
-                }`}
-                title="Abrir panel de herramientas de la canción"
-              >
-                <Settings2 size={14} />
-                <span>Herramientas</span>
-                <ChevronDown size={13} className={showToolsDropdown ? 'rotate-180 transition-transform' : 'transition-transform'} />
-              </button>
-
-              {/* Menú Desplegable Flotante */}
-              {showToolsDropdown && (
-                <div
-                  className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-[#141418] border border-[#2a2a32] rounded-2xl p-4 shadow-2xl z-50 animate-fadeIn"
-                  onClick={e => e.stopPropagation()}
-                >
-                  <div className="flex items-center justify-between pb-2 mb-3 border-b border-[#232328]">
-                    <span className="text-xs font-mono font-bold uppercase text-[#c5a059] flex items-center gap-1.5">
-                      <Sliders size={13} />
-                      <span>Herramientas Musicales</span>
-                    </span>
-                    <button
-                      onClick={() => setShowToolsDropdown(false)}
-                      className="text-[#888894] hover:text-white p-1 cursor-pointer"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-
-                  <div className="space-y-3.5 text-xs">
-                    {/* Transposición */}
-                    <div>
-                      <div className="flex items-center justify-between text-[11px] font-mono text-[#888894] mb-1.5">
-                        <span>Transportar Tonalidad</span>
-                        {transposeOffset !== 0 && (
-                          <button
-                            onClick={handleResetTranspose}
-                            className="text-[#c5a059] hover:underline cursor-pointer"
-                          >
-                            Restablecer
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between bg-[#0a0a0b] border border-[#232328] rounded-xl p-1">
-                        <button
-                          onClick={() => handleTranspose(-1)}
-                          className="px-3 py-1.5 bg-[#141418] hover:bg-[#1f1f23] text-white rounded-lg font-mono font-bold cursor-pointer"
-                        >
-                          -1 Semitono
-                        </button>
-                        <span className="font-mono text-xs font-bold text-[#c5a059]">
-                          {transposeOffset === 0 ? 'Original' : `${transposeOffset > 0 ? '+' : ''}${transposeOffset}`}
-                        </span>
-                        <button
-                          onClick={() => handleTranspose(1)}
-                          className="px-3 py-1.5 bg-[#141418] hover:bg-[#1f1f23] text-white rounded-lg font-mono font-bold cursor-pointer"
-                        >
-                          +1 Semitono
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Capo */}
-                    <div>
-                      <label className="block text-[11px] font-mono text-[#888894] mb-1">
-                        Cejilla / Capodastro (Traste)
-                      </label>
-                      <select
-                        value={capoFret}
-                        onChange={e => setCapoFret(parseInt(e.target.value, 10))}
-                        className="w-full bg-[#0a0a0b] text-white border border-[#232328] rounded-xl px-3 py-2 text-xs font-mono focus:outline-none cursor-pointer"
-                      >
-                        <option value={0}>Sin Capo (Tocar al natural)</option>
-                        <option value={1}>Capo en Traste 1</option>
-                        <option value={2}>Capo en Traste 2</option>
-                        <option value={3}>Capo en Traste 3</option>
-                        <option value={4}>Capo en Traste 4</option>
-                        <option value={5}>Capo en Traste 5</option>
-                        <option value={6}>Capo en Traste 6</option>
-                        <option value={7}>Capo en Traste 7</option>
-                      </select>
-                      {capoFret > 0 && (
-                        <p className="text-[10px] text-amber-300 font-mono mt-1">
-                          Tocar acordes en postura de <strong>{fingeredKey}</strong> (suena en <strong>{soundingKey}</strong>)
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Instrumento para Diagramas */}
-                    <div>
-                      <label className="block text-[11px] font-mono text-[#888894] mb-1">
-                        Instrumento para Diagramas
-                      </label>
-                      <div className="grid grid-cols-2 gap-1 bg-[#0a0a0b] p-1 rounded-xl border border-[#232328]">
-                        {(
-                          [
-                            { id: 'guitar', label: '🎸 Guitarra' },
-                            { id: 'piano', label: '🎹 Piano' },
-                            { id: 'ukulele', label: '🪕 Ukelele' },
-                            { id: 'bass', label: '🎸 Bajo' },
-                          ] as const
-                        ).map(inst => (
-                          <button
-                            key={inst.id}
-                            onClick={() => {
-                              setSelectedInstrument(inst.id);
-                              setShowChordDiagramsBar(true);
-                            }}
-                            className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                              selectedInstrument === inst.id
-                                ? 'bg-[#1f1f23] text-[#c5a059] font-bold border border-[#c5a059]/40'
-                                : 'text-[#888894] hover:text-white'
-                            }`}
-                          >
-                            {inst.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Multimedia / Enlaces */}
-                    <div className="pt-2 border-t border-[#232328] flex items-center justify-between">
-                      <button
-                        onClick={() => {
-                          setShowYouTubePanel(!showYouTubePanel);
-                          setShowToolsDropdown(false);
-                        }}
-                        className="flex items-center gap-1.5 text-xs text-[#888894] hover:text-red-400 font-mono cursor-pointer"
-                      >
-                        <Video size={13} />
-                        <span>Video YouTube</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setShowAttachmentsPanel(!showAttachmentsPanel);
-                          setShowToolsDropdown(false);
-                        }}
-                        className="flex items-center gap-1.5 text-xs text-[#888894] hover:text-[#c5a059] font-mono cursor-pointer"
-                      >
-                        <Paperclip size={13} />
-                        <span>Partituras ({attachments.length})</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Pantalla Completa */}
+            {/* Partituras / Adjuntos */}
             <button
-              onClick={() => setIsFullScreen(!isFullScreen)}
-              className="p-2 rounded-xl bg-[#0a0a0b] hover:bg-[#1f1f23] text-[#888894] hover:text-white border border-[#232328] transition-colors cursor-pointer"
-              title={isFullScreen ? 'Salir de pantalla completa' : 'Modo Pantalla Completa'}
+              onClick={() => setShowAttachmentsPanel(!showAttachmentsPanel)}
+              className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+                showAttachmentsPanel
+                  ? 'bg-[#c5a059]/20 text-[#c5a059] border-[#c5a059]/40'
+                  : 'bg-[#0a0a0b] hover:bg-[#1f1f23] text-[#888894] hover:text-white border-[#232328]'
+              }`}
+              title={`Partituras y archivos (${attachments.length})`}
             >
-              {isFullScreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-            </button>
-
-            {/* Imprimir */}
-            <button
-              onClick={handlePrint}
-              className="p-2 rounded-xl bg-[#0a0a0b] hover:bg-[#1f1f23] text-[#888894] hover:text-white border border-[#232328] transition-colors cursor-pointer hidden sm:flex"
-              title="Imprimir canción"
-            >
-              <Printer size={15} />
-            </button>
-
-            {/* Copiar */}
-            <button
-              onClick={handleCopy}
-              className="p-2 rounded-xl bg-[#0a0a0b] hover:bg-[#1f1f23] text-[#888894] hover:text-white border border-[#232328] transition-colors cursor-pointer"
-              title="Copiar letra y acordes"
-            >
-              {copied ? <Check size={15} className="text-emerald-400" /> : <Copy size={15} />}
+              <Paperclip size={15} />
             </button>
 
             {/* Cerrar */}
             <button
               onClick={onClose}
               className="p-2 rounded-xl bg-[#0a0a0b] hover:bg-[#1f1f23] text-[#888894] hover:text-white border border-[#232328] transition-colors cursor-pointer"
-              title="Cerrar"
+              title="Cerrar modal"
             >
               <X size={17} />
             </button>
@@ -793,168 +689,51 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
         </div>
 
         {/* ======================================================== */}
-        {/* 2. SUB-TOOLBAR: Auto-Scroll, Metrónomo, Zoom, Columnas & Diagramas */}
-        {/* ======================================================== */}
-        <div className="px-3 sm:px-5 py-2.5 bg-[#101013] border-b border-[#1f1f23] flex flex-wrap items-center justify-between gap-2.5 text-xs flex-shrink-0">
-          {/* Controles de Ensayo: Auto-scroll & Metrónomo */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Auto-Scroll */}
-            <div className="flex items-center bg-[#0a0a0b] border border-[#232328] rounded-lg p-0.5">
-              <button
-                onClick={() => setIsAutoScrolling(!isAutoScrolling)}
-                className={`px-2.5 py-1 rounded text-[11px] font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer ${
-                  isAutoScrolling
-                    ? 'bg-[#c5a059] text-black font-bold'
-                    : 'hover:bg-[#1a1a1d] text-[#c5a059]'
-                }`}
-                title="Iniciar o pausar desplazamiento automático"
-              >
-                {isAutoScrolling ? <Pause size={12} /> : <Play size={12} />}
-                <span>Auto-Scroll</span>
-              </button>
-
-              <div className="flex items-center px-1.5 border-l border-[#232328] text-[10px] font-mono text-[#888894] gap-1">
-                <button
-                  onClick={() => setScrollSpeed(prev => Math.max(10, prev - 10))}
-                  className="hover:text-white px-1 cursor-pointer"
-                  title="Menos velocidad"
-                >
-                  -
-                </button>
-                <span>{scrollSpeed}px/s</span>
-                <button
-                  onClick={() => setScrollSpeed(prev => Math.min(120, prev + 10))}
-                  className="hover:text-white px-1 cursor-pointer"
-                  title="Más velocidad"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            {/* Metrónomo */}
-            <div className="flex items-center bg-[#0a0a0b] border border-[#232328] rounded-lg p-0.5">
-              <button
-                onClick={() => setIsMetronomeActive(!isMetronomeActive)}
-                className={`px-2 py-1 rounded text-[10px] font-mono uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer ${
-                  isMetronomeActive
-                    ? 'bg-amber-400 text-black font-bold'
-                    : 'hover:bg-[#1a1a1d] text-[#888894] hover:text-white'
-                }`}
-                title="Activar metrónomo"
-              >
-                <Activity
-                  size={12}
-                  className={isMetronomeActive ? 'animate-pulse text-black' : 'text-[#c5a059]'}
-                />
-                <span>{bpm} BPM</span>
-              </button>
-
-              {isMetronomeActive && (
-                <>
-                  <button
-                    onClick={handleTapTempo}
-                    className="px-2 py-1 hover:bg-[#1f1f23] text-[#c5a059] text-[10px] font-mono font-bold border-l border-[#232328] cursor-pointer"
-                    title="Marca el pulso (TAP)"
-                  >
-                    TAP
-                  </button>
-                  <button
-                    onClick={() => setMetronomeSound(!metronomeSound)}
-                    className="p-1 hover:bg-[#1f1f23] text-[#888894] hover:text-white border-l border-[#232328] cursor-pointer"
-                    title={metronomeSound ? 'Silenciar sonido' : 'Activar clic audible'}
-                  >
-                    {metronomeSound ? (
-                      <Volume2 size={12} className="text-emerald-400" />
-                    ) : (
-                      <VolumeX size={12} />
-                    )}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Opciones de Visualización */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Tamaño de Letra */}
-            <div className="flex items-center bg-[#0a0a0b] border border-[#232328] rounded-lg p-0.5">
-              <button
-                onClick={() => {
-                  const sizes: TextSize[] = ['sm', 'md', 'lg', 'xl', '2xl'];
-                  const curIdx = sizes.indexOf(textSize);
-                  if (curIdx > 0) setTextSize(sizes[curIdx - 1]);
-                }}
-                className="px-2 py-1 hover:bg-[#1f1f23] text-[#888894] hover:text-white rounded text-[11px] font-mono cursor-pointer"
-                title="Reducir letra"
-              >
-                A-
-              </button>
-              <span className="px-1.5 text-[10px] font-mono text-[#c5a059] uppercase">
-                {textSize}
-              </span>
-              <button
-                onClick={() => {
-                  const sizes: TextSize[] = ['sm', 'md', 'lg', 'xl', '2xl'];
-                  const curIdx = sizes.indexOf(textSize);
-                  if (curIdx < sizes.length - 1) setTextSize(sizes[curIdx + 1]);
-                }}
-                className="px-2 py-1 hover:bg-[#1f1f23] text-[#888894] hover:text-white rounded text-[11px] font-mono cursor-pointer"
-                title="Aumentar letra"
-              >
-                A+
-              </button>
-            </div>
-
-            {/* Columnas */}
-            <button
-              onClick={() => setColumnsCount(columnsCount === 1 ? 2 : 1)}
-              className="p-1.5 rounded-lg bg-[#0a0a0b] hover:bg-[#1f1f23] text-[#888894] hover:text-[#c5a059] border border-[#232328] transition-colors cursor-pointer hidden md:flex"
-              title={columnsCount === 1 ? 'Dividir en 2 columnas' : 'Modo 1 columna'}
-            >
-              {columnsCount === 1 ? <Columns size={13} /> : <Square size={13} />}
-            </button>
-
-            {/* Diagramas de Acordes */}
-            <button
-              onClick={() => setShowChordDiagramsBar(!showChordDiagramsBar)}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-mono uppercase tracking-wider flex items-center gap-1 border transition-colors cursor-pointer ${
-                showChordDiagramsBar
-                  ? 'bg-[#1a1a1d] text-[#c5a059] border-[#c5a059]/40 font-bold'
-                  : 'bg-[#0a0a0b] text-[#888894] hover:text-white border-[#232328]'
-              }`}
-              title="Mostrar u ocultar diagramas visuales de acordes"
-            >
-              <Layers size={12} />
-              <span>Diagramas ({songUniqueChords.length})</span>
-            </button>
-          </div>
-        </div>
-
-        {/* ======================================================== */}
-        {/* 3. MINI REPRODUCTOR DE YOUTUBE (COMPACTO Y COLAPSABLE) */}
+        {/* 2. REPRODUCTOR YOUTUBE INDEPENDIENTE */}
         {/* ======================================================== */}
         {showYouTubePanel && (
           <div className="bg-[#0b0b0e] border-b border-[#232328] p-3 flex flex-col md:flex-row items-center gap-3 animate-fadeIn">
-            <div className="flex-1 w-full flex items-center gap-2">
-              <Video size={16} className="text-red-400 flex-shrink-0" />
-              <input
-                type="text"
-                value={youtubeUrlInput}
-                onChange={e => setYoutubeUrlInput(e.target.value)}
-                placeholder="Pega el enlace de YouTube aquí (ej: https://www.youtube.com/watch?v=...)"
-                className="w-full bg-[#141418] border border-[#232328] rounded-lg px-3 py-1.5 text-xs text-white placeholder-[#6b6b75] focus:outline-none focus:border-red-500 font-mono"
-              />
-              <button
-                onClick={() => setShowYouTubePanel(false)}
-                className="p-1.5 text-[#888894] hover:text-white rounded cursor-pointer"
-              >
-                <X size={15} />
-              </button>
+            <div className="flex-1 w-full space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono uppercase tracking-wider text-red-400 font-bold flex items-center gap-1.5">
+                  <Video size={14} />
+                  <span>Video de Referencia (YouTube)</span>
+                </span>
+                <button
+                  onClick={() => setShowYouTubePanel(false)}
+                  className="text-[#888894] hover:text-white p-1 cursor-pointer"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {isAdmin ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={youtubeUrlInput}
+                    onChange={e => setYoutubeUrlInput(e.target.value)}
+                    placeholder="Pega el enlace de YouTube aquí (ej: https://www.youtube.com/watch?v=...)"
+                    className="w-full bg-[#141418] border border-[#232328] rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#6b6b75] focus:outline-none focus:border-red-500 font-mono"
+                  />
+                  {youtubeUrlInput !== (song.youtubeUrl || '') && (
+                    <button
+                      onClick={handleSaveOfficial}
+                      className="px-3 py-1.5 bg-[#c5a059] text-black font-bold text-xs rounded-xl font-mono uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-[#d4b068]"
+                    >
+                      Guardar Link
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-[#8e8e99] truncate">
+                  {youtubeUrlInput || 'No hay video enlazado por el administrador.'}
+                </p>
+              )}
             </div>
 
             {youtubeEmbedUrl && (
-              <div className="w-full md:w-64 h-36 rounded-xl overflow-hidden border border-[#232328] shadow-md flex-shrink-0">
+              <div className="w-full md:w-72 h-40 rounded-xl overflow-hidden border border-[#232328] shadow-lg flex-shrink-0 bg-black">
                 <iframe
                   src={youtubeEmbedUrl}
                   title="YouTube video reference"
@@ -968,14 +747,14 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
         )}
 
         {/* ======================================================== */}
-        {/* 4. PANEL DE ADJUNTOS / PARTITURAS (PDF / IMÁGENES) */}
+        {/* 3. PANEL DE PARTITURAS Y ADJUNTOS */}
         {/* ======================================================== */}
         {showAttachmentsPanel && (
           <div className="bg-[#0b0b0e] border-b border-[#232328] p-3.5 animate-fadeIn">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-mono uppercase tracking-wider text-[#c5a059] flex items-center gap-1.5 font-bold">
                 <FileText size={14} />
-                <span>Partituras y Documentos Adjuntos ({attachments.length})</span>
+                <span>Partituras y Archivos Adjuntos ({attachments.length})</span>
               </span>
               <button
                 onClick={() => setShowAttachmentsPanel(false)}
@@ -1044,7 +823,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
         )}
 
         {/* ======================================================== */}
-        {/* 5. MAPA DE ESTRUCTURA (PILLS INTERACTIVAS IN, V1, C, PC, PTE, OUT) */}
+        {/* 4. MAPA DE ESTRUCTURA (PILLS INTERACTIVAS) */}
         {/* ======================================================== */}
         {structureSections.length > 0 && viewMode === 'view' && (
           <div className="bg-[#0b0b0d] border-b border-[#1c1c20] px-4 py-2 flex items-center gap-2 overflow-x-auto flex-shrink-0">
@@ -1072,7 +851,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
         )}
 
         {/* ======================================================== */}
-        {/* 6. RIBBON DE DIAGRAMAS PARA GUITARRA / PIANO / UKELELE / BAJO */}
+        {/* 5. RIBBON DE DIAGRAMAS PARA INSTRUMENTOS */}
         {/* ======================================================== */}
         {showChordDiagramsBar && songUniqueChords.length > 0 && (
           <div className="bg-[#0e0e12] border-b border-[#232328] px-4 py-3 overflow-x-auto flex-shrink-0 animate-fadeIn">
@@ -1092,13 +871,13 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                 </span>
               </span>
               <div className="flex items-center gap-1 text-[10px] font-mono text-[#888894]">
-                <span>Cambiar:</span>
+                <span>Cambiar instrumento:</span>
                 {(['guitar', 'piano', 'ukulele', 'bass'] as const).map(inst => (
                   <button
                     key={inst}
                     onClick={() => setSelectedInstrument(inst)}
-                    className={`px-1.5 py-0.5 rounded uppercase font-bold cursor-pointer ${
-                      selectedInstrument === inst ? 'bg-[#c5a059] text-black' : 'hover:text-white'
+                    className={`px-2 py-0.5 rounded uppercase font-bold cursor-pointer transition-colors ${
+                      selectedInstrument === inst ? 'bg-[#c5a059] text-black' : 'hover:text-white bg-[#1a1a1d]'
                     }`}
                   >
                     {inst}
@@ -1112,7 +891,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                 <div
                   key={cIdx}
                   onClick={() => setSelectedChordForPopover(chord)}
-                  className="cursor-pointer flex-shrink-0"
+                  className="cursor-pointer flex-shrink-0 hover:scale-105 transition-transform"
                 >
                   <GuitarChordDiagram
                     chordName={chord}
@@ -1127,7 +906,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
         )}
 
         {/* ======================================================== */}
-        {/* 7. MODAL FLOTANTE DE ACORDE INDIVIDUAL */}
+        {/* 6. MODAL FLOTANTE DE ACORDE INDIVIDUAL */}
         {/* ======================================================== */}
         {selectedChordForPopover && (
           <div
@@ -1153,7 +932,6 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                 </button>
               </div>
 
-              {/* Selector de Instrumento en Popover */}
               <div className="flex items-center gap-1 bg-[#0a0a0b] p-1 rounded-xl border border-[#232328] mb-3 w-full justify-center">
                 {(
                   [
@@ -1188,171 +966,582 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
         )}
 
         {/* ======================================================== */}
-        {/* 8. VISOR PRINCIPAL / EDITOR */}
+        {/* 7. CONTENEDOR PRINCIPAL (LETRA + BARRA VERTICAL DERECHA) */}
         {/* ======================================================== */}
-        <div
-          ref={scrollContainerRef}
-          className="flex-1 overflow-y-auto p-4 sm:p-7 bg-[#0a0a0b] relative select-text scroll-smooth"
-        >
-          {viewMode === 'view' ? (
-            <div
-              className={`bg-[#121215] border border-[#1f1f23] rounded-2xl p-5 sm:p-8 shadow-inner font-mono ${textSizeClass} leading-relaxed select-text ${
-                columnsCount === 2 ? 'md:columns-2 md:gap-8' : ''
-              }`}
-            >
-              {renderedLines.length === 0 || (renderedLines.length === 1 && !renderedLines[0].trim()) ? (
-                <div className="text-center py-12 text-[#6b6b75]">
-                  <Music size={32} className="mx-auto mb-2 text-[#34343d]" />
-                  <p className="text-sm font-sans text-[#a0a0ab]">Esta canción no tiene letra cargada aún.</p>
-                  {isAdmin && (
-                    <button
-                      onClick={() => setViewMode('edit')}
-                      className="mt-3 px-4 py-2 bg-[#1a1a1d] hover:bg-[#232328] text-[#c5a059] rounded-xl text-xs font-mono uppercase tracking-wider border border-[#c5a059]/30 transition-colors cursor-pointer"
-                    >
-                      Escribir o pegar letra y acordes
-                    </button>
-                  )}
-                </div>
-              ) : (
-                renderedLines.map((line, lineIdx) => {
-                  const trimmed = line.trim();
+        <div className="flex-1 flex overflow-hidden relative">
+          {/* A. ÁREA DE LETRA Y ACORDES (SCROLLABLE) */}
+          <div
+            ref={scrollContainerRef}
+            className="flex-1 overflow-y-auto p-4 sm:p-7 bg-[#0a0a0b] relative select-text scroll-smooth"
+          >
+            {viewMode === 'view' ? (
+              <div
+                className={`bg-[#121215] border border-[#1f1f23] rounded-2xl p-5 sm:p-8 shadow-inner font-mono ${textSizeClass} leading-relaxed select-text ${
+                  columnsCount === 2 ? 'md:columns-2 md:gap-8' : ''
+                }`}
+              >
+                {renderedLines.length === 0 || (renderedLines.length === 1 && !renderedLines[0].trim()) ? (
+                  <div className="text-center py-12 text-[#6b6b75]">
+                    <Music size={32} className="mx-auto mb-2 text-[#34343d]" />
+                    <p className="text-sm font-sans text-[#a0a0ab]">Esta canción no tiene letra cargada aún.</p>
+                    {isAdmin && (
+                      <button
+                        onClick={() => setViewMode('edit')}
+                        className="mt-3 px-4 py-2 bg-[#1a1a1d] hover:bg-[#232328] text-[#c5a059] rounded-xl text-xs font-mono uppercase tracking-wider border border-[#c5a059]/30 transition-colors cursor-pointer"
+                      >
+                        Escribir o pegar letra y acordes
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  renderedLines.map((line, lineIdx) => {
+                    const trimmed = line.trim();
 
-                  if (!trimmed) {
-                    return <div key={lineIdx} className="h-4" />;
-                  }
+                    if (!trimmed) {
+                      return <div key={lineIdx} className="h-4" />;
+                    }
 
-                  // Sección: [Intro], [Estrofa 1], [Coro], [Puente]
-                  if (isSectionHeader(trimmed)) {
-                    const { code, colorClass } = getSectionBadgeCode(trimmed);
+                    // Encabezado de Sección: [Intro], [Estrofa 1], [Coro], [Puente]
+                    if (isSectionHeader(trimmed)) {
+                      const { code, colorClass } = getSectionBadgeCode(trimmed);
+                      return (
+                        <div
+                          key={lineIdx}
+                          id={`section-node-${lineIdx}`}
+                          className="pt-5 pb-2 break-inside-avoid scroll-mt-6 flex items-center gap-2"
+                        >
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 font-bold text-xs rounded-lg border tracking-wider shadow-sm ${colorClass}`}
+                          >
+                            <span className="font-mono">{code}</span>
+                            <span className="text-[#a0a0ab] font-sans font-normal text-[11px]">
+                              · {trimmed.replace(/[[\]]/g, '')}
+                            </span>
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    // Ocultar si usuario eligió "Solo Letra" y toda la línea es acordes
+                    const isLineAllChords = isChordLine(line);
+                    if (!showChords && isLineAllChords) {
+                      return null;
+                    }
+
+                    const tokens = parseLyricsLineTokens(line);
+
                     return (
                       <div
                         key={lineIdx}
-                        id={`section-node-${lineIdx}`}
-                        className="pt-5 pb-2 break-inside-avoid scroll-mt-6 flex items-center gap-2"
+                        className={`whitespace-pre-wrap ${
+                          isLineAllChords ? 'text-[#c5a059] font-bold py-0.5' : 'text-[#f0f0f5] py-0.5'
+                        }`}
                       >
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 font-bold text-xs rounded-lg border tracking-wider shadow-sm ${colorClass}`}
-                        >
-                          <span className="font-mono">{code}</span>
-                          <span className="text-[#a0a0ab] font-sans font-normal text-[11px]">
-                            · {trimmed.replace(/[[\]]/g, '')}
-                          </span>
-                        </span>
-                      </div>
-                    );
-                  }
-
-                  // Si el usuario eligió "Ocultar Acordes" (Solo Letra):
-                  const isLineAllChords = isChordLine(line);
-                  if (!showChords && isLineAllChords) {
-                    return null; // Ocultar línea completa de acordes
-                  }
-
-                  const tokens = parseLyricsLineTokens(line);
-
-                  return (
-                    <div
-                      key={lineIdx}
-                      className={`whitespace-pre-wrap ${
-                        isLineAllChords ? 'text-[#c5a059] font-bold py-0.5' : 'text-[#f0f0f5] py-0.5'
-                      }`}
-                    >
-                      {tokens.map((token, tIdx) => {
-                        if (token.isChord) {
-                          if (!showChords) return null; // No renderizar acorde incrustado
+                        {tokens.map((token, tIdx) => {
+                          if (token.isChord) {
+                            if (!showChords) return null;
+                            return (
+                              <span
+                                key={tIdx}
+                                onClick={() => setSelectedChordForPopover(token.text)}
+                                className="inline-block font-bold text-[#c5a059] bg-[#c5a059]/10 hover:bg-[#c5a059]/25 px-1.5 py-0.5 rounded mx-0.5 border border-[#c5a059]/30 hover:border-[#c5a059] transition-all cursor-pointer select-text"
+                                title={`Ver diagrama de acorde: ${token.text}`}
+                              >
+                                {token.text}
+                              </span>
+                            );
+                          }
                           return (
-                            <span
-                              key={tIdx}
-                              onClick={() => setSelectedChordForPopover(token.text)}
-                              className="inline-block font-bold text-[#c5a059] bg-[#c5a059]/10 hover:bg-[#c5a059]/25 px-1.5 py-0.5 rounded mx-0.5 border border-[#c5a059]/30 hover:border-[#c5a059] transition-all cursor-pointer select-text"
-                              title={`Ver diagrama de acorde: ${token.text}`}
-                            >
+                            <span key={tIdx} className="text-[#f0f0f5]">
                               {token.text}
                             </span>
                           );
-                        }
-                        return (
-                          <span key={tIdx} className="text-[#f0f0f5]">
-                            {token.text}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          ) : (
-            /* Modo Editor / Modificación */
-            <div className="space-y-3">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <label className="text-xs font-mono uppercase tracking-wider text-[#6b6b75] block">
-                  {isAdmin
-                    ? 'Editor de Canción (Cifrado Americano sin necesidad de corchetes)'
-                    : 'Editor Interactivo (Modo Práctica)'}
-                </label>
+                        })}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            ) : (
+              /* Modo Editor */
+              <div className="space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="text-xs font-mono uppercase tracking-wider text-[#6b6b75] block">
+                    {isAdmin
+                      ? 'Editor de Canción (Cifrado Americano sin necesidad de corchetes)'
+                      : 'Editor Interactivo (Modo Práctica)'}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleResetToSaved}
+                    className="text-[11px] font-mono text-[#6b6b75] hover:text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    <RotateCcw size={12} />
+                    <span>Restablecer Original</span>
+                  </button>
+                </div>
+
+                <textarea
+                  value={editedText}
+                  onChange={e => setEditedText(e.target.value)}
+                  rows={18}
+                  placeholder={`Pega aquí la letra y notas. Ej:\n\n[Intro]\nG  Em7  C  D\n\n[Estrofa 1]\n      G                Em7\nTu fidelidad es grande\n       C        D        G\nTu fidelidad incomparable es`}
+                  className="w-full bg-[#121215] border border-[#26262b] focus:border-[#c5a059] rounded-xl p-4 sm:p-5 font-mono text-sm leading-relaxed text-white focus:outline-none transition-colors shadow-inner resize-y"
+                />
+
+                <div className="text-[11px] font-mono text-[#888894] flex items-center justify-between flex-wrap gap-2">
+                  <span>{editedText.split('\n').filter(l => l.trim()).length} líneas de letra</span>
+                  <span className="text-[#c5a059]">
+                    Reconocimiento automático: Escribe notas como C, G, Am, D7 directamente sobre la letra.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Botón flotante para pausar auto-scroll */}
+            {isAutoScrolling && (
+              <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-[#141418]/95 border border-[#c5a059] rounded-full px-5 py-2 shadow-2xl flex items-center gap-3 z-40 backdrop-blur-md animate-fadeIn">
                 <button
-                  type="button"
-                  onClick={handleResetToSaved}
-                  className="text-[11px] font-mono text-[#6b6b75] hover:text-white flex items-center gap-1 cursor-pointer"
+                  onClick={() => setIsAutoScrolling(false)}
+                  className="w-8 h-8 rounded-full bg-[#c5a059] text-black flex items-center justify-center font-bold hover:scale-105 transition-transform cursor-pointer"
+                  title="Pausar desplazamiento"
                 >
-                  <RotateCcw size={12} />
-                  <span>Restablecer Original</span>
+                  <Pause size={14} />
+                </button>
+                <span className="font-mono text-xs text-[#c5a059] font-bold">
+                  Auto-Scroll ({scrollSpeed}px/s)
+                </span>
+                <button
+                  onClick={() => {
+                    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+                  }}
+                  className="p-1 hover:text-[#c5a059] text-[#888894] transition-colors cursor-pointer"
+                  title="Volver al inicio"
+                >
+                  <ArrowUp size={14} />
                 </button>
               </div>
+            )}
+          </div>
 
-              <textarea
-                value={editedText}
-                onChange={e => setEditedText(e.target.value)}
-                rows={18}
-                placeholder={`Pega aquí la letra y notas. Ej:\n\n[Intro]\nG  Em7  C  D\n\n[Estrofa 1]\n      G                Em7\nTu fidelidad es grande\n       C        D        G\nTu fidelidad incomparable es`}
-                className="w-full bg-[#121215] border border-[#26262b] focus:border-[#c5a059] rounded-xl p-4 sm:p-5 font-mono text-sm leading-relaxed text-white focus:outline-none transition-colors shadow-inner resize-y"
-              />
+          {/* ======================================================== */}
+          {/* B. BARRA VERTICAL DERECHA DE HERRAMIENTAS MUSICALES (ICONOS INTUITIVOS) */}
+          {/* ======================================================== */}
+          <aside className="w-14 sm:w-16 bg-[#101013] border-l border-[#1f1f23] flex flex-col items-center py-3 gap-2 flex-shrink-0 select-none z-20 overflow-y-auto">
+            {/* GRUPO 1: TONALIDAD & TRANSPOSICIÓN */}
+            <div className="flex flex-col items-center gap-1 w-full px-1.5 pb-2 border-b border-[#1f1f23]">
+              <span className="text-[8px] font-mono uppercase tracking-widest text-[#6b6b75] font-bold">
+                Tono
+              </span>
 
-              <div className="text-[11px] font-mono text-[#888894] flex items-center justify-between flex-wrap gap-2">
-                <span>{editedText.split('\n').filter(l => l.trim()).length} líneas de letra</span>
-                <span className="text-[#c5a059]">
-                  Reconocimiento automático: Escribe notas como C, G, Am, D7 directamente sobre la letra.
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Botón flotante para pausar auto-scroll */}
-          {isAutoScrolling && (
-            <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-[#141418]/95 border border-[#c5a059] rounded-full px-5 py-2 shadow-2xl flex items-center gap-3 z-40 backdrop-blur-md animate-fadeIn">
+              {/* Subir +1 Semitono */}
               <button
-                onClick={() => setIsAutoScrolling(false)}
-                className="w-8 h-8 rounded-full bg-[#c5a059] text-black flex items-center justify-center font-bold hover:scale-105 transition-transform cursor-pointer"
-                title="Pausar desplazamiento"
+                onClick={() => handleTranspose(1)}
+                className="w-10 h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#c5a059] hover:text-white border border-[#2a2a30] flex items-center justify-center transition-colors cursor-pointer"
+                title="Subir +1 Semitono (#)"
               >
-                <Pause size={14} />
+                <Plus size={15} />
               </button>
-              <span className="font-mono text-xs text-[#c5a059] font-bold">
-                Auto-Scroll ({scrollSpeed}px/s)
+
+              {/* Tono Actual (Clic para abrir selector de todas las tonalidades) */}
+              <button
+                onClick={() => setShowKeyPickerPopover(!showKeyPickerPopover)}
+                className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer border ${
+                  transposeOffset !== 0
+                    ? 'bg-[#c5a059] text-black font-bold border-[#c5a059] shadow-md shadow-[#c5a059]/20'
+                    : 'bg-[#18181c] text-[#c5a059] border-[#c5a059]/40 hover:bg-[#232328]'
+                }`}
+                title={`Tono actual: ${soundingKey}. Haz clic para cambiar tonalidad directa`}
+              >
+                <span className="text-xs font-mono font-bold leading-tight truncate px-0.5">
+                  {soundingKey}
+                </span>
+                <span className="text-[8px] font-mono leading-none opacity-80">
+                  {transposeOffset === 0 ? 'Base' : `${transposeOffset > 0 ? '+' : ''}${transposeOffset}`}
+                </span>
+              </button>
+
+              {/* Bajar -1 Semitono */}
+              <button
+                onClick={() => handleTranspose(-1)}
+                className="w-10 h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#c5a059] hover:text-white border border-[#2a2a30] flex items-center justify-center transition-colors cursor-pointer"
+                title="Bajar -1 Semitono (b)"
+              >
+                <Minus size={15} />
+              </button>
+
+              {/* Restablecer Tono Original */}
+              {transposeOffset !== 0 && (
+                <button
+                  onClick={handleResetTranspose}
+                  className="w-10 h-7 rounded-lg bg-amber-950/30 hover:bg-amber-900/50 text-amber-400 border border-amber-800/40 flex items-center justify-center text-[10px] font-mono transition-colors cursor-pointer mt-0.5"
+                  title="Restablecer al tono base original"
+                >
+                  <RotateCcw size={12} />
+                </button>
+              )}
+
+              {/* Guardar Tono Base Oficial (Admin) */}
+              {isAdmin && transposeOffset !== 0 && (
+                <button
+                  onClick={handleSaveCurrentKeyAsBase}
+                  className="w-10 h-7 rounded-lg bg-[#c5a059]/20 hover:bg-[#c5a059] text-[#c5a059] hover:text-black border border-[#c5a059]/40 flex items-center justify-center text-[10px] font-mono transition-all cursor-pointer mt-0.5"
+                  title={`Fijar y guardar "${soundingKey}" como el nuevo tono oficial de la canción`}
+                >
+                  <Pin size={12} />
+                </button>
+              )}
+            </div>
+
+            {/* GRUPO 2: CEJILLA / CAPO */}
+            <div className="flex flex-col items-center gap-1 w-full px-1.5 pb-2 border-b border-[#1f1f23]">
+              <span className="text-[8px] font-mono uppercase tracking-widest text-[#6b6b75] font-bold">
+                Capo
               </span>
               <button
-                onClick={() => {
-                  if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-                }}
-                className="p-1 hover:text-[#c5a059] text-[#888894] transition-colors cursor-pointer"
-                title="Volver al inicio"
+                onClick={() => setShowCapoPickerPopover(!showCapoPickerPopover)}
+                className={`w-10 h-9 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer border ${
+                  capoFret > 0
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 font-bold'
+                    : 'bg-[#18181c] text-[#8e8e99] hover:text-white border-[#2a2a30]'
+                }`}
+                title="Configurar Cejilla / Capodastro"
               >
-                <ArrowUp size={14} />
+                <span className="text-[10px] font-mono font-bold">CAPO</span>
+                <span className="text-[9px] font-mono text-[#c5a059]">{capoFret}</span>
               </button>
             </div>
-          )}
+
+            {/* GRUPO 3: DIAGRAMAS DE INSTRUMENTOS */}
+            <div className="flex flex-col items-center gap-1 w-full px-1.5 pb-2 border-b border-[#1f1f23]">
+              <span className="text-[8px] font-mono uppercase tracking-widest text-[#6b6b75] font-bold">
+                Notas
+              </span>
+              <button
+                onClick={() => setShowChordDiagramsBar(!showChordDiagramsBar)}
+                className={`w-10 h-9 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer border ${
+                  showChordDiagramsBar
+                    ? 'bg-[#c5a059] text-black font-bold border-[#c5a059]'
+                    : 'bg-[#18181c] text-[#8e8e99] hover:text-[#c5a059] border-[#2a2a30]'
+                }`}
+                title="Mostrar u ocultar cinta con diagramas visuales de acordes"
+              >
+                <Layers size={14} />
+                <span className="text-[8px] font-mono">{songUniqueChords.length}</span>
+              </button>
+            </div>
+
+            {/* GRUPO 4: AUTO-SCROLL Y METRÓNOMO */}
+            <div className="flex flex-col items-center gap-1 w-full px-1.5 pb-2 border-b border-[#1f1f23]">
+              <span className="text-[8px] font-mono uppercase tracking-widest text-[#6b6b75] font-bold">
+                Ensayo
+              </span>
+
+              {/* Auto-Scroll Toggle */}
+              <button
+                onClick={() => setIsAutoScrolling(!isAutoScrolling)}
+                className={`w-10 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer border ${
+                  isAutoScrolling
+                    ? 'bg-[#c5a059] text-black font-bold border-[#c5a059] animate-pulse'
+                    : 'bg-[#18181c] text-[#8e8e99] hover:text-[#c5a059] border-[#2a2a30]'
+                }`}
+                title={isAutoScrolling ? 'Pausar Auto-Scroll' : 'Iniciar Auto-Scroll'}
+              >
+                {isAutoScrolling ? <Pause size={14} /> : <Play size={14} />}
+              </button>
+
+              {/* Control de Velocidad de Scroll */}
+              <button
+                onClick={() => setShowScrollSpeedPopover(!showScrollSpeedPopover)}
+                className="w-10 h-5 text-[9px] font-mono bg-[#141418] hover:bg-[#1f1f23] text-[#8e8e99] hover:text-white rounded border border-[#232328] flex items-center justify-center cursor-pointer"
+                title="Ajustar velocidad de Auto-Scroll"
+              >
+                {scrollSpeed}s
+              </button>
+
+              {/* Metrónomo */}
+              <button
+                onClick={() => setIsMetronomeActive(!isMetronomeActive)}
+                className={`w-10 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer border mt-1 ${
+                  isMetronomeActive
+                    ? 'bg-amber-400 text-black font-bold border-amber-400'
+                    : 'bg-[#18181c] text-[#8e8e99] hover:text-white border-[#2a2a30]'
+                }`}
+                title={isMetronomeActive ? 'Desactivar Metrónomo' : 'Activar Metrónomo'}
+              >
+                <Activity size={14} className={isMetronomeActive ? 'animate-pulse' : ''} />
+              </button>
+
+              {isMetronomeActive && (
+                <button
+                  onClick={handleTapTempo}
+                  className="w-10 h-5 text-[8px] font-mono font-bold bg-[#c5a059]/20 hover:bg-[#c5a059] text-[#c5a059] hover:text-black rounded border border-[#c5a059]/40 flex items-center justify-center cursor-pointer"
+                  title="Marca el pulso (TAP)"
+                >
+                  TAP
+                </button>
+              )}
+            </div>
+
+            {/* GRUPO 5: TAMAÑO DE TEXTO Y COLUMNAS */}
+            <div className="flex flex-col items-center gap-1 w-full px-1.5 pb-2 border-b border-[#1f1f23]">
+              <span className="text-[8px] font-mono uppercase tracking-widest text-[#6b6b75] font-bold">
+                Vista
+              </span>
+
+              {/* Aumentar letra */}
+              <button
+                onClick={() => {
+                  const sizes: TextSize[] = ['sm', 'md', 'lg', 'xl', '2xl'];
+                  const curIdx = sizes.indexOf(textSize);
+                  if (curIdx < sizes.length - 1) setTextSize(sizes[curIdx + 1]);
+                }}
+                className="w-10 h-7 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] flex items-center justify-center text-xs font-mono font-bold cursor-pointer"
+                title="Aumentar tamaño de letra"
+              >
+                A+
+              </button>
+
+              {/* Reducir letra */}
+              <button
+                onClick={() => {
+                  const sizes: TextSize[] = ['sm', 'md', 'lg', 'xl', '2xl'];
+                  const curIdx = sizes.indexOf(textSize);
+                  if (curIdx > 0) setTextSize(sizes[curIdx - 1]);
+                }}
+                className="w-10 h-7 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] flex items-center justify-center text-xs font-mono font-bold cursor-pointer"
+                title="Reducir tamaño de letra"
+              >
+                A-
+              </button>
+
+              {/* Columnas */}
+              <button
+                onClick={() => setColumnsCount(columnsCount === 1 ? 2 : 1)}
+                className={`w-10 h-7 rounded-lg flex items-center justify-center border transition-colors cursor-pointer hidden md:flex ${
+                  columnsCount === 2
+                    ? 'bg-[#1f1f23] text-[#c5a059] border-[#c5a059]/40'
+                    : 'bg-[#18181c] text-[#8e8e99] hover:text-white border-[#2a2a30]'
+                }`}
+                title={columnsCount === 1 ? 'Dividir en 2 columnas' : 'Modo 1 columna'}
+              >
+                {columnsCount === 1 ? <Columns size={13} /> : <Square size={13} />}
+              </button>
+            </div>
+
+            {/* GRUPO 6: ACCIONES GENERALES */}
+            <div className="flex flex-col items-center gap-1 w-full px-1.5 pt-1 mt-auto">
+              {/* Pantalla Completa */}
+              <button
+                onClick={() => setIsFullScreen(!isFullScreen)}
+                className="w-10 h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] flex items-center justify-center transition-colors cursor-pointer"
+                title={isFullScreen ? 'Salir de pantalla completa' : 'Modo Pantalla Completa'}
+              >
+                {isFullScreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              </button>
+
+              {/* Imprimir */}
+              <button
+                onClick={handlePrint}
+                className="w-10 h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] items-center justify-center transition-colors cursor-pointer hidden sm:flex"
+                title="Imprimir canción"
+              >
+                <Printer size={14} />
+              </button>
+
+              {/* Copiar */}
+              <button
+                onClick={handleCopy}
+                className="w-10 h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] flex items-center justify-center transition-colors cursor-pointer"
+                title="Copiar letra y acordes"
+              >
+                {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+              </button>
+            </div>
+          </aside>
         </div>
 
         {/* ======================================================== */}
-        {/* 9. FOOTER: Permisos & Botón Guardar */}
+        {/* 8. POPOVER: SELECTOR DE TONALIDAD RÁPIDO */}
         {/* ======================================================== */}
-        <div className="p-3.5 sm:p-5 bg-[#1a1a1d] border-t border-[#232328] flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
+        {showKeyPickerPopover && (
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowKeyPickerPopover(false)}
+          >
+            <div
+              className="bg-[#141418] border border-[#c5a059]/40 rounded-2xl p-5 shadow-2xl max-w-md w-full space-y-4 animate-scaleIn"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-[#232328]">
+                <div className="flex items-center gap-2 text-[#c5a059]">
+                  <KeyRound size={18} />
+                  <h4 className="font-serif text-lg text-white font-medium">Seleccionar Tonalidad</h4>
+                </div>
+                <button
+                  onClick={() => setShowKeyPickerPopover(false)}
+                  className="p-1 text-[#888894] hover:text-white cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-mono uppercase tracking-wider text-[#8e8e99] block mb-2">
+                  Tonalidades Mayores y Menores:
+                </label>
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                  {ALL_STANDARD_KEYS.map(k => (
+                    <button
+                      key={k}
+                      onClick={() => handleSelectNewKey(k)}
+                      className={`p-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer border ${
+                        soundingKey === k
+                          ? 'bg-[#c5a059] text-black border-[#c5a059] shadow-md shadow-[#c5a059]/20'
+                          : 'bg-[#0a0a0b] text-white hover:bg-[#1a1a1e] border-[#26262e] hover:border-[#c5a059]/40'
+                      }`}
+                    >
+                      {k}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {isAdmin && (
+                <div className="pt-3 border-t border-[#232328] flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-[#8e8e99]">
+                    ¿Quieres que este sea el tono permanente de la canción?
+                  </span>
+                  <button
+                    onClick={() => {
+                      handleSaveCurrentKeyAsBase();
+                      setShowKeyPickerPopover(false);
+                    }}
+                    className="px-3 py-1.5 bg-[#c5a059] text-black font-bold text-xs rounded-xl font-mono uppercase tracking-wider hover:bg-[#d4b068] transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    Fijar como Base
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* 9. POPOVER: SELECTOR DE CAPO */}
+        {/* ======================================================== */}
+        {showCapoPickerPopover && (
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowCapoPickerPopover(false)}
+          >
+            <div
+              className="bg-[#141418] border border-amber-500/40 rounded-2xl p-5 shadow-2xl max-w-sm w-full space-y-3 animate-scaleIn"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-[#232328]">
+                <div className="flex items-center gap-2 text-amber-400">
+                  <Music size={18} />
+                  <h4 className="font-serif text-lg text-white font-medium">Cejilla / Capodastro</h4>
+                </div>
+                <button
+                  onClick={() => setShowCapoPickerPopover(false)}
+                  className="p-1 text-[#888894] hover:text-white cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <p className="text-xs text-[#8e8e99]">
+                Selecciona en qué traste pondrás el capodastro. Las posiciones de los dedos se adaptarán manteniendo el tono sonoro.
+              </p>
+
+              <div className="grid grid-cols-4 gap-2">
+                {[0, 1, 2, 3, 4, 5, 6, 7].map(fret => (
+                  <button
+                    key={fret}
+                    onClick={() => {
+                      setCapoFret(fret);
+                      setShowCapoPickerPopover(false);
+                    }}
+                    className={`p-2.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer border ${
+                      capoFret === fret
+                        ? 'bg-amber-400 text-black border-amber-400 shadow-md'
+                        : 'bg-[#0a0a0b] text-white hover:bg-[#1a1a1e] border-[#26262e]'
+                    }`}
+                  >
+                    {fret === 0 ? 'Sin Capo' : `Traste ${fret}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* 10. POPOVER: VELOCIDAD DE SCROLL */}
+        {/* ======================================================== */}
+        {showScrollSpeedPopover && (
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowScrollSpeedPopover(false)}
+          >
+            <div
+              className="bg-[#141418] border border-[#c5a059]/40 rounded-2xl p-5 shadow-2xl max-w-xs w-full space-y-4 animate-scaleIn"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-[#232328]">
+                <h4 className="font-serif text-lg text-white font-medium">Velocidad de Auto-Scroll</h4>
+                <button
+                  onClick={() => setShowScrollSpeedPopover(false)}
+                  className="p-1 text-[#888894] hover:text-white cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs font-mono text-[#c5a059] font-bold">
+                  <span>Velocidad actual:</span>
+                  <span>{scrollSpeed} px/seg</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'Lenta', speed: 18 },
+                    { label: 'Media', speed: 30 },
+                    { label: 'Rápida', speed: 50 },
+                  ].map(preset => (
+                    <button
+                      key={preset.speed}
+                      onClick={() => {
+                        setScrollSpeed(preset.speed);
+                        setShowScrollSpeedPopover(false);
+                      }}
+                      className={`py-2 px-1 rounded-xl text-xs font-mono font-medium border transition-colors cursor-pointer ${
+                        scrollSpeed === preset.speed
+                          ? 'bg-[#c5a059] text-black font-bold border-[#c5a059]'
+                          : 'bg-[#0a0a0b] text-white hover:bg-[#1a1a1d] border-[#26262e]'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* 11. FOOTER: Permisos & Guardado */}
+        {/* ======================================================== */}
+        <div className="p-3 sm:p-4 bg-[#1a1a1d] border-t border-[#232328] flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
           <div className="text-xs text-[#6b6b75]">
             {isAdmin ? (
               <span className="text-emerald-400 font-mono text-[11px] flex items-center gap-1.5 font-bold">
                 <Sparkles size={13} />
-                <span>Modo Administrador: Los cambios se sincronizan en la nube.</span>
+                <span>Modo Administrador: Los cambios se guardan y sincronizan en la nube.</span>
               </span>
             ) : (
               <span className="font-mono text-[11px] text-[#888894] flex items-center gap-1.5">
@@ -1373,7 +1562,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
             {isAdmin ? (
               <button
                 onClick={handleSaveOfficial}
-                className="flex items-center gap-2 px-6 py-2.5 bg-[#c5a059] hover:bg-[#d4b068] text-black font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-[#c5a059]/20 cursor-pointer hover:scale-102"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#c5a059] hover:bg-[#d4b068] text-black font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-[#c5a059]/20 cursor-pointer hover:scale-102 font-mono"
               >
                 <Save size={15} />
                 <span>Guardar Cambios</span>
