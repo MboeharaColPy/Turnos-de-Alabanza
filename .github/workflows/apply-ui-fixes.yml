@@ -16,162 +16,75 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Apply source changes
         shell: python
         run: |
           from pathlib import Path
-          import re
+          def edit(path, fn):
+              p=Path(path); old=p.read_text(encoding='utf-8'); new=fn(old)
+              if new == old: raise SystemExit(f'No changes made to {path}')
+              p.write_text(new, encoding='utf-8')
+          def rep(t,o,n,label):
+              if o not in t: raise SystemExit(f'Missing expected pattern: {label}')
+              return t.replace(o,n,1)
 
-          def edit(path: str, transform):
-              p = Path(path)
-              text = p.read_text(encoding='utf-8')
-              updated = transform(text)
-              if updated == text:
-                  raise SystemExit(f'No changes made to {path}; expected source pattern may be missing.')
-              p.write_text(updated, encoding='utf-8')
-              print(f'Updated {path}')
+          def app(t):
+              t=rep(t,
+                "  const [selectedSongForLyrics, setSelectedSongForLyrics] = useState<SongItem | null>(null);\n",
+                "  const [selectedSongForLyrics, setSelectedSongForLyrics] = useState<SongItem | null>(null);\n  const [selectedSongContext, setSelectedSongContext] = useState<SongItem[] | null>(null);\n\n  const handleSelectSong = useCallback((song: SongItem, contextSongs?: SongItem[]) => {\n    setSelectedSongForLyrics(song);\n    setSelectedSongContext(contextSongs && contextSongs.length > 0 ? contextSongs : null);\n  }, []);\n",
+                'song context')
+              t=rep(t,
+                "  const handleToggleTheme = () => {\n    setTheme(prev => {\n      const next = prev === 'dark' ? 'light' : 'dark';\n      localStorage.setItem('alabanza_theme', next);\n      return next;\n    });\n  };\n",
+                "  const handleToggleTheme = () => {\n    setTheme(prev => {\n      const next = prev === 'dark' ? 'light' : 'dark';\n      localStorage.setItem('alabanza_theme', next);\n      return next;\n    });\n  };\n\n  useEffect(() => {\n    document.body.classList.toggle('light-theme', theme === 'light');\n    document.documentElement.style.colorScheme = theme;\n  }, [theme]);\n",
+                'theme sync')
+              t=rep(t,
+                "  const handleAdminLogin = (e: React.FormEvent) => {\n    e.preventDefault();\n    const correctPassword = state.adminPassword || 'alabanza2026';\n    if (adminPasswordInput === correctPassword || adminPasswordInput === '1234' || adminPasswordInput === 'admin') {",
+                "  const handleAdminLogin = (e: React.FormEvent) => {\n    e.preventDefault();\n    const correctPassword = (state.adminPassword || '').trim();\n    if (correctPassword && adminPasswordInput.trim() === correctPassword) {",
+                'strict admin password')
+              t=rep(t,
+                "  const handleUpdateAdminPassword = (newPassword: string) => {\n    updateStateAndSave(prev => ({\n      ...prev,\n      adminPassword: newPassword,\n    }));\n    showToast('¡Contraseña de administrador actualizada con éxito!');\n  };\n",
+                "  const handleUpdateAdminPassword = async (newPassword: string) => {\n    const clean = newPassword.trim();\n    if (!isAdmin || clean.length < 6) { showToast('La nueva contraseña debe tener al menos 6 caracteres.'); return; }\n    const nextState = { ...state, adminPassword: clean };\n    setState(nextState);\n    saveStoredState(nextState);\n    await saveCloudState(nextState);\n    showToast('¡Contraseña de administrador actualizada y guardada!');\n  };\n",
+                'password save')
+              t=t.replace("onSelectSong={song => setSelectedSongForLyrics(song)}","onSelectSong={handleSelectSong}")
+              t=rep(t,
+                "          onClose={() => setSelectedSongForLyrics(null)}\n",
+                "          onClose={() => { setSelectedSongForLyrics(null); setSelectedSongContext(null); }}\n",
+                'modal close')
+              t=rep(t,
+                "          allSongs={state.songCatalog || []}\n",
+                "          allSongs={selectedSongContext || state.songCatalog || []}\n",
+                'contextual allSongs')
+              return t
+          edit('src/App.tsx', app)
 
-          def replace_once(text: str, old: str, new: str, label: str):
-              if old not in text:
-                  raise SystemExit(f'Missing expected pattern: {label}')
-              return text.replace(old, new, 1)
+          def month(t):
+              return rep(t,"onClick={() => onSelectSong && onSelectSong(song)}","onClick={() => onSelectSong && onSelectSong(song, evt.songs)}",'calendar context')
+          edit('src/components/MonthCalendarView.tsx', month)
 
-          # ------------------------------------------------------------
-          # App.tsx: contextual song navigation, reliable persistence,
-          # secure admin-password verification, and light-theme scope.
-          # ------------------------------------------------------------
-          def patch_app(text: str) -> str:
-              old = """  // Selected Song for Lyrics & Chords Modal\n  const [selectedSongForLyrics, setSelectedSongForLyrics] = useState<SongItem | null>(null);\n"""
-              new = """  // Selected Song for Lyrics & Chords Modal\n  const [selectedSongForLyrics, setSelectedSongForLyrics] = useState<SongItem | null>(null);\n  const [selectedSongContext, setSelectedSongContext] = useState<SongItem[] | null>(null);\n\n  const handleSelectSong = useCallback((song: SongItem, contextSongs?: SongItem[]) => {\n    setSelectedSongForLyrics(song);\n    setSelectedSongContext(contextSongs && contextSongs.length > 0 ? contextSongs : null);\n  }, []);\n"""
-              text = replace_once(text, old, new, 'selected song context state')
+          def css(t):
+              if 'Extended light-theme coverage v2' in t: raise SystemExit('CSS patch already present')
+              return t.rstrip()+r'''
 
-              old = """  const handleToggleTheme = () => {\n    setTheme(prev => {\n      const next = prev === 'dark' ? 'light' : 'dark';\n      localStorage.setItem('alabanza_theme', next);\n      return next;\n    });\n  };\n"""
-              new = """  const handleToggleTheme = () => {\n    setTheme(prev => {\n      const next = prev === 'dark' ? 'light' : 'dark';\n      localStorage.setItem('alabanza_theme', next);\n      return next;\n    });\n  };\n\n  useEffect(() => {\n    document.body.classList.toggle('light-theme', theme === 'light');\n    document.documentElement.style.colorScheme = theme;\n    return () => {\n      document.body.classList.remove('light-theme');\n    };\n  }, [theme]);\n"""
-              text = replace_once(text, old, new, 'theme synchronization')
-
-              old = """  const updateStateAndSave = useCallback(async (updater: (prev: AppState) => AppState) => {\n    setIsSaving(true);\n    let nextState: AppState | null = null;\n    setState(prev => {\n      nextState = updater(prev);\n      saveStoredState(nextState);\n      return nextState;\n    });\n\n    if (nextState) {\n      await saveCloudState(nextState);\n    }\n    setTimeout(() => setIsSaving(false), 200);\n  }, []);\n"""
-              new = """  const updateStateAndSave = useCallback(async (updater: (prev: AppState) => AppState) => {\n    setIsSaving(true);\n    const nextState = updater(state);\n    setState(nextState);\n    saveStoredState(nextState);\n    await saveCloudState(nextState);\n    setTimeout(() => setIsSaving(false), 200);\n  }, [state]);\n"""
-              text = replace_once(text, old, new, 'reliable state persistence')
-
-              old = """  const handleAdminLogin = (e: React.FormEvent) => {\n    e.preventDefault();\n    const correctPassword = state.adminPassword || 'alabanza2026';\n    if (adminPasswordInput === correctPassword || adminPasswordInput === '1234' || adminPasswordInput === 'admin') {\n      setIsAdmin(true);\n      sessionStorage.setItem('alabanza_admin_auth', 'true');\n      setShowAdminModal(false);\n      setAdminPasswordInput('');\n      setAdminPasswordError(false);\n      showToast('¡Acceso de Administrador concedido!');\n      if (pendingTab) {\n        setActiveTab(pendingTab);\n        setPendingTab(null);\n      }\n    } else {\n      setAdminPasswordError(true);\n    }\n  };\n"""
-              new = """  const handleAdminLogin = (e: React.FormEvent) => {\n    e.preventDefault();\n    const configuredPassword = (state.adminPassword || '').trim();\n    const enteredPassword = adminPasswordInput.trim();\n\n    if (configuredPassword && enteredPassword === configuredPassword) {\n      setIsAdmin(true);\n      sessionStorage.setItem('alabanza_admin_auth', 'true');\n      setShowAdminModal(false);\n      setAdminPasswordInput('');\n      setAdminPasswordError(false);\n      showToast('¡Acceso de Administrador concedido!');\n      if (pendingTab) {\n        setActiveTab(pendingTab);\n        setPendingTab(null);\n      }\n    } else {\n      setAdminPasswordError(true);\n    }\n  };\n"""
-              text = replace_once(text, old, new, 'admin password verification')
-
-              old = """  const handleUpdateAdminPassword = (newPassword: string) => {\n    updateStateAndSave(prev => ({\n      ...prev,\n      adminPassword: newPassword,\n    }));\n    showToast('¡Contraseña de administrador actualizada con éxito!');\n  };\n"""
-              new = """  const handleUpdateAdminPassword = async (newPassword: string) => {\n    const cleanPassword = newPassword.trim();\n    if (!isAdmin || cleanPassword.length < 6) {\n      showToast('La nueva contraseña debe tener al menos 6 caracteres.');\n      return;\n    }\n\n    const nextState: AppState = { ...state, adminPassword: cleanPassword };\n    setIsSaving(true);\n    setState(nextState);\n    saveStoredState(nextState);\n    await saveCloudState(nextState);\n    setIsSaving(false);\n    showToast('¡Contraseña de administrador actualizada y guardada!');\n  };\n"""
-              text = replace_once(text, old, new, 'admin password persistence')
-
-              text = text.replace(
-                  "onSelectSong={song => setSelectedSongForLyrics(song)}",
-                  "onSelectSong={handleSelectSong}"
-              )
-
-              text = text.replace(
-                  "className={`min-h-screen font-sans",
-                  "className={`${theme === 'light' ? 'light-theme ' : ''}min-h-screen font-sans",
-                  1
-              )
-
-              old = """          onClose={() => setSelectedSongForLyrics(null)}\n          onSaveSongLyrics={handleSaveSongLyrics}\n"""
-              new = """          onClose={() => {\n            setSelectedSongForLyrics(null);\n            setSelectedSongContext(null);\n          }}\n          onSaveSongLyrics={handleSaveSongLyrics}\n"""
-              text = replace_once(text, old, new, 'song modal cleanup')
-
-              old = """          allSongs={state.songCatalog || []}\n          onNavigateToSong={song => setSelectedSongForLyrics(song)}\n"""
-              new = """          allSongs={selectedSongContext || state.songCatalog || []}\n          onNavigateToSong={song => setSelectedSongForLyrics(song)}\n"""
-              text = replace_once(text, old, new, 'contextual song list')
-              return text
-
-          edit('src/App.tsx', patch_app)
-
-          # ------------------------------------------------------------
-          # MonthCalendarView.tsx: carry the service's own setlist into
-          # the song viewer when a song is opened from the calendar.
-          # ------------------------------------------------------------
-          def patch_month(text: str) -> str:
-              old = "onClick={() => onSelectSong && onSelectSong(song)}"
-              new = "onClick={() => onSelectSong && onSelectSong(song, evt.songs)}"
-              return replace_once(text, old, new, 'monthly service song context')
-
-          edit('src/components/MonthCalendarView.tsx', patch_month)
-
-          # ------------------------------------------------------------
-          # CSS: strengthen light-mode coverage for the most common dark
-          # surfaces, borders, controls and hover text used throughout the UI.
-          # ------------------------------------------------------------
-          def patch_css(text: str) -> str:
-              additions = r'''
-/* Extended light-theme coverage for remaining dark utility surfaces */
-.light-theme .bg-\[\#0a0a0c\],
-.light-theme .bg-\[\#0e0e11\],
-.light-theme .bg-\[\#0f0f12\],
-.light-theme .bg-\[\#121216\],
-.light-theme .bg-\[\#151518\],
-.light-theme .bg-\[\#1a1a1f\],
-.light-theme .bg-\[\#222228\],
-.light-theme .bg-\[\#282830\] {
-  background-color: #ffffff !important;
-}
-
-.light-theme .border-\[\#222226\],
-.light-theme .border-\[\#2e2e36\],
-.light-theme .border-\[\#33333d\],
-.light-theme .border-\[\#3b3b44\] {
-  border-color: #d7dee8 !important;
-}
-
-.light-theme .hover\:bg-\[\#151518\]:hover,
-.light-theme .hover\:bg-\[\#18181d\]:hover,
-.light-theme .hover\:bg-\[\#18181c\]:hover,
-.light-theme .hover\:bg-\[\#222228\]:hover,
-.light-theme .hover\:bg-\[\#232328\]:hover {
-  background-color: #f1f5f9 !important;
-}
-
-.light-theme .hover\:text-white:hover,
-.light-theme .hover\:text-\[\#e0e0e0\]:hover {
-  color: #0f172a !important;
-}
-
-.light-theme .text-\[\#f4f4f5\],
-.light-theme .text-\[\#f1f1f4\],
-.light-theme .text-\[\#ededf0\] {
-  color: #0f172a !important;
-}
-
-.light-theme button:disabled {
-  color: #94a3b8 !important;
-}
-
-.light-theme select option {
-  background: #ffffff;
-  color: #0f172a;
-}
-
-.light-theme ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-}
-.light-theme ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
+/* Extended light-theme coverage v2 */
+.light-theme .bg-\[\#0a0a0c\], .light-theme .bg-\[\#0e0e11\], .light-theme .bg-\[\#0f0f12\],
+.light-theme .bg-\[\#121216\], .light-theme .bg-\[\#151518\], .light-theme .bg-\[\#1a1a1f\],
+.light-theme .bg-\[\#222228\], .light-theme .bg-\[\#282830\] { background-color:#fff !important; }
+.light-theme .border-\[\#222226\], .light-theme .border-\[\#2e2e36\],
+.light-theme .border-\[\#33333d\], .light-theme .border-\[\#3b3b44\] { border-color:#d7dee8 !important; }
+.light-theme .hover\:bg-\[\#151518\]:hover, .light-theme .hover\:bg-\[\#18181d\]:hover,
+.light-theme .hover\:bg-\[\#18181c\]:hover, .light-theme .hover\:bg-\[\#222228\]:hover,
+.light-theme .hover\:bg-\[\#232328\]:hover { background-color:#f1f5f9 !important; }
+.light-theme .hover\:text-white:hover, .light-theme .hover\:text-\[\#e0e0e0\]:hover { color:#0f172a !important; }
+.light-theme select option { background:#fff; color:#0f172a; }
+.light-theme ::-webkit-scrollbar-thumb { background:#cbd5e1; }
+.light-theme ::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
 '''
-              marker = '\n\n'
-              if 'Extended light-theme coverage for remaining dark utility surfaces' in text:
-                  raise SystemExit('Extended light theme already applied; refusing duplicate patch.')
-              return text.rstrip() + additions
-
-          edit('src/index.css', patch_css)
-
-          # Keep the repository-level patch workflow one-shot.
-          workflow = Path('.github/workflows/apply-ui-fixes.yml')
-          workflow.unlink()
-
+          edit('src/index.css', css)
+          Path('.github/workflows/apply-ui-fixes.yml').unlink()
       - name: Install dependencies
         run: npm ci
-
       - name: Build
         run: npm run build
-
       - name: Commit fixes
         shell: bash
         run: |
