@@ -14,6 +14,7 @@ import {
   convertLatinToAngloChord,
 } from '../utils/chordDiagrams';
 import { GuitarChordDiagram } from './GuitarChordDiagram';
+import { PdfViewer } from './PdfViewer';
 import {
   X,
   Music,
@@ -72,6 +73,7 @@ interface SongLyricsModalProps {
   showToast: (msg: string) => void;
   allSongs?: SongItem[];
   onNavigateToSong?: (song: SongItem) => void;
+  initialViewMode?: 'view' | 'pdf';
 }
 
 type TextSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl';
@@ -150,6 +152,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
   showToast,
   allSongs = [],
   onNavigateToSong,
+  initialViewMode,
 }) => {
   if (!song) return null;
 
@@ -204,7 +207,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
   const audioContextRef = useRef<AudioContext | null>(null);
 
   // UI Panels
-  const [viewMode, setViewMode] = useState<'view' | 'edit' | 'pdf'>('view');
+  const [viewMode, setViewMode] = useState<'view' | 'edit' | 'pdf'>(initialViewMode || 'view');
   const [selectedPdfId, setSelectedPdfId] = useState<string>('');
   const [showEditVideoUrl, setShowEditVideoUrl] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -223,7 +226,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
     setAttachments(song.attachments || []);
     setTransposeOffset(0);
     setCapoFret(0);
-    setViewMode('view');
+    setViewMode(initialViewMode || 'view');
     setIsAutoScrolling(false);
     setIsMetronomeActive(false);
     setShowKeyPickerPopover(false);
@@ -489,7 +492,12 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
     return attachments.filter(a => {
       const url = (a.url || '').toLowerCase();
       const name = (a.name || '').toLowerCase();
-      return url.startsWith('data:application/pdf') || url.includes('.pdf') || name.endsWith('.pdf');
+      return (
+        url.startsWith('data:application/pdf') ||
+        url.includes('.pdf') ||
+        name.endsWith('.pdf') ||
+        a.type === 'pdf'
+      );
     });
   }, [attachments]);
 
@@ -745,10 +753,10 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
             </div>
 
             {/* Botón para intercambiar entre vista PDF y vista normal si hay un PDF cargado */}
-            {activePdf && (
+            {activePdf ? (
               <button
                 onClick={() => setViewMode(viewMode === 'pdf' ? 'view' : 'pdf')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 border transition-all cursor-pointer ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 border transition-all cursor-pointer ${
                   viewMode === 'pdf'
                     ? 'bg-[#c5a059] text-black font-bold shadow-sm'
                     : 'bg-[#0a0a0b] hover:bg-[#1a1a1d] text-[#c5a059] border-[#c5a059]/40'
@@ -757,6 +765,15 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               >
                 <FileText size={13} />
                 <span>{viewMode === 'pdf' ? 'Ver Letra' : 'Ver PDF'}</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-2.5 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 border border-[#232328] text-[#8e8e99] hover:text-[#c5a059] hover:border-[#c5a059]/30 transition-all cursor-pointer"
+                title="Subir partitura PDF para esta canción"
+              >
+                <Upload size={12} />
+                <span>+ PDF</span>
               </button>
             )}
 
@@ -1241,32 +1258,22 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
         {/* ======================================================== */}
         {/* 7. CONTENEDOR PRINCIPAL (LETRA + BARRA VERTICAL DERECHA) */}
         {/* ======================================================== */}
-        <div className="flex-1 flex flex-col md:flex-row relative">
+        <div className="flex-1 flex flex-row relative min-h-0">
           {/* A. ÁREA DE LETRA, ACORDES Y PARTITURAS PDF */}
-          <div className="flex-1 p-4 sm:p-7 bg-[#0a0a0b] relative select-text">
+          <div className="flex-1 min-w-0 p-3 sm:p-5 md:p-7 bg-[#0a0a0b] relative select-text overflow-x-hidden">
             {/* VISTA 1: PARTITURA PDF */}
             {viewMode === 'pdf' && activePdf ? (
-              <div className="bg-[#121215] border border-[#1f1f23] rounded-2xl overflow-hidden shadow-inner flex flex-col min-h-[650px] h-[80vh]">
-                {/* Barra superior del visor PDF */}
-                <div className="p-3 bg-[#18181c] border-b border-[#232328] flex flex-wrap items-center justify-between gap-2.5">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileText size={16} className="text-[#c5a059] flex-shrink-0" />
-                    <span className="text-xs font-mono font-bold text-white truncate max-w-xs sm:max-w-md">
-                      {activePdf.name}
-                    </span>
-                    <span className="text-[10px] font-mono uppercase bg-[#c5a059]/20 text-[#c5a059] px-2 py-0.5 rounded border border-[#c5a059]/40 font-bold flex-shrink-0">
-                      PDF
-                    </span>
-                  </div>
-
-                  {/* Selector si hay múltiples PDFs */}
-                  {pdfAttachments.length > 1 && (
-                    <div className="flex items-center gap-1.5 bg-[#0a0a0b] px-2.5 py-1 rounded-lg border border-[#232328]">
-                      <span className="text-[10px] font-mono text-[#888894]">Partitura:</span>
+              <div className="flex flex-col gap-2 min-h-[600px] h-[82vh] sm:h-[86vh]">
+                {/* Selector rápido si hay múltiples partituras en la misma canción */}
+                {pdfAttachments.length > 1 && (
+                  <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-[#18181c] border border-[#232328] rounded-xl flex-shrink-0">
+                    <div className="flex items-center gap-2">
+                      <FileText size={14} className="text-[#c5a059]" />
+                      <span className="text-xs font-mono text-[#8e8e99]">Partitura:</span>
                       <select
                         value={activePdf.id}
                         onChange={e => setSelectedPdfId(e.target.value)}
-                        className="bg-transparent text-xs text-white font-mono focus:outline-none cursor-pointer"
+                        className="bg-[#0a0a0b] text-xs text-white font-mono px-2 py-1 rounded border border-[#26262b] focus:outline-none cursor-pointer"
                       >
                         {pdfAttachments.map(p => (
                           <option key={p.id} value={p.id} className="bg-[#141418] text-white">
@@ -1275,50 +1282,27 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                         ))}
                       </select>
                     </div>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={activePdf.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-2.5 py-1.5 bg-[#202026] hover:bg-[#2a2a33] text-white rounded-lg text-xs font-mono flex items-center gap-1.5 transition-colors"
-                      title="Abrir PDF en pestaña nueva"
-                    >
-                      <ExternalLink size={12} />
-                      <span className="hidden sm:inline">Pestaña nueva</span>
-                    </a>
-                    <a
-                      href={activePdf.url}
-                      download={`${activePdf.name}.pdf`}
-                      className="px-2.5 py-1.5 bg-[#202026] hover:bg-[#2a2a33] text-white rounded-lg text-xs font-mono flex items-center gap-1.5 transition-colors"
-                      title="Descargar archivo PDF"
-                    >
-                      <Download size={12} />
-                      <span className="hidden sm:inline">Descargar</span>
-                    </a>
                     <button
                       type="button"
                       onClick={() => setViewMode('view')}
-                      className="px-3 py-1.5 bg-[#c5a059] text-black font-bold rounded-lg text-xs font-mono flex items-center gap-1.5 hover:bg-[#d4b068] transition-colors cursor-pointer"
+                      className="px-2.5 py-1 bg-[#202026] hover:bg-[#2a2a33] text-white rounded-lg text-xs font-mono flex items-center gap-1 cursor-pointer"
                     >
                       <Eye size={12} />
-                      <span>Volver a Letra</span>
+                      <span>Ver Letra</span>
                     </button>
                   </div>
-                </div>
+                )}
 
-                {/* Iframe embebido del PDF */}
-                <div className="flex-1 w-full h-full bg-[#1e1e24] relative">
-                  <iframe
-                    src={activePdf.url}
-                    title={`Partitura ${activePdf.name}`}
-                    className="w-full h-full border-none"
+                <div className="flex-1 min-h-0">
+                  <PdfViewer
+                    url={activePdf.url}
+                    title={activePdf.name}
+                    className="h-full"
                   />
                 </div>
               </div>
             ) : viewMode === 'pdf' ? (
-              <div className="bg-[#121215] border border-[#1f1f23] rounded-2xl p-8 text-center">
+              <div className="bg-[#121215] border border-[#1f1f23] rounded-2xl p-8 text-center my-6">
                 <FileText size={40} className="mx-auto mb-3 text-[#c5a059]" />
                 <h4 className="text-white font-medium text-base mb-1">No hay archivo PDF cargado</h4>
                 <p className="text-xs text-[#8e8e99] max-w-sm mx-auto mb-4">
@@ -1486,9 +1470,9 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
           {/* ======================================================== */}
           {/* B. BARRA VERTICAL DERECHA DE HERRAMIENTAS MUSICALES (ICONOS INTUITIVOS) */}
           {/* ======================================================== */}
-          <aside className="w-14 sm:w-16 bg-[#101013] border-l border-[#1f1f23] flex flex-col items-center py-3 gap-2 flex-shrink-0 select-none z-20 md:sticky md:top-0 md:self-start md:max-h-[96vh] overflow-y-auto">
+          <aside className="w-12 sm:w-14 md:w-16 bg-[#101013] border-l border-[#1f1f23] flex flex-col items-center py-2 sm:py-3 gap-1.5 sm:gap-2 flex-shrink-0 select-none z-20 sticky top-0 self-start max-h-[96vh] overflow-y-auto">
             {/* GRUPO 1: TONALIDAD & TRANSPOSICIÓN */}
-            <div className="flex flex-col items-center gap-1 w-full px-1.5 pb-2 border-b border-[#1f1f23]">
+            <div className="flex flex-col items-center gap-1 w-full px-1 sm:px-1.5 pb-2 border-b border-[#1f1f23]">
               <span className="text-[8px] font-mono uppercase tracking-widest text-[#6b6b75] font-bold">
                 Tono
               </span>
@@ -1496,16 +1480,16 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               {/* Subir +1 Semitono */}
               <button
                 onClick={() => handleTranspose(1)}
-                className="w-10 h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#c5a059] hover:text-white border border-[#2a2a30] flex items-center justify-center transition-colors cursor-pointer"
+                className="w-9 sm:w-10 h-7 sm:h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#c5a059] hover:text-white border border-[#2a2a30] flex items-center justify-center transition-colors cursor-pointer"
                 title="Subir +1 Semitono (#)"
               >
-                <Plus size={15} />
+                <Plus size={14} />
               </button>
 
               {/* Tono Actual (Clic para abrir selector de todas las tonalidades) */}
               <button
                 onClick={() => setShowKeyPickerPopover(!showKeyPickerPopover)}
-                className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer border ${
+                className={`w-9 sm:w-10 h-9 sm:h-10 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer border ${
                   transposeOffset !== 0
                     ? 'bg-[#c5a059] text-black font-bold border-[#c5a059] shadow-md shadow-[#c5a059]/20'
                     : 'bg-[#18181c] text-[#c5a059] border-[#c5a059]/40 hover:bg-[#232328]'
@@ -1523,17 +1507,17 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               {/* Bajar -1 Semitono */}
               <button
                 onClick={() => handleTranspose(-1)}
-                className="w-10 h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#c5a059] hover:text-white border border-[#2a2a30] flex items-center justify-center transition-colors cursor-pointer"
+                className="w-9 sm:w-10 h-7 sm:h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#c5a059] hover:text-white border border-[#2a2a30] flex items-center justify-center transition-colors cursor-pointer"
                 title="Bajar -1 Semitono (b)"
               >
-                <Minus size={15} />
+                <Minus size={14} />
               </button>
 
               {/* Restablecer Tono Original */}
               {transposeOffset !== 0 && (
                 <button
                   onClick={handleResetTranspose}
-                  className="w-10 h-7 rounded-lg bg-amber-950/30 hover:bg-amber-900/50 text-amber-400 border border-amber-800/40 flex items-center justify-center text-[10px] font-mono transition-colors cursor-pointer mt-0.5"
+                  className="w-9 sm:w-10 h-6 sm:h-7 rounded-lg bg-amber-950/30 hover:bg-amber-900/50 text-amber-400 border border-amber-800/40 flex items-center justify-center text-[10px] font-mono transition-colors cursor-pointer mt-0.5"
                   title="Restablecer al tono base original"
                 >
                   <RotateCcw size={12} />
@@ -1544,7 +1528,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               {isAdmin && transposeOffset !== 0 && (
                 <button
                   onClick={handleSaveCurrentKeyAsBase}
-                  className="w-10 h-7 rounded-lg bg-[#c5a059]/20 hover:bg-[#c5a059] text-[#c5a059] hover:text-black border border-[#c5a059]/40 flex items-center justify-center text-[10px] font-mono transition-all cursor-pointer mt-0.5"
+                  className="w-9 sm:w-10 h-6 sm:h-7 rounded-lg bg-[#c5a059]/20 hover:bg-[#c5a059] text-[#c5a059] hover:text-black border border-[#c5a059]/40 flex items-center justify-center text-[10px] font-mono transition-all cursor-pointer mt-0.5"
                   title={`Fijar y guardar "${soundingKey}" como el nuevo tono oficial de la canción`}
                 >
                   <Pin size={12} />
@@ -1553,45 +1537,45 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
             </div>
 
             {/* GRUPO 2: CEJILLA / CAPO */}
-            <div className="flex flex-col items-center gap-1 w-full px-1.5 pb-2 border-b border-[#1f1f23]">
+            <div className="flex flex-col items-center gap-1 w-full px-1 sm:px-1.5 pb-2 border-b border-[#1f1f23]">
               <span className="text-[8px] font-mono uppercase tracking-widest text-[#6b6b75] font-bold">
                 Capo
               </span>
               <button
                 onClick={() => setShowCapoPickerPopover(!showCapoPickerPopover)}
-                className={`w-10 h-9 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer border ${
+                className={`w-9 sm:w-10 h-8 sm:h-9 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer border ${
                   capoFret > 0
                     ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 font-bold'
                     : 'bg-[#18181c] text-[#8e8e99] hover:text-white border-[#2a2a30]'
                 }`}
                 title="Configurar Cejilla / Capodastro"
               >
-                <span className="text-[10px] font-mono font-bold">CAPO</span>
-                <span className="text-[9px] font-mono text-[#c5a059]">{capoFret}</span>
+                <span className="text-[9px] font-mono font-bold">CAPO</span>
+                <span className="text-[8px] font-mono text-[#c5a059]">{capoFret}</span>
               </button>
             </div>
 
             {/* GRUPO 3: DIAGRAMAS DE INSTRUMENTOS */}
-            <div className="flex flex-col items-center gap-1 w-full px-1.5 pb-2 border-b border-[#1f1f23]">
+            <div className="flex flex-col items-center gap-1 w-full px-1 sm:px-1.5 pb-2 border-b border-[#1f1f23]">
               <span className="text-[8px] font-mono uppercase tracking-widest text-[#6b6b75] font-bold">
                 Notas
               </span>
               <button
                 onClick={() => setShowChordDiagramsBar(!showChordDiagramsBar)}
-                className={`w-10 h-9 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer border ${
+                className={`w-9 sm:w-10 h-8 sm:h-9 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer border ${
                   showChordDiagramsBar
                     ? 'bg-[#c5a059] text-black font-bold border-[#c5a059]'
                     : 'bg-[#18181c] text-[#8e8e99] hover:text-[#c5a059] border-[#2a2a30]'
                 }`}
                 title="Mostrar u ocultar cinta con diagramas visuales de acordes"
               >
-                <Layers size={14} />
+                <Layers size={13} />
                 <span className="text-[8px] font-mono">{songUniqueChords.length}</span>
               </button>
             </div>
 
             {/* GRUPO 4: AUTO-SCROLL Y METRÓNOMO */}
-            <div className="flex flex-col items-center gap-1 w-full px-1.5 pb-2 border-b border-[#1f1f23]">
+            <div className="flex flex-col items-center gap-1 w-full px-1 sm:px-1.5 pb-2 border-b border-[#1f1f23]">
               <span className="text-[8px] font-mono uppercase tracking-widest text-[#6b6b75] font-bold">
                 Ensayo
               </span>
@@ -1599,20 +1583,20 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               {/* Auto-Scroll Toggle */}
               <button
                 onClick={() => setIsAutoScrolling(!isAutoScrolling)}
-                className={`w-10 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer border ${
+                className={`w-9 sm:w-10 h-7 sm:h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer border ${
                   isAutoScrolling
                     ? 'bg-[#c5a059] text-black font-bold border-[#c5a059] animate-pulse'
                     : 'bg-[#18181c] text-[#8e8e99] hover:text-[#c5a059] border-[#2a2a30]'
                 }`}
                 title={isAutoScrolling ? 'Pausar Auto-Scroll' : 'Iniciar Auto-Scroll'}
               >
-                {isAutoScrolling ? <Pause size={14} /> : <Play size={14} />}
+                {isAutoScrolling ? <Pause size={13} /> : <Play size={13} />}
               </button>
 
               {/* Control de Velocidad de Scroll */}
               <button
                 onClick={() => setShowScrollSpeedPopover(!showScrollSpeedPopover)}
-                className="w-10 h-5 text-[9px] font-mono bg-[#141418] hover:bg-[#1f1f23] text-[#8e8e99] hover:text-white rounded border border-[#232328] flex items-center justify-center cursor-pointer"
+                className="w-9 sm:w-10 h-5 text-[9px] font-mono bg-[#141418] hover:bg-[#1f1f23] text-[#8e8e99] hover:text-white rounded border border-[#232328] flex items-center justify-center cursor-pointer"
                 title="Ajustar velocidad de Auto-Scroll"
               >
                 {scrollSpeed}s
@@ -1621,20 +1605,20 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               {/* Metrónomo */}
               <button
                 onClick={() => setIsMetronomeActive(!isMetronomeActive)}
-                className={`w-10 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer border mt-1 ${
+                className={`w-9 sm:w-10 h-7 sm:h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer border mt-0.5 ${
                   isMetronomeActive
                     ? 'bg-amber-400 text-black font-bold border-amber-400'
                     : 'bg-[#18181c] text-[#8e8e99] hover:text-white border-[#2a2a30]'
                 }`}
                 title={isMetronomeActive ? 'Desactivar Metrónomo' : 'Activar Metrónomo'}
               >
-                <Activity size={14} className={isMetronomeActive ? 'animate-pulse' : ''} />
+                <Activity size={13} className={isMetronomeActive ? 'animate-pulse' : ''} />
               </button>
 
               {isMetronomeActive && (
                 <button
                   onClick={handleTapTempo}
-                  className="w-10 h-5 text-[8px] font-mono font-bold bg-[#c5a059]/20 hover:bg-[#c5a059] text-[#c5a059] hover:text-black rounded border border-[#c5a059]/40 flex items-center justify-center cursor-pointer"
+                  className="w-9 sm:w-10 h-5 text-[8px] font-mono font-bold bg-[#c5a059]/20 hover:bg-[#c5a059] text-[#c5a059] hover:text-black rounded border border-[#c5a059]/40 flex items-center justify-center cursor-pointer"
                   title="Marca el pulso (TAP)"
                 >
                   TAP
@@ -1643,7 +1627,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
             </div>
 
             {/* GRUPO 5: TAMAÑO DE TEXTO Y COLUMNAS */}
-            <div className="flex flex-col items-center gap-1 w-full px-1.5 pb-2 border-b border-[#1f1f23]">
+            <div className="flex flex-col items-center gap-1 w-full px-1 sm:px-1.5 pb-2 border-b border-[#1f1f23]">
               <span className="text-[8px] font-mono uppercase tracking-widest text-[#6b6b75] font-bold">
                 Vista
               </span>
@@ -1655,7 +1639,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                   const curIdx = sizes.indexOf(textSize);
                   if (curIdx < sizes.length - 1) setTextSize(sizes[curIdx + 1]);
                 }}
-                className="w-10 h-7 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] flex items-center justify-center text-xs font-mono font-bold cursor-pointer"
+                className="w-9 sm:w-10 h-6 sm:h-7 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] flex items-center justify-center text-xs font-mono font-bold cursor-pointer"
                 title="Aumentar tamaño de letra"
               >
                 A+
@@ -1668,7 +1652,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                   const curIdx = sizes.indexOf(textSize);
                   if (curIdx > 0) setTextSize(sizes[curIdx - 1]);
                 }}
-                className="w-10 h-7 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] flex items-center justify-center text-xs font-mono font-bold cursor-pointer"
+                className="w-9 sm:w-10 h-6 sm:h-7 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] flex items-center justify-center text-xs font-mono font-bold cursor-pointer"
                 title="Reducir tamaño de letra"
               >
                 A-
@@ -1677,7 +1661,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               {/* Columnas */}
               <button
                 onClick={() => setColumnsCount(columnsCount === 1 ? 2 : 1)}
-                className={`w-10 h-7 rounded-lg flex items-center justify-center border transition-colors cursor-pointer hidden md:flex ${
+                className={`w-9 sm:w-10 h-6 sm:h-7 rounded-lg items-center justify-center border transition-colors cursor-pointer hidden md:flex ${
                   columnsCount === 2
                     ? 'bg-[#1f1f23] text-[#c5a059] border-[#c5a059]/40'
                     : 'bg-[#18181c] text-[#8e8e99] hover:text-white border-[#2a2a30]'
@@ -1688,33 +1672,51 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               </button>
             </div>
 
-            {/* GRUPO 6: ACCIONES GENERALES */}
-            <div className="flex flex-col items-center gap-1 w-full px-1.5 pt-1 mt-auto">
+            {/* GRUPO 6: ACCIONES GENERALES & ACCESO RÁPIDO A PDF */}
+            <div className="flex flex-col items-center gap-1 w-full px-1 sm:px-1.5 pt-1 mt-auto">
+              {/* Botón rápido para alternar entre PDF y Letra si la canción tiene partitura */}
+              {activePdf && (
+                <button
+                  onClick={() => setViewMode(viewMode === 'pdf' ? 'view' : 'pdf')}
+                  className={`w-9 sm:w-10 h-8 sm:h-9 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer border mb-1 ${
+                    viewMode === 'pdf'
+                      ? 'bg-[#c5a059] text-black font-bold border-[#c5a059] shadow-md shadow-[#c5a059]/20'
+                      : 'bg-[#18181c] text-[#c5a059] border-[#c5a059]/40 hover:bg-[#25252a]'
+                  }`}
+                  title={viewMode === 'pdf' ? 'Volver a ver letra y acordes' : 'Ver partitura PDF cargada'}
+                >
+                  <FileText size={13} />
+                  <span className="text-[7px] font-mono font-bold leading-none mt-0.5">
+                    {viewMode === 'pdf' ? 'TXT' : 'PDF'}
+                  </span>
+                </button>
+              )}
+
               {/* Pantalla Completa */}
               <button
                 onClick={() => setIsFullScreen(!isFullScreen)}
-                className="w-10 h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] flex items-center justify-center transition-colors cursor-pointer"
+                className="w-9 sm:w-10 h-7 sm:h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] flex items-center justify-center transition-colors cursor-pointer"
                 title={isFullScreen ? 'Salir de pantalla completa' : 'Modo Pantalla Completa'}
               >
-                {isFullScreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                {isFullScreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
               </button>
 
               {/* Imprimir */}
               <button
                 onClick={handlePrint}
-                className="w-10 h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] items-center justify-center transition-colors cursor-pointer hidden sm:flex"
+                className="w-9 sm:w-10 h-7 sm:h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] items-center justify-center transition-colors cursor-pointer hidden sm:flex"
                 title="Imprimir canción"
               >
-                <Printer size={14} />
+                <Printer size={13} />
               </button>
 
               {/* Copiar */}
               <button
                 onClick={handleCopy}
-                className="w-10 h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] flex items-center justify-center transition-colors cursor-pointer"
+                className="w-9 sm:w-10 h-7 sm:h-8 rounded-lg bg-[#18181c] hover:bg-[#25252a] text-[#8e8e99] hover:text-white border border-[#2a2a30] flex items-center justify-center transition-colors cursor-pointer"
                 title="Copiar letra y acordes"
               >
-                {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
               </button>
             </div>
           </aside>

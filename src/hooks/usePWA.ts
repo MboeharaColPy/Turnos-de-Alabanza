@@ -30,6 +30,19 @@ export function usePWA() {
     setIsIOS(isIOSDevice);
 
     // 3. Register Service Worker with vite-plugin-pwa
+    let refreshing = false;
+    const handleControllerChange = () => {
+      if (!refreshing) {
+        refreshing = true;
+        console.log('[PWA] Nuevo Service Worker activado. Recargando para aplicar cambios...');
+        window.location.reload();
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+    }
+
     const updateSW = registerSW({
       immediate: true,
       onNeedRefresh() {
@@ -43,20 +56,46 @@ export function usePWA() {
       onRegisteredSW(swUrl, r) {
         console.log('[PWA] Service Worker registrado en:', swUrl);
         if (r) {
-          // Chequeo periódico de nuevas versiones cada 5 minutos
+          // Chequeo inmediato al iniciar la app
+          r.update().catch(err => console.log('[PWA] Chequeo inicial:', err));
+
+          // Si ya hay un worker esperando en segundo plano, activarlo
+          if (r.waiting) {
+            r.waiting.postMessage({ type: 'SKIP_WAITING' });
+            setNeedRefresh(true);
+          }
+
+          // Chequeo periódico cada 60 segundos
           const interval = setInterval(() => {
             r.update().catch(err => console.log('[PWA] Error al chequear actualización periódica:', err));
-          }, 5 * 60 * 1000);
+          }, 60 * 1000);
 
-          // Chequeo cuando la ventana vuelve a tener foco (usuario abre la app o cambia de pestaña)
+          // Chequeo cuando la app pasa al primer plano (ideal para móviles instalados)
+          const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+              r.update().catch(err => console.log('[PWA] Error al chequear en visibilidad:', err));
+            }
+          };
+
+          // Chequeo cuando la ventana vuelve a tener foco
           const onFocus = () => {
             r.update().catch(err => console.log('[PWA] Error al chequear actualización en foco:', err));
           };
+
+          // Chequeo cuando el dispositivo recupera conexión a internet
+          const onOnline = () => {
+            r.update().catch(err => console.log('[PWA] Error al chequear actualización online:', err));
+          };
+
+          document.addEventListener('visibilitychange', onVisibilityChange);
           window.addEventListener('focus', onFocus);
+          window.addEventListener('online', onOnline);
 
           return () => {
             clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
             window.removeEventListener('focus', onFocus);
+            window.removeEventListener('online', onOnline);
           };
         }
       },
@@ -108,10 +147,17 @@ export function usePWA() {
       if ('serviceWorker' in navigator) {
         const registration = await navigator.serviceWorker.getRegistration();
         if (registration) {
+          if (registration.waiting) {
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            setNeedRefresh(true);
+            setIsCheckingUpdate(false);
+            return true;
+          }
           await registration.update();
           // Wait a moment for worker state change
           await new Promise(r => setTimeout(r, 1200));
           if (registration.waiting) {
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
             setNeedRefresh(true);
             setIsCheckingUpdate(false);
             return true;
@@ -122,8 +168,8 @@ export function usePWA() {
       console.warn('[PWA] Error buscando actualizaciones manualmente:', e);
     }
     setIsCheckingUpdate(false);
-    return needRefresh;
-  }, [needRefresh]);
+    return false;
+  }, []);
 
   // Install app prompt
   const installApp = useCallback(async () => {

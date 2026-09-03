@@ -26,7 +26,7 @@ interface SongCatalogViewProps {
   onAddSong?: (song: Omit<SongItem, 'id'>) => void;
   onUpdateSong?: (song: SongItem) => void;
   onDeleteSong?: (id: string) => void;
-  onSelectSong?: (song: SongItem, contextSongs?: SongItem[]) => void;
+  onSelectSong?: (song: SongItem, contextSongs?: SongItem[], initialView?: 'view' | 'pdf') => void;
 }
 
 export const CATEGORIES = [
@@ -324,11 +324,42 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
                     <td className="py-3 px-4 text-[#888894]">{song.bpm ? `${song.bpm}` : '-'}</td>
                     <td className="py-3 px-4 text-slate-300">{song.category || 'General'}</td>
                     <td className="py-3 px-4">
-                      {song.lyrics ? (
-                        <span className="text-emerald-400 font-bold">✓ Acordes cargados</span>
-                      ) : (
-                        <span className="text-[#6b6b75]">En blanco</span>
-                      )}
+                      {(() => {
+                        const hasPdf = (song.attachments || []).some(a => {
+                          const url = (a.url || '').toLowerCase();
+                          const name = (a.name || '').toLowerCase();
+                          return (
+                            url.startsWith('data:application/pdf') ||
+                            url.includes('.pdf') ||
+                            name.endsWith('.pdf') ||
+                            a.type === 'pdf'
+                          );
+                        });
+
+                        return (
+                          <div className="flex items-center gap-2">
+                            {song.lyrics ? (
+                              <span className="text-emerald-400 font-bold">✓ Acordes</span>
+                            ) : (
+                              <span className="text-[#6b6b75]">En blanco</span>
+                            )}
+                            {hasPdf && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onSelectSong && onSelectSong(song, filteredSongs, 'pdf');
+                                }}
+                                className="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                                title="Ver partitura PDF directamente"
+                              >
+                                <FileText size={10} />
+                                <span>PDF</span>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}
@@ -341,30 +372,57 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
       {/* 3. COMPACT VIEW */}
       {viewMode === 'compact' && (
         <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl divide-y divide-[#1f1f23] overflow-hidden shadow-xl">
-          {filteredSongs.map((song, idx) => (
-            <div
-              key={song.id || idx}
-              onClick={() => onSelectSong && onSelectSong(song, filteredSongs)}
-              className="p-3 sm:px-5 flex items-center justify-between hover:bg-[#1a1a1f] cursor-pointer transition-colors"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="font-mono text-xs text-[#6b6b75] w-6">{idx + 1}.</span>
-                <span className="font-medium text-sm text-white truncate hover:text-[#c5a059]">
-                  {song.title}
-                </span>
-                <span className="text-xs text-[#888894] hidden sm:inline">· {song.artist}</span>
-              </div>
+          {filteredSongs.map((song, idx) => {
+            const hasPdf = (song.attachments || []).some(a => {
+              const url = (a.url || '').toLowerCase();
+              const name = (a.name || '').toLowerCase();
+              return (
+                url.startsWith('data:application/pdf') ||
+                url.includes('.pdf') ||
+                name.endsWith('.pdf') ||
+                a.type === 'pdf'
+              );
+            });
 
-              <div className="flex items-center gap-3 flex-shrink-0">
-                {song.key && (
-                  <span className="font-mono text-xs font-bold text-[#c5a059] px-2 py-0.5 bg-[#0a0a0b] rounded border border-[#232328]">
-                    {song.key}
+            return (
+              <div
+                key={song.id || idx}
+                onClick={() => onSelectSong && onSelectSong(song, filteredSongs)}
+                className="p-3 sm:px-5 flex items-center justify-between hover:bg-[#1a1a1f] cursor-pointer transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="font-mono text-xs text-[#6b6b75] w-6">{idx + 1}.</span>
+                  <span className="font-medium text-sm text-white truncate hover:text-[#c5a059]">
+                    {song.title}
                   </span>
-                )}
-                <ChevronRight size={15} className="text-[#6b6b75]" />
+                  <span className="text-xs text-[#888894] hidden sm:inline">· {song.artist}</span>
+                </div>
+
+                <div className="flex items-center gap-2.5 flex-shrink-0">
+                  {hasPdf && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectSong && onSelectSong(song, filteredSongs, 'pdf');
+                      }}
+                      className="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Ver partitura PDF directamente"
+                    >
+                      <FileText size={10} />
+                      <span>PDF</span>
+                    </button>
+                  )}
+                  {song.key && (
+                    <span className="font-mono text-xs font-bold text-[#c5a059] px-2 py-0.5 bg-[#0a0a0b] rounded border border-[#232328]">
+                      {song.key}
+                    </span>
+                  )}
+                  <ChevronRight size={15} className="text-[#6b6b75]" />
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

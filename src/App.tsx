@@ -69,6 +69,11 @@ export default function App() {
       document.body.classList.add('dark-theme');
       document.body.classList.remove('light-theme');
     }
+
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', theme === 'light' ? '#f8fafc' : '#0a0a0b');
+    }
   }, [theme]);
 
   const handleToggleTheme = () => {
@@ -92,10 +97,12 @@ export default function App() {
   // Selected Song for Lyrics & Chords Modal with Contextual Navigation (Setlist)
   const [selectedSongForLyrics, setSelectedSongForLyrics] = useState<SongItem | null>(null);
   const [lyricsContextSongs, setLyricsContextSongs] = useState<SongItem[] | null>(null);
+  const [initialLyricsViewMode, setInitialLyricsViewMode] = useState<'view' | 'pdf'>('view');
 
-  const handleOpenSongLyrics = (song: SongItem, contextSongs?: SongItem[]) => {
+  const handleOpenSongLyrics = (song: SongItem, contextSongs?: SongItem[], initialView?: 'view' | 'pdf') => {
     setSelectedSongForLyrics(song);
     setLyricsContextSongs(contextSongs && contextSongs.length > 0 ? contextSongs : null);
+    setInitialLyricsViewMode(initialView || 'view');
   };
 
   // Escuchar cambios en tiempo real desde Firestore en la nube
@@ -683,7 +690,7 @@ export default function App() {
                   setActiveTab(tab);
                 }
               }}
-              onSelectSong={(song, contextSongs) => handleOpenSongLyrics(song, contextSongs)}
+              onSelectSong={(song, contextSongs, initialView) => handleOpenSongLyrics(song, contextSongs, initialView)}
             />
           )}
 
@@ -693,7 +700,7 @@ export default function App() {
               songs={state.songCatalog || []}
               isAdmin={isAdmin}
               onAddSong={handleAddSongDirectToCatalog}
-              onSelectSong={(song, contextSongs) => handleOpenSongLyrics(song, contextSongs)}
+              onSelectSong={(song, contextSongs, initialView) => handleOpenSongLyrics(song, contextSongs, initialView)}
             />
           )}
 
@@ -818,10 +825,12 @@ export default function App() {
       {selectedSongForLyrics && (
         <SongLyricsModal
           song={selectedSongForLyrics}
+          initialViewMode={initialLyricsViewMode}
           isAdmin={isAdmin}
           onClose={() => {
             setSelectedSongForLyrics(null);
             setLyricsContextSongs(null);
+            setInitialLyricsViewMode('view');
           }}
           onSaveSongLyrics={handleSaveSongLyrics}
           onRequestAdmin={() => handleRequestAdminModal()}

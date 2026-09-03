@@ -7,6 +7,10 @@ import {
   Music,
   ChevronRight,
   CalendarDays,
+  FileText,
+  Mic,
+  Sliders,
+  UserCheck,
 } from 'lucide-react';
 import { getNextUpcomingDateForSlot, formatDateDisplay, isoLocal } from '../utils/dateUtils';
 import { ActiveTab } from './Header';
@@ -15,7 +19,7 @@ interface DashboardHomeViewProps {
   state: AppState;
   isAdmin: boolean;
   onNavigateTab: (tab: ActiveTab) => void;
-  onSelectSong: (song: SongItem, contextSongs?: SongItem[]) => void;
+  onSelectSong: (song: SongItem, contextSongs?: SongItem[], initialView?: 'view' | 'pdf') => void;
   onSelectDateEvent?: (isoDate: string) => void;
 }
 
@@ -50,23 +54,182 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
   const nextMainEvent = sortedUpcomingSlots[0];
 
   // 2. Músicos asignados en el próximo evento principal
-  const nextEventMusicians: { roleName: string; musicianName: string; gender: string }[] = [];
+  // Orden estricto requerido:
+  // 1. Director
+  // 2. Voces
+  // 3. Instrumentos
+  // 4. Sonido y audiovisual
+  interface ConvocadoMusician {
+    roleId: string;
+    roleName: string;
+    musicianName: string;
+    gender: string;
+    category: 'director' | 'voz' | 'instrument' | 'tech';
+    categoryTitle: string;
+    groupIndex: number;
+    subWeight: number;
+  }
+
+  const getConvocadoSortInfo = (roleName: string): {
+    category: 'director' | 'voz' | 'instrument' | 'tech';
+    categoryTitle: string;
+    groupIndex: number;
+    subWeight: number;
+  } => {
+    const norm = roleName.toLowerCase().trim();
+
+    // 1. Director
+    if (
+      norm.includes('director') ||
+      norm.includes('dirección') ||
+      norm.includes('direccion') ||
+      norm.includes('lider') ||
+      norm.includes('líder')
+    ) {
+      return { category: 'director', categoryTitle: 'Director', groupIndex: 1, subWeight: 0 };
+    }
+
+    // 2. Voces
+    if (
+      norm.includes('voz') ||
+      norm.includes('voces') ||
+      norm.includes('vocal') ||
+      norm.includes('cantante') ||
+      norm.includes('tenor') ||
+      norm.includes('soprano') ||
+      norm.includes('contralto') ||
+      norm.includes('baritono') ||
+      norm.includes('barítono') ||
+      norm.includes('coro')
+    ) {
+      let sub = 50;
+      if (norm.includes('voz h 1') || norm.includes('voz 1 h')) sub = 10;
+      else if (norm.includes('voz h 2') || norm.includes('voz 2 h')) sub = 11;
+      else if (norm.includes('voz h 3') || norm.includes('voz 3 h')) sub = 12;
+      else if (norm.includes('voz m 1') || norm.includes('voz 1 m')) sub = 20;
+      else if (norm.includes('voz m 2') || norm.includes('voz 2 m')) sub = 21;
+      else if (norm.includes('voz m 3') || norm.includes('voz 3 m')) sub = 22;
+      else if (norm.includes('voz h') || norm.includes('masculin')) sub = 30;
+      else if (norm.includes('voz m') || norm.includes('femenin')) sub = 40;
+      return { category: 'voz', categoryTitle: 'Voces', groupIndex: 2, subWeight: sub };
+    }
+
+    // 4. Sonido y audiovisual
+    if (
+      norm.includes('sonido') ||
+      norm.includes('audio') ||
+      norm.includes('visual') ||
+      norm.includes('audiovisual') ||
+      norm.includes('multimedia') ||
+      norm.includes('camara') ||
+      norm.includes('cámara') ||
+      norm.includes('luces') ||
+      norm.includes('pantalla') ||
+      norm.includes('proyeccion') ||
+      norm.includes('proyección') ||
+      norm.includes('streaming') ||
+      norm.includes('consola') ||
+      norm.includes('video')
+    ) {
+      let sub = 10;
+      if (norm.includes('sonido 2')) sub = 12;
+      else if (norm.includes('sonido')) sub = 11;
+      else if (norm.includes('visual 2') || norm.includes('audiovisual 2')) sub = 22;
+      else if (norm.includes('audio') || norm.includes('visual')) sub = 21;
+      return { category: 'tech', categoryTitle: 'Sonido y audiovisual', groupIndex: 4, subWeight: sub };
+    }
+
+    // 3. Instrumentos (Piano, Guitarra acústica, Batería, Bajo, Guitarra eléctrica, etc.)
+    let sub = 50;
+    if (norm.includes('piano') || norm.includes('teclado') || norm.includes('tecla')) sub = 10;
+    else if (norm.includes('guitarra acustica') || norm.includes('acústica') || norm.includes('acustica')) sub = 15;
+    else if (norm.includes('bateria') || norm.includes('batería')) sub = 20;
+    else if (norm.includes('bajo')) sub = 25;
+    else if (norm.includes('guitarra electrica') || norm.includes('eléctrica') || norm.includes('electrica')) sub = 30;
+    return { category: 'instrument', categoryTitle: 'Instrumentos', groupIndex: 3, subWeight: sub };
+  };
+
+  const nextEventMusicians: ConvocadoMusician[] = [];
   if (nextMainEvent) {
     const roleMap = new Map<string, string>((state.roles || []).map(r => [r.id, r.name]));
     const musicianMap = new Map<string, Musician>((state.musicians || []).map(m => [m.id, m]));
+    const assignments = (nextMainEvent.assignments || {}) as Record<string, string>;
 
-    Object.entries((nextMainEvent.assignments || {}) as Record<string, string>).forEach(([roleId, musicianId]) => {
-      const roleName = roleMap.get(roleId) || 'Rol';
-      const musician = musicianMap.get(String(musicianId));
-      if (musician) {
-        nextEventMusicians.push({
-          roleName,
-          musicianName: musician.name,
-          gender: musician.gender,
-        });
+    Object.entries(assignments).forEach(([roleId, musicianId]) => {
+      if (musicianId) {
+        const musician = musicianMap.get(String(musicianId));
+        if (musician) {
+          const roleName = roleMap.get(roleId) || 'Rol';
+          const info = getConvocadoSortInfo(roleName);
+          nextEventMusicians.push({
+            roleId,
+            roleName,
+            musicianName: musician.name,
+            gender: musician.gender,
+            category: info.category,
+            categoryTitle: info.categoryTitle,
+            groupIndex: info.groupIndex,
+            subWeight: info.subWeight,
+          });
+        }
       }
     });
+
+    // Ordenar estrictamente: 1. Director, 2. Voces, 3. Instrumentos, 4. Sonido y audiovisual
+    nextEventMusicians.sort((a, b) => {
+      if (a.groupIndex !== b.groupIndex) {
+        return a.groupIndex - b.groupIndex;
+      }
+      if (a.subWeight !== b.subWeight) {
+        return a.subWeight - b.subWeight;
+      }
+      return a.roleName.localeCompare(b.roleName, 'es');
+    });
   }
+
+  // Grupos en el orden exacto solicitado por el usuario:
+  // 1. Director
+  // 2. Voces
+  // 3. Instrumentos
+  // 4. Sonido y audiovisual
+  const CATEGORY_GROUPS = [
+    {
+      key: 'director' as const,
+      title: 'Director',
+      icon: UserCheck,
+      headerBadge: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+      tagBg: 'bg-amber-950/20 border-amber-500/35 hover:border-amber-500/60',
+      roleColor: 'text-amber-400 font-bold',
+      members: nextEventMusicians.filter(m => m.category === 'director'),
+    },
+    {
+      key: 'voz' as const,
+      title: 'Voces',
+      icon: Mic,
+      headerBadge: 'bg-rose-500/10 text-rose-300 border-rose-500/30',
+      tagBg: 'bg-[#141418] border-[#232328] hover:border-rose-500/40',
+      roleColor: 'text-rose-300 font-semibold',
+      members: nextEventMusicians.filter(m => m.category === 'voz'),
+    },
+    {
+      key: 'instrument' as const,
+      title: 'Instrumentos',
+      icon: Music,
+      headerBadge: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+      tagBg: 'bg-[#141418] border-[#232328] hover:border-emerald-500/40',
+      roleColor: 'text-emerald-300 font-semibold',
+      members: nextEventMusicians.filter(m => m.category === 'instrument'),
+    },
+    {
+      key: 'tech' as const,
+      title: 'Sonido y audiovisual',
+      icon: Sliders,
+      headerBadge: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30',
+      tagBg: 'bg-[#141418] border-[#232328] hover:border-cyan-500/40',
+      roleColor: 'text-cyan-300 font-semibold',
+      members: nextEventMusicians.filter(m => m.category === 'tech'),
+    },
+  ];
 
   return (
     <div className="space-y-6" id="dashboard-home-view">
@@ -119,7 +282,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
           </div>
 
           {/* Lista de Canciones para este Servicio */}
-          <div className="space-y-2.5 mb-5">
+          <div className="space-y-2.5 mb-6">
             <div className="flex items-center justify-between text-xs font-mono text-[#8e8e99] uppercase tracking-wider">
               <span className="flex items-center gap-1.5">
                 <Music size={13} className="text-[#c5a059]" />
@@ -135,33 +298,62 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
 
             {nextMainEvent.songs.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                {nextMainEvent.songs.map((song, sIdx) => (
-                  <div
-                    key={song.id || sIdx}
-                    onClick={() => onSelectSong(song, nextMainEvent.songs)}
-                    className="flex items-center justify-between p-2.5 bg-[#0a0a0b] hover:bg-[#1a1a1e] border border-[#232328] hover:border-[#c5a059]/40 rounded-xl cursor-pointer transition-all group"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="w-5 h-5 rounded-full bg-[#141418] text-[#8e8e99] group-hover:text-[#c5a059] text-[10px] font-mono flex items-center justify-center flex-shrink-0">
-                        {sIdx + 1}
-                      </span>
-                      <div className="truncate">
-                        <h4 className="text-xs font-medium text-white group-hover:text-[#c5a059] transition-colors truncate">
-                          {song.title}
-                        </h4>
-                        {song.artist && (
-                          <p className="text-[10px] text-[#8e8e99] truncate">{song.artist}</p>
+                {nextMainEvent.songs.map((song, sIdx) => {
+                  const hasPdf = (song.attachments || []).some(a => {
+                    const url = (a.url || '').toLowerCase();
+                    const name = (a.name || '').toLowerCase();
+                    return (
+                      url.startsWith('data:application/pdf') ||
+                      url.includes('.pdf') ||
+                      name.endsWith('.pdf') ||
+                      a.type === 'pdf'
+                    );
+                  });
+
+                  return (
+                    <div
+                      key={song.id || sIdx}
+                      onClick={() => onSelectSong(song, nextMainEvent.songs)}
+                      className="flex items-center justify-between p-2.5 bg-[#0a0a0b] hover:bg-[#1a1a1e] border border-[#232328] hover:border-[#c5a059]/40 rounded-xl cursor-pointer transition-all group"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="w-5 h-5 rounded-full bg-[#141418] text-[#8e8e99] group-hover:text-[#c5a059] text-[10px] font-mono flex items-center justify-center flex-shrink-0">
+                          {sIdx + 1}
+                        </span>
+                        <div className="truncate">
+                          <h4 className="text-xs font-medium text-white group-hover:text-[#c5a059] transition-colors truncate">
+                            {song.title}
+                          </h4>
+                          {song.artist && (
+                            <p className="text-[10px] text-[#8e8e99] truncate">{song.artist}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {hasPdf && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectSong(song, nextMainEvent.songs, 'pdf');
+                            }}
+                            className="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                            title="Ver partitura PDF directamente"
+                          >
+                            <FileText size={10} />
+                            <span>PDF</span>
+                          </button>
+                        )}
+                        {song.key && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#141418] text-[#c5a059] border border-[#c5a059]/20 flex-shrink-0">
+                            {song.key}
+                          </span>
                         )}
                       </div>
                     </div>
-
-                    {song.key && (
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#141418] text-[#c5a059] border border-[#c5a059]/20 flex-shrink-0">
-                        {song.key}
-                      </span>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="p-4 bg-[#0a0a0b] rounded-xl border border-dashed border-[#232328] text-center text-xs text-[#8e8e99]">
@@ -170,29 +362,61 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
             )}
           </div>
 
-          {/* Músicos Asignados en este Servicio */}
-          <div>
-            <div className="text-xs font-mono text-[#8e8e99] uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-              <Users size={13} className="text-amber-400" />
-              <span>Equipo Convocado ({nextEventMusicians.length})</span>
+          {/* Músicos Asignados en este Servicio ordenados en:
+              1. Director, 2. Voces, 3. Instrumentos, 4. Sonido y audiovisual */}
+          <div className="space-y-3">
+            <div className="text-xs font-mono text-[#8e8e99] uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Users size={13} className="text-amber-400" />
+                <span>Equipo Convocado ({nextEventMusicians.length})</span>
+              </span>
+              <span className="text-[10px] text-[#6b6b75] normal-case hidden sm:inline">
+                Orden: Director · Voces · Instrumentos · Sonido y audiovisual
+              </span>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {nextEventMusicians.map((m, idx) => (
-                <div
-                  key={idx}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0a0a0b] border border-[#232328] text-xs text-white"
-                >
-                  <span className="text-[10px] font-mono text-[#c5a059] font-medium">
-                    {m.roleName}:
-                  </span>
-                  <span className="font-medium">{m.musicianName}</span>
-                </div>
-              ))}
+            {/* Categorías ordenadas */}
+            <div className="space-y-2.5">
+              {CATEGORY_GROUPS.map(group => {
+                const IconComponent = group.icon;
+                if (group.members.length === 0) return null;
+
+                return (
+                  <div
+                    key={group.key}
+                    className="p-3 bg-[#0c0c0f] border border-[#1c1c20] rounded-xl space-y-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded border inline-flex items-center gap-1.5 ${group.headerBadge}`}>
+                        <IconComponent size={11} />
+                        <span>{group.title}</span>
+                      </span>
+                      <span className="text-[10px] font-mono text-[#6b6b75]">
+                        ({group.members.length})
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-0.5">
+                      {group.members.map((m, idx) => (
+                        <div
+                          key={`${m.roleId}-${idx}`}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-colors ${group.tagBg}`}
+                        >
+                          <span className={`text-[10px] font-mono ${group.roleColor}`}>
+                            {m.roleName}:
+                          </span>
+                          <span className="font-medium text-white">{m.musicianName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+
               {nextEventMusicians.length === 0 && (
-                <span className="text-xs text-[#8e8e99] italic">
-                  Sin integrantes asignados aún.
-                </span>
+                <div className="p-4 bg-[#0a0a0b] rounded-xl border border-dashed border-[#232328] text-center text-xs text-[#8e8e99] italic">
+                  Sin integrantes asignados aún para esta convocatoria.
+                </div>
               )}
             </div>
           </div>
