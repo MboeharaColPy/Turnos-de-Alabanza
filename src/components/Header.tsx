@@ -263,6 +263,7 @@ export const Header: React.FC<HeaderProps> = ({
             Plataforma de <span className="italic text-[#c5a059]">Alabanza</span>
           </h1>
         </div>
+      </div>
 
         {/* Tab Navigation on Desktop + Controls */}
         <div className="flex items-center gap-2.5 flex-wrap">

@@ -10,6 +10,7 @@ import {
   Role,
   Slot,
   SongItem,
+  Notice,
 } from '../types';
 
 export const STORAGE_KEY = 'turnos_musicos_data_v4';
@@ -89,24 +90,7 @@ export function getInitialDefaultState(): AppState {
     },
   ];
 
-  const defaultNotices = [
-    {
-      id: 'not_1',
-      title: 'Puntualidad en el Ensayo General',
-      content: 'Recordamos a todo el ministerio estar 15 minutos antes de la hora acordada para afinar instrumentos y tener un tiempo de oración juntos antes de comenzar.',
-      author: 'Dirección de Alabanza',
-      date: new Date().toISOString().split('T')[0],
-      isImportant: true,
-    },
-    {
-      id: 'not_2',
-      title: 'Repertorio y Cifrados Actualizados',
-      content: 'Ya se encuentran disponibles en la sección Canciones todas las letras con acordes, tempos en BPM y mapa de estructura para el servicio de este fin de semana.',
-      author: 'Ministerio de Alabanza',
-      date: new Date().toISOString().split('T')[0],
-      isImportant: false,
-    },
-  ];
+  const defaultNotices: Notice[] = [];
 
   const defaultChatMessages = [
     {
@@ -367,7 +351,7 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
     shiftSongs: parsed.shiftSongs && typeof parsed.shiftSongs === 'object' ? parsed.shiftSongs : {},
     songCatalog,
     couples: Array.isArray(parsed.couples) ? parsed.couples : fallbackDefault.couples,
-    notices: Array.isArray(parsed.notices) && parsed.notices.length > 0 ? parsed.notices : fallbackDefault.notices,
+    notices: Array.isArray(parsed.notices) ? parsed.notices : [],
     chatMessages: Array.isArray(parsed.chatMessages) && parsed.chatMessages.length > 0 ? parsed.chatMessages : fallbackDefault.chatMessages,
     adminPassword: parsed.adminPassword || 'alabanza2026',
     seeded: !!parsed.seeded,

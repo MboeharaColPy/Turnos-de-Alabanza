@@ -27,6 +27,7 @@ import {
   Sliders,
   ArrowRight,
   Info,
+  Layers,
 } from 'lucide-react';
 import { ShiftSongsManager } from './ShiftSongsManager';
 import { generateRotativeSchedule, getRoleCategory } from '../services/rotativeScheduler';

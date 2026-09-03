@@ -18,25 +18,25 @@ export const DoveLogo: React.FC<DoveLogoProps> = ({ className = 'w-9 h-9', size 
       >
         <defs>
           <linearGradient id="doveGoldGradMain" x1="20%" y1="0%" x2="80%" y2="100%">
-            <stop offset="0%" stop-color="#f5e2a2" />
-            <stop offset="30%" stop-color="#d4af37" />
-            <stop offset="70%" stop-color="#b8860b" />
-            <stop offset="100%" stop-color="#7a5516" />
+            <stop offset="0%" stopColor="#f5e2a2" />
+            <stop offset="30%" stopColor="#d4af37" />
+            <stop offset="70%" stopColor="#b8860b" />
+            <stop offset="100%" stopColor="#7a5516" />
           </linearGradient>
           <linearGradient id="doveWingGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#fdf4be" />
-            <stop offset="45%" stop-color="#d8b248" />
-            <stop offset="100%" stop-color="#93681a" />
+            <stop offset="0%" stopColor="#fdf4be" />
+            <stop offset="45%" stopColor="#d8b248" />
+            <stop offset="100%" stopColor="#93681a" />
           </linearGradient>
           <linearGradient id="doveWingGrad2" x1="10%" y1="90%" x2="90%" y2="10%">
-            <stop offset="0%" stop-color="#8c6114" />
-            <stop offset="50%" stop-color="#c99e38" />
-            <stop offset="100%" stop-color="#f3dba0" />
+            <stop offset="0%" stopColor="#8c6114" />
+            <stop offset="50%" stopColor="#c99e38" />
+            <stop offset="100%" stopColor="#f3dba0" />
           </linearGradient>
           <linearGradient id="doveTailGrad" x1="0%" y1="50%" x2="100%" y2="50%">
-            <stop offset="0%" stop-color="#dfb651" />
-            <stop offset="60%" stop-color="#b48220" />
-            <stop offset="100%" stop-color="#754b0c" />
+            <stop offset="0%" stopColor="#dfb651" />
+            <stop offset="60%" stopColor="#b48220" />
+            <stop offset="100%" stopColor="#754b0c" />
           </linearGradient>
         </defs>
 
