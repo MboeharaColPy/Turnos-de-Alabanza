@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 320" width="100%" height="100%" fill="none">
+  <defs>
+    <linearGradient id="doveGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ecd68d" />
+      <stop offset="35%" stop-color="#c5a059" />
+      <stop offset="70%" stop-color="#a37628" />
+      <stop offset="100%" stop-color="#7a5516" />
+    </linearGradient>
+    <linearGradient id="doveWingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fdf0b4" />
+      <stop offset="40%" stop-color="#cda65e" />
+      <stop offset="100%" stop-color="#8c621d" />
+    </linearGradient>
+    <linearGradient id="doveBodyGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ecd68d" />
+      <stop offset="50%" stop-color="#be964b" />
+      <stop offset="100%" stop-color="#7e5313" />
+    </linearGradient>
+  </defs>
+
+  <!-- Wing segment (upper left wing) -->
+  <path
+    d="M 152 98 
+       C 142 120 148 165 186 215
+       C 168 175 160 135 158 115
+       C 156 105 154 99 152 98 Z"
+    fill="url(#doveWingGrad)"
+  />
+  <path
+    d="M 152 98
+       C 165 145 205 190 240 225
+       C 220 170 185 125 152 98 Z"
+    fill="url(#doveGoldGrad)"
+  />
+
+  <!-- Main Body & Head & Beak -->
+  <path
+    d="M 235 98
+       C 255 100 270 108 270 120
+       C 270 124 266 130 260 138
+       C 250 152 245 168 245 182
+       C 245 205 235 228 221 245
+       C 200 220 190 180 205 145
+       C 215 125 225 105 235 98 Z"
+    fill="url(#doveBodyGrad)"
+  />
+
+  <!-- Swooping Tail / Lower Body Wing -->
+  <path
+    d="M 128 215
+       C 160 222 195 210 221 245
+       C 195 258 160 252 128 215 Z"
+    fill="url(#doveGoldGrad)"
+  />
+
+  <!-- Dove Eye (white dot) -->
+  <circle cx="255" cy="116" r="3.5" fill="#ffffff" />
+
+  <!-- Floating Golden Dot under body -->
+  <circle cx="247" cy="242" r="6.5" fill="url(#doveGoldGrad)" />
+</svg>
