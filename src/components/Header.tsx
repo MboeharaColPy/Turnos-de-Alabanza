@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 
 import { PWAInstallButton } from './PWAInstallButton';
+import { DoveLogo } from './DoveLogo';
 
 export type ActiveTab =
   | 'inicio'
@@ -194,14 +195,16 @@ export const Header: React.FC<HeaderProps> = ({
 
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
         {/* Brand / Logo */}
-        <div>
-          <div className="flex items-center gap-3 mb-1 flex-wrap">
-            <span className="font-serif italic text-2xl sm:text-3xl tracking-tight text-[#c5a059]">
-              Iglesia Dios es Amor
-            </span>
-            <span className="text-[10px] font-mono tracking-[0.25em] text-[#888894] uppercase border-l border-[#1f1f23] pl-3">
-              Ministerio de Alabanza
-            </span>
+        <div className="flex items-center gap-3.5">
+          <DoveLogo className="w-11 h-11 sm:w-14 sm:h-14 flex-shrink-0" />
+          <div>
+            <div className="flex items-center gap-3 mb-1 flex-wrap">
+              <span className="font-serif italic text-2xl sm:text-3xl tracking-tight text-[#c5a059]">
+                Iglesia Dios es Amor
+              </span>
+              <span className="text-[10px] font-mono tracking-[0.25em] text-[#888894] uppercase border-l border-[#1f1f23] pl-3">
+                Ministerio de Alabanza
+              </span>
 
             {/* Cloud Sync Badge */}
             <span

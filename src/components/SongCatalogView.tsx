@@ -6,7 +6,6 @@ import {
   Filter,
   Plus,
   BookOpen,
-  LayoutGrid,
   List,
   Table as TableIcon,
   Tag,
@@ -42,7 +41,7 @@ export const CATEGORIES = [
 ];
 
 export type SpeedFilter = 'all' | 'slow' | 'medium' | 'fast';
-export type ViewMode = 'grid' | 'table' | 'compact';
+export type ViewMode = 'table' | 'compact';
 
 export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
   songs,
@@ -54,7 +53,7 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
   const [selectedArtist, setSelectedArtist] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedSpeed, setSelectedSpeed] = useState<SpeedFilter>('all');
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
 
   // Modal Agregar Alabanza
   const [showAddModal, setShowAddModal] = useState(false);
@@ -235,17 +234,8 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
               </select>
             </div>
 
-            {/* View Mode Toggle: Grid, Table, Compact */}
+            {/* View Mode Toggle: Table, Compact */}
             <div className="flex items-center justify-end gap-1 bg-[#0a0a0b] p-1 rounded-xl border border-[#232328] w-fit sm:w-auto">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                  viewMode === 'grid' ? 'bg-[#1f1f23] text-[#c5a059]' : 'text-[#6b6b75] hover:text-white'
-                }`}
-                title="Vista Cuadrícula"
-              >
-                <LayoutGrid size={15} />
-              </button>
               <button
                 onClick={() => setViewMode('table')}
                 className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
@@ -291,61 +281,10 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
       </div>
 
       {/* ======================================================== */}
-      {/* RENDER VIEW ACCORDING TO VIEW MODE (GRID, TABLE, COMPACT) */}
+      {/* RENDER VIEW ACCORDING TO VIEW MODE (TABLE, COMPACT) */}
       {/* ======================================================== */}
 
-      {/* 1. GRID VIEW */}
-      {viewMode === 'grid' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filteredSongs.map((song, index) => (
-            <div
-              key={song.id || `s_${index}`}
-              onClick={() => onSelectSong && onSelectSong(song, filteredSongs)}
-              className="bg-[#141418] border border-[#1f1f23] hover:border-[#c5a059] rounded-xl p-4 transition-all group flex flex-col justify-between shadow-md cursor-pointer hover:bg-[#18181d]"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-lg bg-[#0a0a0b] border border-[#1f1f23] flex items-center justify-center text-[#c5a059] flex-shrink-0 group-hover:border-[#c5a059]/50 group-hover:bg-[#c5a059]/15 transition-colors">
-                    <Music size={16} />
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="text-sm font-medium text-white truncate group-hover:text-[#c5a059] transition-colors">
-                      {song.title}
-                    </h4>
-                    <p className="text-xs text-[#888894] truncate mt-0.5">
-                      {song.artist || 'Desconocido'}
-                    </p>
-                  </div>
-                </div>
-
-                {song.key && (
-                  <span className="font-mono text-[11px] font-bold text-[#c5a059] bg-[#c5a059]/10 border border-[#c5a059]/30 px-2 py-0.5 rounded flex-shrink-0">
-                    {song.key}
-                  </span>
-                )}
-              </div>
-
-              {/* Bottom Card Meta */}
-              <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-[#1f1f23] text-[10px] font-mono text-[#888894]">
-                <span className="px-1.5 py-0.5 rounded bg-[#0a0a0b] border border-[#1f1f23] text-slate-300">
-                  {song.category || 'General'}
-                </span>
-
-                <div className="flex items-center gap-2">
-                  {song.bpm && <span>{song.bpm} BPM</span>}
-                  {song.lyrics ? (
-                    <span className="text-emerald-400 font-bold">✓ Con acordes</span>
-                  ) : (
-                    <span className="text-[#6b6b75]">En blanco</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 2. TABLE VIEW */}
+      {/* 1. TABLE VIEW */}
       {viewMode === 'table' && (
         <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl overflow-hidden shadow-xl">
           <div className="overflow-x-auto">

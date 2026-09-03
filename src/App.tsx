@@ -410,13 +410,23 @@ export default function App() {
       return;
     }
     updateStateAndSave(prev => {
+      let roleIds = [...(musician.roleIds || [])];
+      const s1 = prev.roles.find(r => r.name.toLowerCase().trim() === 'sonido');
+      const s2 = prev.roles.find(r => r.name.toLowerCase().trim() === 'sonido 2');
+      const av1 = prev.roles.find(r => r.name.toLowerCase().trim() === 'audio visual' || r.name.toLowerCase().trim() === 'audiovisual');
+      const av2 = prev.roles.find(r => r.name.toLowerCase().trim() === 'audio visual 2' || r.name.toLowerCase().trim() === 'audiovisual 2');
+
+      if (s1 && s2 && roleIds.includes(s1.id) && !roleIds.includes(s2.id)) roleIds.push(s2.id);
+      if (av1 && av2 && roleIds.includes(av1.id) && !roleIds.includes(av2.id)) roleIds.push(av2.id);
+
+      const normalizedMusician = { ...musician, roleIds };
       const existsIndex = prev.musicians.findIndex(m => m.id === musician.id);
       let updatedMusicians: Musician[];
       if (existsIndex >= 0) {
         updatedMusicians = [...prev.musicians];
-        updatedMusicians[existsIndex] = musician;
+        updatedMusicians[existsIndex] = normalizedMusician;
       } else {
-        updatedMusicians = [...prev.musicians, musician];
+        updatedMusicians = [...prev.musicians, normalizedMusician];
       }
       return {
         ...prev,

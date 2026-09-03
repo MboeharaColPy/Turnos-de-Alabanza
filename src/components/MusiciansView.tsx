@@ -127,8 +127,17 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
     setEditingId(m.id);
     setName(m.name);
     setGender(m.gender || 'H');
-    setSelectedRoleIds(m.roleIds || []);
-    setPrimaryRoleId(m.primaryRoleId || (m.roleIds && m.roleIds[0]) || '');
+
+    let initialRoles = [...(m.roleIds || [])];
+    const s1 = state.roles.find(r => r.name.toLowerCase().trim() === 'sonido');
+    const s2 = state.roles.find(r => r.name.toLowerCase().trim() === 'sonido 2');
+    const av1 = state.roles.find(r => r.name.toLowerCase().trim() === 'audio visual' || r.name.toLowerCase().trim() === 'audiovisual');
+    const av2 = state.roles.find(r => r.name.toLowerCase().trim() === 'audio visual 2' || r.name.toLowerCase().trim() === 'audiovisual 2');
+    if (s1 && s2 && initialRoles.includes(s1.id) && !initialRoles.includes(s2.id)) initialRoles.push(s2.id);
+    if (av1 && av2 && initialRoles.includes(av1.id) && !initialRoles.includes(av2.id)) initialRoles.push(av2.id);
+
+    setSelectedRoleIds(initialRoles);
+    setPrimaryRoleId(m.primaryRoleId || (initialRoles && initialRoles[0]) || '');
     setIsModalOpen(true);
   };
 
@@ -220,6 +229,17 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
         });
       }
 
+      if (roleObj) {
+        const normName = roleObj.name.toLowerCase().trim();
+        if (normName === 'sonido') {
+          const s2 = state.roles.find(r => r.name.toLowerCase().trim() === 'sonido 2');
+          if (s2 && !next.includes(s2.id)) next.push(s2.id);
+        } else if (normName === 'audio visual' || normName === 'audiovisual') {
+          const av2 = state.roles.find(r => r.name.toLowerCase().trim() === 'audio visual 2' || r.name.toLowerCase().trim() === 'audiovisual 2');
+          if (av2 && !next.includes(av2.id)) next.push(av2.id);
+        }
+      }
+
       setSelectedRoleIds(next);
       if (!primaryRoleId) {
         setPrimaryRoleId(roleId);
@@ -246,12 +266,20 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
       return;
     }
 
+    let finalRoles = [...selectedRoleIds];
+    const s1 = state.roles.find(r => r.name.toLowerCase().trim() === 'sonido');
+    const s2 = state.roles.find(r => r.name.toLowerCase().trim() === 'sonido 2');
+    const av1 = state.roles.find(r => r.name.toLowerCase().trim() === 'audio visual' || r.name.toLowerCase().trim() === 'audiovisual');
+    const av2 = state.roles.find(r => r.name.toLowerCase().trim() === 'audio visual 2' || r.name.toLowerCase().trim() === 'audiovisual 2');
+    if (s1 && s2 && finalRoles.includes(s1.id) && !finalRoles.includes(s2.id)) finalRoles.push(s2.id);
+    if (av1 && av2 && finalRoles.includes(av1.id) && !finalRoles.includes(av2.id)) finalRoles.push(av2.id);
+
     const musicianToSave: Musician = {
       id: editingId || generateId('mus'),
       name: cleanName,
       gender,
-      roleIds: selectedRoleIds,
-      primaryRoleId: primaryRoleId || selectedRoleIds[0] || '',
+      roleIds: finalRoles,
+      primaryRoleId: primaryRoleId || finalRoles[0] || '',
     };
 
     onSaveMusician(musicianToSave);

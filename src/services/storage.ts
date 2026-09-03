@@ -186,7 +186,9 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
     'Bajo',
     'Guitarra electrica',
     'Sonido',
+    'Sonido 2',
     'Audio visual',
+    'Audio visual 2',
   ];
 
   requiredRoleNames.forEach((reqName, idx) => {
@@ -271,6 +273,19 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
       }
     }
 
+    // Auto-asignación: Todas las personas que tengan marcado sonido o audiovisual, automáticamente quedan marcadas también con el 2
+    const sonidoRole = roles.find(r => r.name.toLowerCase().trim() === 'sonido');
+    const sonido2Role = roles.find(r => r.name.toLowerCase().trim() === 'sonido 2');
+    const avRole = roles.find(r => r.name.toLowerCase().trim() === 'audio visual' || r.name.toLowerCase().trim() === 'audiovisual');
+    const av2Role = roles.find(r => r.name.toLowerCase().trim() === 'audio visual 2' || r.name.toLowerCase().trim() === 'audiovisual 2');
+
+    if (sonidoRole && sonido2Role && roleIds.includes(sonidoRole.id) && !roleIds.includes(sonido2Role.id)) {
+      roleIds.push(sonido2Role.id);
+    }
+    if (avRole && av2Role && roleIds.includes(avRole.id) && !roleIds.includes(av2Role.id)) {
+      roleIds.push(av2Role.id);
+    }
+
     return {
       id: m.id || `mus_${idx + 1}`,
       name: m.name || `Integrante ${idx + 1}`,
@@ -285,11 +300,21 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
   // Asegurar que los slots contengan exclusivamente roles válidos y no IDs ficticios u obsoletos
   const validRoleIdsSet = new Set(roles.map(r => r.id));
   const allRoleIds = roles.map(r => r.id);
+  const sonidoRoleObj = roles.find(r => r.name.toLowerCase().trim() === 'sonido');
+  const sonido2RoleObj = roles.find(r => r.name.toLowerCase().trim() === 'sonido 2');
+  const avRoleObj = roles.find(r => r.name.toLowerCase().trim() === 'audio visual' || r.name.toLowerCase().trim() === 'audiovisual');
+  const av2RoleObj = roles.find(r => r.name.toLowerCase().trim() === 'audio visual 2' || r.name.toLowerCase().trim() === 'audiovisual 2');
+
   const rawSlots = Array.isArray(parsed.slots) && parsed.slots.length > 0 ? parsed.slots : fallbackDefault.slots;
   const slots: Slot[] = rawSlots.map(s => {
-    const rawIds = s.roleIds && s.roleIds.length > 0
-      ? Array.from(new Set([...s.roleIds, ...vozHRoleIds, ...vozMRoleIds]))
-      : allRoleIds;
+    let slotRoles = s.roleIds && s.roleIds.length > 0 ? [...s.roleIds] : [...allRoleIds];
+    if (sonidoRoleObj && sonido2RoleObj && slotRoles.includes(sonidoRoleObj.id) && !slotRoles.includes(sonido2RoleObj.id)) {
+      slotRoles.push(sonido2RoleObj.id);
+    }
+    if (avRoleObj && av2RoleObj && slotRoles.includes(avRoleObj.id) && !slotRoles.includes(av2RoleObj.id)) {
+      slotRoles.push(av2RoleObj.id);
+    }
+    const rawIds = Array.from(new Set([...slotRoles, ...vozHRoleIds, ...vozMRoleIds]));
     const sanitizedRoleIds = rawIds.filter(rid => validRoleIdsSet.has(rid));
     return {
       ...s,

@@ -48,6 +48,9 @@ import {
   FileText,
   ExternalLink,
   Paperclip,
+  Upload,
+  Download,
+  CheckCircle2,
   Clock,
   Pin,
   HelpCircle,
@@ -201,7 +204,10 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
   const audioContextRef = useRef<AudioContext | null>(null);
 
   // UI Panels
-  const [viewMode, setViewMode] = useState<'view' | 'edit'>('view');
+  const [viewMode, setViewMode] = useState<'view' | 'edit' | 'pdf'>('view');
+  const [selectedPdfId, setSelectedPdfId] = useState<string>('');
+  const [showEditVideoUrl, setShowEditVideoUrl] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState(false);
   const [showChordDiagramsBar, setShowChordDiagramsBar] = useState(false);
   const [selectedChordForPopover, setSelectedChordForPopover] = useState<string | null>(null);
@@ -473,11 +479,92 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
     setAttachments(prev => [...prev, newAtt]);
     setNewAttachmentName('');
     setNewAttachmentUrl('');
+    if (onSaveSongLyrics) {
+      onSaveSongLyrics(song.id, editedText, currentKey, bpm, youtubeUrlInput, [...attachments, newAtt]);
+    }
     showToast('Adjunto añadido.');
   };
 
+  const pdfAttachments = useMemo(() => {
+    return attachments.filter(a => {
+      const url = (a.url || '').toLowerCase();
+      const name = (a.name || '').toLowerCase();
+      return url.startsWith('data:application/pdf') || url.includes('.pdf') || name.endsWith('.pdf');
+    });
+  }, [attachments]);
+
+  const activePdf = useMemo(() => {
+    if (selectedPdfId) {
+      const found = attachments.find(a => a.id === selectedPdfId);
+      if (found) return found;
+    }
+    return pdfAttachments[0] || (attachments.length > 0 ? attachments[0] : null);
+  }, [selectedPdfId, attachments, pdfAttachments]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 1. Restricción estricta: Solo formato PDF
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      showToast('Error: Solo se admiten archivos en formato PDF (.pdf).');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    // 2. Restricción estricta: Máximo 2 MB
+    const MAX_SIZE = 2 * 1024 * 1024; // 2 MB
+    if (file.size > MAX_SIZE) {
+      const mbSize = (file.size / (1024 * 1024)).toFixed(2);
+      showToast(`Error: El archivo pesa ${mbSize} MB. El límite máximo permitido es 2 MB.`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const cleanName = file.name.replace(/\.pdf$/i, '').trim() || 'Partitura';
+      const newAtt: SongAttachment = {
+        id: `att_pdf_${Date.now()}`,
+        name: cleanName,
+        url: dataUrl,
+        type: 'pdf',
+      };
+      const updated = [...attachments, newAtt];
+      setAttachments(updated);
+      setSelectedPdfId(newAtt.id);
+      setViewMode('pdf');
+      if (onSaveSongLyrics) {
+        onSaveSongLyrics(song.id, editedText, currentKey, bpm, youtubeUrlInput, updated);
+      }
+      showToast(`PDF "${cleanName}" subido y guardado exitosamente.`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.onerror = () => {
+      showToast('Error al procesar el archivo PDF.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleRemoveAttachment = (attId: string) => {
-    setAttachments(prev => prev.filter(a => a.id !== attId));
+    const updated = attachments.filter(a => a.id !== attId);
+    setAttachments(updated);
+    if (selectedPdfId === attId) {
+      setSelectedPdfId('');
+      if (viewMode === 'pdf') {
+        const remainingPdf = updated.find(a => (a.url || '').toLowerCase().includes('.pdf'));
+        if (!remainingPdf) {
+          setViewMode('view');
+        }
+      }
+    }
+    if (onSaveSongLyrics) {
+      onSaveSongLyrics(song.id, editedText, currentKey, bpm, youtubeUrlInput, updated);
+    }
+    showToast('Archivo eliminado.');
   };
 
   // Save changes (Admin only)
@@ -504,10 +591,11 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
       onClick={onClose}
     >
       <div
-        className={`bg-[#141418] border border-[#26262b] flex flex-col shadow-2xl overflow-hidden transition-all ${
+        ref={scrollContainerRef}
+        className={`bg-[#141418] border border-[#26262b] flex flex-col shadow-2xl overflow-y-auto transition-all select-text scroll-smooth ${
           isFullScreen
             ? 'w-full h-full rounded-none border-none'
-            : 'w-full max-w-6xl h-[95vh] rounded-2xl my-auto'
+            : 'w-full max-w-6xl max-h-[96vh] h-[96vh] rounded-2xl my-auto'
         }`}
         onClick={e => e.stopPropagation()}
       >
@@ -656,33 +744,66 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               </button>
             </div>
 
+            {/* Botón para intercambiar entre vista PDF y vista normal si hay un PDF cargado */}
+            {activePdf && (
+              <button
+                onClick={() => setViewMode(viewMode === 'pdf' ? 'view' : 'pdf')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 border transition-all cursor-pointer ${
+                  viewMode === 'pdf'
+                    ? 'bg-[#c5a059] text-black font-bold shadow-sm'
+                    : 'bg-[#0a0a0b] hover:bg-[#1a1a1d] text-[#c5a059] border-[#c5a059]/40'
+                }`}
+                title={viewMode === 'pdf' ? 'Volver a la vista de acordes y letra' : 'Ver partitura PDF cargada'}
+              >
+                <FileText size={13} />
+                <span>{viewMode === 'pdf' ? 'Ver Letra' : 'Ver PDF'}</span>
+              </button>
+            )}
+
             {/* Selector Modo Ver / Editar */}
-            <div className="flex bg-[#0a0a0b] p-1 rounded-xl border border-[#232328]">
+            {!isAdmin ? (
               <button
-                onClick={() => setViewMode('view')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer ${
-                  viewMode === 'view'
-                    ? 'bg-[#1a1a1d] text-[#c5a059] border border-[#c5a059]/30 font-medium'
-                    : 'text-[#6b6b75] hover:text-white'
-                }`}
-                title="Modo Lectura e Interpretación"
+                onClick={() => {
+                  if (onRequestAdmin) {
+                    onRequestAdmin();
+                  } else {
+                    showToast('Ingresa con la contraseña de administrador para editar letras y tonos.');
+                  }
+                }}
+                className="px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 bg-[#0a0a0b] hover:bg-[#1a1a1d] text-[#888894] hover:text-[#c5a059] border border-[#232328] hover:border-[#c5a059]/40 transition-colors cursor-pointer"
+                title="Desbloquear edición con contraseña de administrador"
               >
-                <Eye size={12} />
-                <span>Ver</span>
+                <Edit3 size={13} />
+                <span>Editar</span>
               </button>
-              <button
-                onClick={() => setViewMode('edit')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer ${
-                  viewMode === 'edit'
-                    ? 'bg-[#1a1a1d] text-[#c5a059] border border-[#c5a059]/30 font-medium'
-                    : 'text-[#6b6b75] hover:text-white'
-                }`}
-                title="Editar letra y notas"
-              >
-                <Edit3 size={12} />
-                <span>{isAdmin ? 'Editar' : 'Probar'}</span>
-              </button>
-            </div>
+            ) : (
+              <div className="flex bg-[#0a0a0b] p-1 rounded-xl border border-[#232328]">
+                <button
+                  onClick={() => setViewMode('view')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer ${
+                    viewMode === 'view'
+                      ? 'bg-[#1a1a1d] text-[#c5a059] border border-[#c5a059]/30 font-medium'
+                      : 'text-[#6b6b75] hover:text-white'
+                  }`}
+                  title="Modo Lectura e Interpretación"
+                >
+                  <Eye size={12} />
+                  <span>Ver</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('edit')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer ${
+                    viewMode === 'edit'
+                      ? 'bg-[#1a1a1d] text-[#c5a059] border border-[#c5a059]/30 font-medium'
+                      : 'text-[#6b6b75] hover:text-white'
+                  }`}
+                  title="Editar letra y notas"
+                >
+                  <Edit3 size={12} />
+                  <span>Editar</span>
+                </button>
+              </div>
+            )}
 
             {/* Partituras / Adjuntos */}
             <button
@@ -712,8 +833,8 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
         {/* 2. REPRODUCTOR YOUTUBE INDEPENDIENTE */}
         {/* ======================================================== */}
         {showYouTubePanel && (
-          <div className="bg-[#0b0b0e] border-b border-[#232328] p-3 flex flex-col md:flex-row items-center gap-3 animate-fadeIn">
-            <div className="flex-1 w-full space-y-2">
+          <div className="bg-[#0b0b0e] border-b border-[#232328] p-3.5 flex flex-col md:flex-row items-center gap-3.5 animate-fadeIn">
+            <div className="flex-1 w-full space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono uppercase tracking-wider text-red-400 font-bold flex items-center gap-1.5">
                   <Video size={14} />
@@ -727,7 +848,62 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                 </button>
               </div>
 
-              {isAdmin ? (
+              {/* Si el video ya está cargado, no se muestra la URL (solo estado y opciones limpias) */}
+              {youtubeEmbedUrl ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between bg-[#141418] border border-[#232328] rounded-xl px-3 py-2 flex-wrap gap-2">
+                    <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
+                      <CheckCircle2 size={15} />
+                      <span>Video listo para reproducción directa</span>
+                    </div>
+                    {isAdmin && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowEditVideoUrl(!showEditVideoUrl)}
+                          className="text-xs font-mono text-[#c5a059] hover:underline cursor-pointer"
+                        >
+                          {showEditVideoUrl ? 'Cancelar' : 'Cambiar enlace'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setYoutubeUrlInput('');
+                            if (onSaveSongLyrics) {
+                              onSaveSongLyrics(song.id, editedText, currentKey, bpm, '', attachments);
+                            }
+                            showToast('Video desvinculado de la alabanza.');
+                          }}
+                          className="text-xs font-mono text-red-400 hover:text-red-300 cursor-pointer"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {showEditVideoUrl && isAdmin && (
+                    <div className="flex items-center gap-2 pt-1 animate-fadeIn">
+                      <input
+                        type="text"
+                        value={youtubeUrlInput}
+                        onChange={e => setYoutubeUrlInput(e.target.value)}
+                        placeholder="Nuevo enlace de YouTube..."
+                        className="w-full bg-[#141418] border border-[#232328] rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#6b6b75] focus:outline-none focus:border-red-500 font-mono"
+                      />
+                      <button
+                        onClick={() => {
+                          handleSaveOfficial();
+                          setShowEditVideoUrl(false);
+                        }}
+                        className="px-3 py-1.5 bg-[#c5a059] text-black font-bold text-xs rounded-xl font-mono uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-[#d4b068]"
+                      >
+                        Actualizar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : isAdmin ? (
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
@@ -736,7 +912,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                     placeholder="Pega el enlace de YouTube aquí (ej: https://www.youtube.com/watch?v=...)"
                     className="w-full bg-[#141418] border border-[#232328] rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#6b6b75] focus:outline-none focus:border-red-500 font-mono"
                   />
-                  {youtubeUrlInput !== (song.youtubeUrl || '') && (
+                  {youtubeUrlInput && (
                     <button
                       onClick={handleSaveOfficial}
                       className="px-3 py-1.5 bg-[#c5a059] text-black font-bold text-xs rounded-xl font-mono uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-[#d4b068]"
@@ -746,8 +922,8 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                   )}
                 </div>
               ) : (
-                <p className="text-xs text-[#8e8e99] truncate">
-                  {youtubeUrlInput || 'No hay video enlazado por el administrador.'}
+                <p className="text-xs text-[#8e8e99] italic">
+                  No hay video de YouTube enlazado para esta alabanza aún.
                 </p>
               )}
             </div>
@@ -771,7 +947,16 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
         {/* ======================================================== */}
         {showAttachmentsPanel && (
           <div className="bg-[#0b0b0e] border-b border-[#232328] p-3.5 animate-fadeIn">
-            <div className="flex items-center justify-between mb-2">
+            {/* Input oculto con restricción estricta de PDF */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="application/pdf,.pdf"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+
+            <div className="flex items-center justify-between mb-2.5">
               <span className="text-xs font-mono uppercase tracking-wider text-[#c5a059] flex items-center gap-1.5 font-bold">
                 <FileText size={14} />
                 <span>Partituras y Archivos Adjuntos ({attachments.length})</span>
@@ -784,32 +969,100 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               </button>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap mb-3">
-              {attachments.map(att => (
-                <div
-                  key={att.id}
-                  className="flex items-center gap-2 bg-[#141418] border border-[#26262b] rounded-lg px-2.5 py-1 text-xs text-white"
+            {/* Banner de subida con restricción de PDF y 2 MB */}
+            <div className="flex items-center justify-between flex-wrap gap-2.5 mb-3 bg-[#141418] border border-[#26262b] p-2.5 rounded-xl">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3.5 py-1.5 bg-[#c5a059] hover:bg-[#d4b068] text-black font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                 >
-                  <FileText size={12} className="text-[#c5a059]" />
-                  <a
-                    href={att.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:text-[#c5a059] underline flex items-center gap-1"
+                  <Upload size={13} />
+                  <span>Subir Partitura (PDF)</span>
+                </button>
+                <span className="text-[11px] font-mono text-[#888894] bg-[#0c0c0e] px-2.5 py-1 rounded-lg border border-[#1f1f23]">
+                  Restricción: Formato PDF • Máx. 2 MB
+                </span>
+              </div>
+
+              {activePdf && (
+                <button
+                  type="button"
+                  onClick={() => setViewMode(viewMode === 'pdf' ? 'view' : 'pdf')}
+                  className="text-xs font-mono text-[#c5a059] hover:underline cursor-pointer flex items-center gap-1 font-bold"
+                >
+                  <Eye size={12} />
+                  <span>{viewMode === 'pdf' ? 'Volver a Letra' : 'Ver PDF en pantalla'}</span>
+                </button>
+              )}
+            </div>
+
+            {/* Listado de archivos adjuntos */}
+            <div className="flex items-center gap-2 flex-wrap mb-3">
+              {attachments.map(att => {
+                const isSelected = viewMode === 'pdf' && activePdf?.id === att.id;
+                return (
+                  <div
+                    key={att.id}
+                    className={`flex items-center gap-2 border rounded-xl px-3 py-1.5 text-xs transition-all ${
+                      isSelected
+                        ? 'bg-[#c5a059]/15 border-[#c5a059] text-white shadow-sm'
+                        : 'bg-[#141418] border-[#26262b] text-white'
+                    }`}
                   >
-                    <span>{att.name}</span>
-                    <ExternalLink size={10} />
-                  </a>
-                  {isAdmin && (
+                    <FileText size={13} className="text-[#c5a059] flex-shrink-0" />
+                    <span className="truncate max-w-[160px] sm:max-w-[220px]" title={att.name}>
+                      {att.name}
+                    </span>
+
+                    {/* Botón de visualización en pantalla */}
                     <button
-                      onClick={() => handleRemoveAttachment(att.id)}
-                      className="text-red-400 hover:text-red-300 ml-1 cursor-pointer"
+                      type="button"
+                      onClick={() => {
+                        setSelectedPdfId(att.id);
+                        setViewMode('pdf');
+                      }}
+                      className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider font-bold transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#c5a059] text-black'
+                          : 'bg-[#202026] hover:bg-[#c5a059] text-[#8e8e99] hover:text-black'
+                      }`}
+                      title="Visualizar este PDF en la vista principal"
                     >
-                      <X size={12} />
+                      {isSelected ? 'Viendo' : 'Ver'}
                     </button>
-                  )}
-                </div>
-              ))}
+
+                    {/* Descargar o abrir en pestaña nueva */}
+                    <a
+                      href={att.url}
+                      download={`${att.name}.pdf`}
+                      className="p-1 hover:text-[#c5a059] text-[#888894] transition-colors"
+                      title="Descargar PDF"
+                    >
+                      <Download size={12} />
+                    </a>
+                    <a
+                      href={att.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1 hover:text-[#c5a059] text-[#888894] transition-colors"
+                      title="Abrir en pestaña nueva"
+                    >
+                      <ExternalLink size={12} />
+                    </a>
+
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleRemoveAttachment(att.id)}
+                        className="text-red-400 hover:text-red-300 ml-0.5 cursor-pointer p-0.5"
+                        title="Eliminar archivo"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
               {attachments.length === 0 && (
                 <span className="text-xs text-[#6b6b75] italic">No hay partituras adjuntas todavía.</span>
               )}
@@ -819,23 +1072,23 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-[#1f1f23]">
                 <input
                   type="text"
-                  placeholder="Nombre (ej: Partitura Piano)"
+                  placeholder="Nombre de enlace (opcional)"
                   value={newAttachmentName}
                   onChange={e => setNewAttachmentName(e.target.value)}
                   className="bg-[#141418] border border-[#232328] rounded-lg px-2.5 py-1 text-xs text-white placeholder-[#6b6b75]"
                 />
                 <input
                   type="text"
-                  placeholder="URL del archivo PDF o enlace"
+                  placeholder="O pega URL directa de un PDF externo"
                   value={newAttachmentUrl}
                   onChange={e => setNewAttachmentUrl(e.target.value)}
                   className="bg-[#141418] border border-[#232328] rounded-lg px-2.5 py-1 text-xs text-white placeholder-[#6b6b75] flex-1 min-w-[200px]"
                 />
                 <button
                   onClick={handleAddAttachment}
-                  className="px-3 py-1 bg-[#c5a059] text-black font-semibold rounded-lg text-xs hover:bg-[#d4b068] transition-colors cursor-pointer"
+                  className="px-3 py-1 bg-[#202026] hover:bg-[#2a2a33] text-white font-medium rounded-lg text-xs transition-colors cursor-pointer"
                 >
-                  Añadir
+                  Añadir Enlace
                 </button>
               </div>
             )}
@@ -988,13 +1241,99 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
         {/* ======================================================== */}
         {/* 7. CONTENEDOR PRINCIPAL (LETRA + BARRA VERTICAL DERECHA) */}
         {/* ======================================================== */}
-        <div className="flex-1 flex overflow-hidden relative">
-          {/* A. ÁREA DE LETRA Y ACORDES (SCROLLABLE) */}
-          <div
-            ref={scrollContainerRef}
-            className="flex-1 overflow-y-auto p-4 sm:p-7 bg-[#0a0a0b] relative select-text scroll-smooth"
-          >
-            {viewMode === 'view' ? (
+        <div className="flex-1 flex flex-col md:flex-row relative">
+          {/* A. ÁREA DE LETRA, ACORDES Y PARTITURAS PDF */}
+          <div className="flex-1 p-4 sm:p-7 bg-[#0a0a0b] relative select-text">
+            {/* VISTA 1: PARTITURA PDF */}
+            {viewMode === 'pdf' && activePdf ? (
+              <div className="bg-[#121215] border border-[#1f1f23] rounded-2xl overflow-hidden shadow-inner flex flex-col min-h-[650px] h-[80vh]">
+                {/* Barra superior del visor PDF */}
+                <div className="p-3 bg-[#18181c] border-b border-[#232328] flex flex-wrap items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText size={16} className="text-[#c5a059] flex-shrink-0" />
+                    <span className="text-xs font-mono font-bold text-white truncate max-w-xs sm:max-w-md">
+                      {activePdf.name}
+                    </span>
+                    <span className="text-[10px] font-mono uppercase bg-[#c5a059]/20 text-[#c5a059] px-2 py-0.5 rounded border border-[#c5a059]/40 font-bold flex-shrink-0">
+                      PDF
+                    </span>
+                  </div>
+
+                  {/* Selector si hay múltiples PDFs */}
+                  {pdfAttachments.length > 1 && (
+                    <div className="flex items-center gap-1.5 bg-[#0a0a0b] px-2.5 py-1 rounded-lg border border-[#232328]">
+                      <span className="text-[10px] font-mono text-[#888894]">Partitura:</span>
+                      <select
+                        value={activePdf.id}
+                        onChange={e => setSelectedPdfId(e.target.value)}
+                        className="bg-transparent text-xs text-white font-mono focus:outline-none cursor-pointer"
+                      >
+                        {pdfAttachments.map(p => (
+                          <option key={p.id} value={p.id} className="bg-[#141418] text-white">
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={activePdf.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1.5 bg-[#202026] hover:bg-[#2a2a33] text-white rounded-lg text-xs font-mono flex items-center gap-1.5 transition-colors"
+                      title="Abrir PDF en pestaña nueva"
+                    >
+                      <ExternalLink size={12} />
+                      <span className="hidden sm:inline">Pestaña nueva</span>
+                    </a>
+                    <a
+                      href={activePdf.url}
+                      download={`${activePdf.name}.pdf`}
+                      className="px-2.5 py-1.5 bg-[#202026] hover:bg-[#2a2a33] text-white rounded-lg text-xs font-mono flex items-center gap-1.5 transition-colors"
+                      title="Descargar archivo PDF"
+                    >
+                      <Download size={12} />
+                      <span className="hidden sm:inline">Descargar</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('view')}
+                      className="px-3 py-1.5 bg-[#c5a059] text-black font-bold rounded-lg text-xs font-mono flex items-center gap-1.5 hover:bg-[#d4b068] transition-colors cursor-pointer"
+                    >
+                      <Eye size={12} />
+                      <span>Volver a Letra</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Iframe embebido del PDF */}
+                <div className="flex-1 w-full h-full bg-[#1e1e24] relative">
+                  <iframe
+                    src={activePdf.url}
+                    title={`Partitura ${activePdf.name}`}
+                    className="w-full h-full border-none"
+                  />
+                </div>
+              </div>
+            ) : viewMode === 'pdf' ? (
+              <div className="bg-[#121215] border border-[#1f1f23] rounded-2xl p-8 text-center">
+                <FileText size={40} className="mx-auto mb-3 text-[#c5a059]" />
+                <h4 className="text-white font-medium text-base mb-1">No hay archivo PDF cargado</h4>
+                <p className="text-xs text-[#8e8e99] max-w-sm mx-auto mb-4">
+                  Sube un archivo PDF (máximo 2 MB) para visualizar la partitura de esta alabanza en pantalla.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-[#c5a059] text-black font-bold text-xs rounded-xl font-mono uppercase tracking-wider inline-flex items-center gap-1.5 cursor-pointer hover:bg-[#d4b068]"
+                >
+                  <Upload size={14} />
+                  <span>Subir archivo PDF</span>
+                </button>
+              </div>
+            ) : viewMode === 'view' ? (
               <div
                 className={`bg-[#121215] border border-[#1f1f23] rounded-2xl p-5 sm:p-8 shadow-inner font-mono ${textSizeClass} leading-relaxed select-text ${
                   columnsCount === 2 ? 'md:columns-2 md:gap-8' : ''
@@ -1147,7 +1486,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
           {/* ======================================================== */}
           {/* B. BARRA VERTICAL DERECHA DE HERRAMIENTAS MUSICALES (ICONOS INTUITIVOS) */}
           {/* ======================================================== */}
-          <aside className="w-14 sm:w-16 bg-[#101013] border-l border-[#1f1f23] flex flex-col items-center py-3 gap-2 flex-shrink-0 select-none z-20 overflow-y-auto">
+          <aside className="w-14 sm:w-16 bg-[#101013] border-l border-[#1f1f23] flex flex-col items-center py-3 gap-2 flex-shrink-0 select-none z-20 md:sticky md:top-0 md:self-start md:max-h-[96vh] overflow-y-auto">
             {/* GRUPO 1: TONALIDAD & TRANSPOSICIÓN */}
             <div className="flex flex-col items-center gap-1 w-full px-1.5 pb-2 border-b border-[#1f1f23]">
               <span className="text-[8px] font-mono uppercase tracking-widest text-[#6b6b75] font-bold">

@@ -116,7 +116,9 @@ export const INITIAL_PRELOADED_ROLES: string[] = [
   'Bajo',
   'Guitarra electrica',
   'Sonido',
+  'Sonido 2',
   'Audio visual',
+  'Audio visual 2',
 ];
 
 export interface PreloadedMusicianData {

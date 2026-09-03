@@ -91,12 +91,10 @@ body.light-theme,
   color: #0f172a !important;
 }
 
-/* Main Cards & Surfaces in Light Mode (White cards) */
+/* Main Cards & Base Surfaces in Light Mode (White cards) */
 .light-theme .bg-\[\#141418\],
 .light-theme .bg-\[\#16161b\],
-.light-theme .bg-\[\#18181c\],
-.light-theme .bg-\[\#1a1a1d\],
-.light-theme .bg-\[\#1a1a1e\],
+.light-theme .bg-\[\#16161a\],
 .light-theme .bg-\[\#1e1e24\],
 .light-theme .bg-\[\#1f1f23\],
 .light-theme .bg-\[\#252529\],
@@ -105,14 +103,48 @@ body.light-theme,
   border-color: #e2e8f0 !important;
 }
 
+/* Card Headers, Table Headers, Inset Bars & Navbars in Light Mode (Crisp slate-50/100 contrast) */
+.light-theme .bg-\[\#1a1a1d\],
+.light-theme .bg-\[\#1a1a1e\],
+.light-theme .bg-\[\#18181c\],
+.light-theme .bg-\[\#18181d\],
+.light-theme .bg-\[\#0f0f12\],
+.light-theme .bg-\[\#0e0e11\],
+.light-theme .bg-\[\#0e0e12\],
+.light-theme .bg-\[\#151518\],
+.light-theme thead,
+.light-theme thead tr {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+
+.light-theme th {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+}
+
+/* Headings in Light Mode */
+.light-theme h1,
+.light-theme h2,
+.light-theme h3,
+.light-theme h4,
+.light-theme h5,
+.light-theme h6 {
+  color: #0f172a !important;
+}
+
 /* Nested Wells, Tables, Inset Panels in Light Mode (Subtle slate tint for visual depth) */
 .light-theme .bg-\[\#0a0a0b\],
+.light-theme .bg-\[\#0b0b0d\],
 .light-theme .bg-\[\#0b0b0e\],
 .light-theme .bg-\[\#0c0c0e\],
 .light-theme .bg-\[\#0d0d10\],
 .light-theme .bg-\[\#101013\],
 .light-theme .bg-\[\#121215\],
-.light-theme .bg-\[\#121216\] {
+.light-theme .bg-\[\#121216\],
+.light-theme .bg-\[\#1b1b1f\],
+.light-theme .bg-\[\#202026\],
+.light-theme .bg-\[\#222228\] {
   background-color: #f8fafc !important;
   border-color: #e2e8f0 !important;
 }
@@ -121,13 +153,17 @@ body.light-theme,
 .light-theme .hover\:bg-\[\#141418\]:hover,
 .light-theme .hover\:bg-\[\#1a1a1d\]:hover,
 .light-theme .hover\:bg-\[\#1a1a1e\]:hover,
+.light-theme .hover\:bg-\[\#18181c\]:hover,
 .light-theme .hover\:bg-\[\#18181d\]:hover,
+.light-theme .hover\:bg-\[\#151518\]:hover,
 .light-theme .hover\:bg-\[\#1f1f23\]:hover,
+.light-theme .hover\:bg-\[\#222228\]:hover,
 .light-theme .hover\:bg-\[\#232328\]:hover,
 .light-theme .hover\:bg-\[\#252529\]:hover,
 .light-theme .hover\:bg-\[\#25252a\]:hover,
-.light-theme .hover\:bg-\[\#282830\]:hover {
-  background-color: #f1f5f9 !important;
+.light-theme .hover\:bg-\[\#282830\]:hover,
+.light-theme .hover\:bg-\[\#2a2a33\]:hover {
+  background-color: #e2e8f0 !important;
   border-color: #cbd5e1 !important;
 }
 
@@ -188,13 +224,19 @@ body.light-theme,
 }
 
 /* Border Hierarchy in Light Mode */
+.light-theme .border-\[\#1a1a1d\],
 .light-theme .border-\[\#1f1f23\],
+.light-theme .border-\[\#202026\],
+.light-theme .border-\[\#222228\],
 .light-theme .border-\[\#232328\],
+.light-theme .border-\[\#242429\],
 .light-theme .border-\[\#26262b\],
 .light-theme .border-\[\#26262e\],
+.light-theme .border-\[\#282830\],
 .light-theme .border-\[\#2a2a2e\],
 .light-theme .border-\[\#2a2a30\],
 .light-theme .border-\[\#2a2a32\],
+.light-theme .border-\[\#2e2e36\],
 .light-theme .border-\[\#33333d\] {
   border-color: #e2e8f0 !important;
 }

@@ -728,10 +728,13 @@ export const WeekView: React.FC<WeekViewProps> = ({
                   )}
 
                   {isDualRole && !hasTechViolation && !hasCategoryViolation && (
-                    <p className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1 font-mono font-medium">
-                      <CheckCircle2 size={11} className="text-emerald-400 flex-shrink-0" />
-                      <span>Doble rol: Instrumento + Voz (Válido)</span>
-                    </p>
+                    <div className="mt-1.5 p-1.5 rounded-lg bg-[#c5a059]/15 border border-[#c5a059]/40 text-[10px] text-[#e0c588] font-mono font-medium flex items-center gap-1.5">
+                      <Layers size={11} className="text-[#c5a059] flex-shrink-0" />
+                      <span>
+                        Doble rol: <strong>{role.name}</strong> +{' '}
+                        <strong>{assignedInOtherRoleMap.get(currentMusicianId) || 'Otro puesto'}</strong>
+                      </span>
+                    </div>
                   )}
                 </div>
               );
@@ -782,6 +785,16 @@ export const WeekView: React.FC<WeekViewProps> = ({
                     >
                       {assignedCount}/{adjustedTotalRequired} Confirmados
                     </span>
+
+                    {dualRoleMusicians.size > 0 && (
+                      <span
+                        className="text-xs font-mono px-2.5 py-1 rounded-lg font-bold bg-[#c5a059]/15 text-[#c5a059] border border-[#c5a059]/40 flex items-center gap-1.5"
+                        title="Integrantes asignados a más de un rol en este culto"
+                      >
+                        <Layers size={12} />
+                        <span>{dualRoleMusicians.size} con doble rol</span>
+                      </span>
+                    )}
                   </div>
                 </div>
 

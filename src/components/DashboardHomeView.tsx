@@ -82,67 +82,6 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
 
   return (
     <div className="space-y-6" id="dashboard-home-view">
-      {/* Banner Principal de Bienvenida */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#18181c] via-[#121215] to-[#0d0d10] border border-[#232328] rounded-3xl p-6 sm:p-8 shadow-xl">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[#c5a059]/5 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
-        
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#c5a059]/10 border border-[#c5a059]/30 text-[#c5a059] text-xs font-mono font-semibold uppercase tracking-widest">
-              <Sparkles size={13} />
-              <span>Ministerio de Alabanza · Iglesia Dios es Amor</span>
-            </div>
-            
-            <h2 className="font-serif text-3xl sm:text-4xl text-white font-light tracking-tight">
-              Plataforma de <span className="italic text-[#c5a059] font-normal">Alabanza & Adoración</span>
-            </h2>
-            
-            <p className="text-sm text-[#8e8e99] leading-relaxed">
-              Gestiona el repertorio de alabanzas, letras con acordes en cifrado americano, diagramas de instrumentos, calendario de cultos y roles del equipo.
-            </p>
-          </div>
-
-          {/* Métricas rápidas */}
-          <div className="grid grid-cols-3 gap-2.5 sm:gap-4 flex-shrink-0">
-            <div 
-              onClick={() => onNavigateTab('canciones')}
-              className="bg-[#0a0a0b]/80 backdrop-blur-sm border border-[#26262e] hover:border-[#c5a059]/50 p-3 sm:p-4 rounded-2xl text-center cursor-pointer transition-all hover:scale-105"
-            >
-              <div className="text-2xl sm:text-3xl font-serif text-[#c5a059] font-medium">
-                {state.songCatalog?.length || 0}
-              </div>
-              <div className="text-[10px] font-mono text-[#8e8e99] uppercase tracking-wider mt-0.5">
-                Canciones
-              </div>
-            </div>
-
-            <div 
-              onClick={() => onNavigateTab('calendario')}
-              className="bg-[#0a0a0b]/80 backdrop-blur-sm border border-[#26262e] hover:border-[#c5a059]/50 p-3 sm:p-4 rounded-2xl text-center cursor-pointer transition-all hover:scale-105"
-            >
-              <div className="text-2xl sm:text-3xl font-serif text-white font-medium">
-                {state.slots?.length || 0}
-              </div>
-              <div className="text-[10px] font-mono text-[#8e8e99] uppercase tracking-wider mt-0.5">
-                Turnos
-              </div>
-            </div>
-
-            <div 
-              onClick={() => onNavigateTab('musicos')}
-              className="bg-[#0a0a0b]/80 backdrop-blur-sm border border-[#26262e] hover:border-[#c5a059]/50 p-3 sm:p-4 rounded-2xl text-center cursor-pointer transition-all hover:scale-105"
-            >
-              <div className="text-2xl sm:text-3xl font-serif text-amber-400 font-medium">
-                {state.musicians?.length || 0}
-              </div>
-              <div className="text-[10px] font-mono text-[#8e8e99] uppercase tracking-wider mt-0.5">
-                Integrantes
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Grid Principal: Próximo Servicio & Repertorio */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Columna Izquierda & Central (2 columnas): Próximo Evento y Repertorio Activo */}
