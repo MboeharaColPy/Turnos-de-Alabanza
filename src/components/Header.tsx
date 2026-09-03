@@ -50,6 +50,7 @@ interface HeaderProps {
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   onChangeAdminPassword?: (newPass: string) => void;
+  adminPassword?: string;
   isInstallable?: boolean;
   isInstalled?: boolean;
   isIOS?: boolean;
@@ -69,14 +70,17 @@ export const Header: React.FC<HeaderProps> = ({
   theme = 'dark',
   onToggleTheme,
   onChangeAdminPassword,
+  adminPassword = 'alabanza2026',
   isInstallable = false,
   isInstalled = false,
   isIOS = false,
   onInstallApp,
 }) => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPass, setCurrentPass] = useState('');
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [passError, setPassError] = useState('');
   const [passSuccess, setPassSuccess] = useState(false);
@@ -98,16 +102,20 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleSaveNewPassword = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPass.trim()) {
-      setPassError('Escribe una contraseña válida.');
+    setPassError('');
+    setPassSuccess(false);
+
+    const actualCurrent = (adminPassword || 'alabanza2026').trim();
+    if (currentPass.trim() !== actualCurrent) {
+      setPassError('La contraseña actual ingresada es incorrecta.');
       return;
     }
-    if (newPass.length < 4) {
-      setPassError('La contraseña debe tener al menos 4 caracteres.');
+    if (newPass.trim().length < 6) {
+      setPassError('La nueva contraseña debe tener al menos 6 caracteres.');
       return;
     }
-    if (newPass !== confirmPass) {
-      setPassError('Las contraseñas no coinciden.');
+    if (newPass.trim() !== confirmPass.trim()) {
+      setPassError('La nueva contraseña y su confirmación no coinciden.');
       return;
     }
 
@@ -118,6 +126,7 @@ export const Header: React.FC<HeaderProps> = ({
     setTimeout(() => {
       setPassSuccess(false);
       setShowPasswordModal(false);
+      setCurrentPass('');
       setNewPass('');
       setConfirmPass('');
       setPassError('');
@@ -408,7 +417,30 @@ export const Header: React.FC<HeaderProps> = ({
             <form onSubmit={handleSaveNewPassword} className="space-y-3">
               <div>
                 <label className="block text-xs font-mono uppercase text-[#888894] mb-1">
-                  Nueva Contraseña
+                  Contraseña Actual
+                </label>
+                <div className="relative">
+                  <input
+                    type={showCurrentPass ? 'text' : 'password'}
+                    required
+                    value={currentPass}
+                    onChange={e => setCurrentPass(e.target.value)}
+                    placeholder="Ingresa la contraseña actual..."
+                    className="w-full bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none pr-9 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPass(!showCurrentPass)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#888894] hover:text-white"
+                  >
+                    {showCurrentPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono uppercase text-[#888894] mb-1">
+                  Nueva Contraseña (mínimo 6 caracteres)
                 </label>
                 <div className="relative">
                   <input
@@ -416,7 +448,7 @@ export const Header: React.FC<HeaderProps> = ({
                     required
                     value={newPass}
                     onChange={e => setNewPass(e.target.value)}
-                    placeholder="Mínimo 4 caracteres..."
+                    placeholder="Mínimo 6 caracteres..."
                     className="w-full bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none pr-9 font-mono"
                   />
                   <button
@@ -438,7 +470,7 @@ export const Header: React.FC<HeaderProps> = ({
                   required
                   value={confirmPass}
                   onChange={e => setConfirmPass(e.target.value)}
-                  placeholder="Repite la contraseña..."
+                  placeholder="Repite la nueva contraseña..."
                   className="w-full bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none font-mono"
                 />
               </div>

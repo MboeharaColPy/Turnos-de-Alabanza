@@ -19,7 +19,7 @@ interface EventsAgendaViewProps {
   onWeekChange: (date: Date) => void;
   onApplySchedule: (newAssignments: Record<string, Record<string, string>>) => void;
   onSelectWeek: (startOfWeek: Date) => void;
-  onSelectSong: (song: SongItem) => void;
+  onSelectSong: (song: SongItem, contextSongs?: SongItem[]) => void;
   onOpenCatalog?: () => void;
   onUpdateAssignment: (slotInstanceKey: string, roleId: string, musicianId: string) => void;
   onUpdateSongs: (shiftKey: string, songs: SongItem[]) => void;

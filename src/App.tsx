@@ -55,6 +55,22 @@ export default function App() {
     return (localStorage.getItem('alabanza_theme') as 'dark' | 'light') || 'dark';
   });
 
+  useEffect(() => {
+    if (theme === 'light') {
+      document.documentElement.classList.add('light-theme');
+      document.documentElement.classList.remove('dark-theme');
+      document.documentElement.setAttribute('data-theme', 'light');
+      document.body.classList.add('light-theme');
+      document.body.classList.remove('dark-theme');
+    } else {
+      document.documentElement.classList.add('dark-theme');
+      document.documentElement.classList.remove('light-theme');
+      document.documentElement.setAttribute('data-theme', 'dark');
+      document.body.classList.add('dark-theme');
+      document.body.classList.remove('light-theme');
+    }
+  }, [theme]);
+
   const handleToggleTheme = () => {
     setTheme(prev => {
       const next = prev === 'dark' ? 'light' : 'dark';
@@ -73,8 +89,14 @@ export default function App() {
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [pendingTab, setPendingTab] = useState<ActiveTab | null>(null);
 
-  // Selected Song for Lyrics & Chords Modal
+  // Selected Song for Lyrics & Chords Modal with Contextual Navigation (Setlist)
   const [selectedSongForLyrics, setSelectedSongForLyrics] = useState<SongItem | null>(null);
+  const [lyricsContextSongs, setLyricsContextSongs] = useState<SongItem[] | null>(null);
+
+  const handleOpenSongLyrics = (song: SongItem, contextSongs?: SongItem[]) => {
+    setSelectedSongForLyrics(song);
+    setLyricsContextSongs(contextSongs && contextSongs.length > 0 ? contextSongs : null);
+  };
 
   // Escuchar cambios en tiempo real desde Firestore en la nube
   useEffect(() => {
@@ -132,8 +154,8 @@ export default function App() {
   // --- Admin Authentication Handlers ---
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const correctPassword = state.adminPassword || 'alabanza2026';
-    if (adminPasswordInput === correctPassword || adminPasswordInput === '1234' || adminPasswordInput === 'admin') {
+    const correctPassword = (state.adminPassword || 'alabanza2026').trim();
+    if (adminPasswordInput.trim() === correctPassword) {
       setIsAdmin(true);
       sessionStorage.setItem('alabanza_admin_auth', 'true');
       setShowAdminModal(false);
@@ -353,6 +375,25 @@ export default function App() {
           }
         : curr
     );
+
+    // Sync contextual songs list with the updated song data
+    setLyricsContextSongs(prevContext =>
+      prevContext
+        ? prevContext.map(s =>
+            s.id === songId
+              ? {
+                  ...s,
+                  lyrics: updatedLyrics,
+                  ...(updatedKey ? { key: updatedKey } : {}),
+                  ...(updatedBpm !== undefined ? { bpm: updatedBpm } : {}),
+                  ...(updatedYoutubeUrl !== undefined ? { youtubeUrl: updatedYoutubeUrl } : {}),
+                  ...(updatedAttachments !== undefined ? { attachments: updatedAttachments } : {}),
+                }
+              : s
+          )
+        : null
+    );
+
     showToast('¡Letra, tono y ajustes de la canción guardados!');
   };
 
@@ -579,8 +620,8 @@ export default function App() {
     <div
       className={`min-h-screen font-sans selection:bg-[#c5a059] selection:text-black pb-24 transition-colors duration-200 ${
         theme === 'light'
-          ? 'bg-[#f4f5f8] text-[#1c1d22]'
-          : 'bg-[#0a0a0b] text-[#e0e0e0]'
+          ? 'light-theme bg-[#f4f5f8] text-[#0f172a]'
+          : 'dark-theme bg-[#0a0a0b] text-[#e0e0e0]'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
@@ -611,6 +652,7 @@ export default function App() {
           theme={theme}
           onToggleTheme={handleToggleTheme}
           onChangeAdminPassword={handleUpdateAdminPassword}
+          adminPassword={state.adminPassword || 'alabanza2026'}
           isInstallable={isInstallable}
           isInstalled={isInstalled}
           isIOS={isIOS}
@@ -631,7 +673,7 @@ export default function App() {
                   setActiveTab(tab);
                 }
               }}
-              onSelectSong={song => setSelectedSongForLyrics(song)}
+              onSelectSong={(song, contextSongs) => handleOpenSongLyrics(song, contextSongs)}
             />
           )}
 
@@ -641,7 +683,7 @@ export default function App() {
               songs={state.songCatalog || []}
               isAdmin={isAdmin}
               onAddSong={handleAddSongDirectToCatalog}
-              onSelectSong={song => setSelectedSongForLyrics(song)}
+              onSelectSong={(song, contextSongs) => handleOpenSongLyrics(song, contextSongs)}
             />
           )}
 
@@ -654,7 +696,7 @@ export default function App() {
               onWeekChange={setCurrentWeekStart}
               onApplySchedule={handleApplySchedule}
               onSelectWeek={handleSelectWeekFromMonth}
-              onSelectSong={song => setSelectedSongForLyrics(song)}
+              onSelectSong={(song, contextSongs) => handleOpenSongLyrics(song, contextSongs)}
               onOpenCatalog={() => setActiveTab('canciones')}
               onUpdateAssignment={handleUpdateAssignment}
               onUpdateSongs={handleUpdateSongs}
@@ -673,7 +715,7 @@ export default function App() {
               isAdmin={isAdmin}
               onApplySchedule={handleApplySchedule}
               onSelectWeek={handleSelectWeekFromMonth}
-              onSelectSong={song => setSelectedSongForLyrics(song)}
+              onSelectSong={(song, contextSongs) => handleOpenSongLyrics(song, contextSongs)}
               showToast={showToast}
               onRequestAdmin={() => handleRequestAdminModal()}
             />
@@ -688,7 +730,7 @@ export default function App() {
               onUpdateAssignment={handleUpdateAssignment}
               onUpdateSongs={handleUpdateSongs}
               onAddToCatalog={handleAddToCatalog}
-              onSelectSong={song => setSelectedSongForLyrics(song)}
+              onSelectSong={(song, contextSongs) => handleOpenSongLyrics(song, contextSongs)}
               onOpenCatalog={() => setActiveTab('canciones')}
               onClearWeek={handleClearWeek}
               onRestoreWeek={handleRestoreWeek}
@@ -767,11 +809,14 @@ export default function App() {
         <SongLyricsModal
           song={selectedSongForLyrics}
           isAdmin={isAdmin}
-          onClose={() => setSelectedSongForLyrics(null)}
+          onClose={() => {
+            setSelectedSongForLyrics(null);
+            setLyricsContextSongs(null);
+          }}
           onSaveSongLyrics={handleSaveSongLyrics}
           onRequestAdmin={() => handleRequestAdminModal()}
           showToast={showToast}
-          allSongs={state.songCatalog || []}
+          allSongs={lyricsContextSongs && lyricsContextSongs.length > 0 ? lyricsContextSongs : (state.songCatalog || [])}
           onNavigateToSong={song => setSelectedSongForLyrics(song)}
         />
       )}

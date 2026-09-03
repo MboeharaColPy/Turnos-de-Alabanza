@@ -41,7 +41,7 @@ interface MonthCalendarViewProps {
   isAdmin: boolean;
   onApplySchedule: (newAssignments: Record<string, Record<string, string>>) => void;
   onSelectWeek: (weekStart: Date) => void;
-  onSelectSong?: (song: SongItem) => void;
+  onSelectSong?: (song: SongItem, contextSongs?: SongItem[]) => void;
   showToast: (msg: string) => void;
   onRequestAdmin?: () => void;
 }
@@ -889,7 +889,7 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                             {evt.songs.map((song, sIdx) => (
                               <button
                                 key={song.id || sIdx}
-                                onClick={() => onSelectSong && onSelectSong(song)}
+                                onClick={() => onSelectSong && onSelectSong(song, evt.songs)}
                                 type="button"
                                 className="text-left bg-[#0a0a0b] hover:bg-[#18181d] border border-[#232328] hover:border-[#c5a059] p-2.5 rounded-xl flex items-center justify-between gap-2 transition-all group cursor-pointer"
                                 title="Ver letra y notas de esta canción"

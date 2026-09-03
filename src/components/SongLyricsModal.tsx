@@ -222,6 +222,9 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
     setIsMetronomeActive(false);
     setShowKeyPickerPopover(false);
     setShowCapoPickerPopover(false);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
   }, [song.id, song.lyrics, song.key, song.bpm, song.youtubeUrl, song.attachments]);
 
   // Transposed text calculation (considering semitones and Capo)
@@ -280,6 +283,23 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
 
   const prevSong = currentSongIndex > 0 ? allSongs[currentSongIndex - 1] : null;
   const nextSong = currentSongIndex >= 0 && currentSongIndex < allSongs.length - 1 ? allSongs[currentSongIndex + 1] : null;
+
+  // Keyboard shortcut listener for previous/next song
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = (document.activeElement?.tagName || '').toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea') return;
+      if (e.key === 'ArrowLeft' && prevSong && onNavigateToSong) {
+        e.preventDefault();
+        onNavigateToSong(prevSong);
+      } else if (e.key === 'ArrowRight' && nextSong && onNavigateToSong) {
+        e.preventDefault();
+        onNavigateToSong(nextSong);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [prevSong, nextSong, onNavigateToSong]);
 
   const scrollToSection = (lineIndex: number) => {
     const el = document.getElementById(`section-node-${lineIndex}`);
@@ -578,8 +598,8 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                 >
                   <ChevronLeft size={16} />
                 </button>
-                <span className="text-[10px] font-mono text-[#888894] px-2 font-medium">
-                  {currentSongIndex + 1}/{allSongs.length}
+                <span className="text-[10px] font-mono text-[#888894] px-2 font-medium whitespace-nowrap">
+                  {currentSongIndex >= 0 ? currentSongIndex + 1 : 1} de {allSongs.length}
                 </span>
                 <button
                   onClick={() => nextSong && onNavigateToSong(nextSong)}
