@@ -19,10 +19,10 @@
   --text-primary: #f0f0f5;
   --text-secondary: #a0a0ab;
   --text-muted: #6b6b75;
-  --accent: #c5a059;
-  --accent-hover: #d4b068;
-  --accent-subtle: rgba(197, 160, 89, 0.12);
-  --accent-border: rgba(197, 160, 89, 0.35);
+  --accent: #fcd34d;
+  --accent-hover: #fbbf24;
+  --accent-subtle: rgba(252, 211, 77, 0.15);
+  --accent-border: rgba(252, 211, 77, 0.4);
 }
 
 .light-theme,
@@ -48,6 +48,7 @@ body {
   background-color: var(--bg-page);
   color: var(--text-primary);
   transition: background-color 0.2s ease, color 0.2s ease;
+  font-size: 17px;
 }
 
 .font-serif {
@@ -140,6 +141,7 @@ body.light-theme,
 .light-theme .bg-\[\#0b0b0e\],
 .light-theme .bg-\[\#0c0c0e\],
 .light-theme .bg-\[\#0c0c0e\]\/80,
+.light-theme .bg-\[\#0c0c0f\],
 .light-theme .bg-\[\#0d0d10\],
 .light-theme .bg-\[\#0e0e11\],
 .light-theme .bg-\[\#0e0e11\]\/60,
@@ -176,6 +178,8 @@ body.light-theme,
 .light-theme .hover\:bg-\[\#232328\]:hover,
 .light-theme .hover\:bg-\[\#252529\]:hover,
 .light-theme .hover\:bg-\[\#25252a\]:hover,
+.light-theme .hover\:bg-\[\#252530\]:hover,
+.light-theme .hover\:bg-\[\#2a2a36\]:hover,
 .light-theme .hover\:bg-\[\#282830\]:hover,
 .light-theme .hover\:bg-\[\#2a2a33\]:hover {
   background-color: #e2e8f0 !important;
@@ -298,54 +302,64 @@ body.light-theme,
 /* Voice M (Female Vocals - Rose) in Light Mode */
 .light-theme .bg-rose-950\/20,
 .light-theme .bg-rose-950\/25,
-.light-theme .bg-rose-950\/30 {
+.light-theme .bg-rose-950\/30,
+.light-theme .bg-rose-500\/10 {
   background-color: #fff1f2 !important;
 }
 .light-theme .border-rose-800\/40,
 .light-theme .border-rose-800\/50,
 .light-theme .border-rose-900\/30,
-.light-theme .border-rose-900\/40 {
+.light-theme .border-rose-900\/40,
+.light-theme .border-rose-500\/30 {
   border-color: #fecdd3 !important;
 }
 .light-theme .bg-rose-950\/70 {
   background-color: #ffe4e6 !important;
 }
 .light-theme .text-rose-300,
-.light-theme .text-rose-400 {
+.light-theme .text-rose-400,
+.light-theme .text-rose-500 {
   color: #be123c !important;
   font-weight: 600 !important;
 }
 
 /* Sound / Multimedia (Cyan) in Light Mode */
 .light-theme .bg-cyan-950\/20,
-.light-theme .bg-cyan-950\/25 {
+.light-theme .bg-cyan-950\/25,
+.light-theme .bg-cyan-500\/10 {
   background-color: #ecfeff !important;
 }
 .light-theme .border-cyan-700\/50,
 .light-theme .border-cyan-800\/40,
-.light-theme .border-cyan-900\/40 {
+.light-theme .border-cyan-900\/40,
+.light-theme .border-cyan-500\/30 {
   border-color: #a5f3fc !important;
 }
 .light-theme .bg-cyan-950\/70 {
   background-color: #cffafe !important;
 }
 .light-theme .text-cyan-300,
-.light-theme .text-cyan-400 {
+.light-theme .text-cyan-400,
+.light-theme .text-cyan-500 {
   color: #0e7490 !important;
   font-weight: 600 !important;
 }
 
 /* Director / Amber Badges in Light Mode */
 .light-theme .bg-amber-950\/20,
-.light-theme .bg-amber-950\/60 {
+.light-theme .bg-amber-950\/60,
+.light-theme .bg-amber-500\/10 {
   background-color: #fef3c7 !important;
 }
 .light-theme .border-amber-700\/50,
-.light-theme .border-amber-800\/40 {
+.light-theme .border-amber-800\/40,
+.light-theme .border-amber-500\/30 {
   border-color: #fde68a !important;
 }
 .light-theme .text-amber-200,
-.light-theme .text-amber-300 {
+.light-theme .text-amber-300,
+.light-theme .text-amber-400,
+.light-theme .text-amber-500 {
   color: #92400e !important;
   font-weight: 600 !important;
 }
@@ -373,16 +387,19 @@ body.light-theme,
 
 /* Success / Convocados Badges (Emerald) in Light Mode */
 .light-theme .bg-emerald-950\/20,
-.light-theme .bg-emerald-950\/40 {
+.light-theme .bg-emerald-950\/40,
+.light-theme .bg-emerald-500\/10 {
   background-color: #ecfdf5 !important;
 }
 .light-theme .border-emerald-800\/40,
 .light-theme .border-emerald-800\/50,
-.light-theme .border-emerald-900\/40 {
+.light-theme .border-emerald-900\/40,
+.light-theme .border-emerald-500\/30 {
   border-color: #a7f3d0 !important;
 }
 .light-theme .text-emerald-300,
-.light-theme .text-emerald-400 {
+.light-theme .text-emerald-400,
+.light-theme .text-emerald-500 {
   color: #047857 !important;
   font-weight: 600 !important;
 }

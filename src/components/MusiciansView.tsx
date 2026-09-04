@@ -407,127 +407,108 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
   }, [state.musicians, state.couples]);
 
   return (
-    <div className="space-y-8" id="musicians-view">
+    <div className="space-y-4" id="musicians-view">
       {/* ======================================================== */}
       {/* 1. SECCIÓN PRINCIPAL: LISTADO DE PERSONAS / MÚSICOS      */}
       {/* ======================================================== */}
-      <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-5 sm:p-7 shadow-xl space-y-5">
-        {/* Cabecera Principal */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#1f1f23] pb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#c5a059]/10 border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059] flex-shrink-0">
-              <Users size={20} />
+      <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-3 sm:p-4 shadow-xl space-y-3">
+        {/* Panel Unificado y Compacto: Título, Búsqueda, Filtros, Vistas y Acciones */}
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+          {/* Título y Estadísticas */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-[#c5a059]/10 border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059] flex-shrink-0">
+              <Users size={18} />
             </div>
-            <div>
-              <h2 className="font-serif text-2xl font-normal tracking-tight text-white flex items-center gap-2">
-                <span>Directorio de</span>
-                <span className="italic text-[#c5a059]">Integrantes</span>
-                <span className="text-xs font-mono text-[#888894] font-normal">
-                  ({filteredAndSortedMusicians.length} de {state.musicians.length})
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="font-serif text-lg sm:text-xl font-normal tracking-tight text-white flex items-center gap-1.5 truncate">
+                  <span>Directorio de</span>
+                  <span className="italic text-[#c5a059]">Integrantes</span>
+                </h2>
+                <span className="text-[11px] font-mono text-[#888894] px-2 py-0.5 bg-[#0a0a0b] border border-[#26262b] rounded-lg">
+                  {filteredAndSortedMusicians.length} de {state.musicians.length}
                 </span>
-              </h2>
-              <div className="flex items-center gap-3 text-xs text-[#888894] mt-0.5 flex-wrap">
-                <span>{totalMen} Varones</span>
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-[#888894] mt-0.5 font-mono">
+                <span>{totalMen} H</span>
                 <span>•</span>
-                <span>{totalWomen} Mujeres</span>
+                <span>{totalWomen} M</span>
                 <span>•</span>
-                <span>{state.couples.length} Parejas ({totalCoupled} personas)</span>
+                <span>{state.couples.length} parejas</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
+          {/* Barra de Herramientas Compacta en una sola fila */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             {/* Buscador de Nombre */}
-            <div className="relative min-w-[200px] flex-1 sm:flex-none">
+            <div className="relative flex-1 sm:w-48 xl:w-56 min-w-[140px]">
               <Search
-                size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6b6b75]"
+                size={13}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6b6b75]"
               />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Buscar por nombre..."
-                className="w-full bg-[#0a0a0b] text-[#e0e0e0] text-xs rounded-xl pl-9 pr-3.5 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none placeholder-[#6b6b75] transition-colors"
+                className="w-full h-9 bg-[#0a0a0b] text-[#e0e0e0] text-xs rounded-xl pl-8 pr-3 border border-[#26262b] focus:border-[#c5a059] focus:outline-none placeholder-[#6b6b75] transition-colors"
               />
             </div>
 
-            {/* BOTÓN NUEVO INTEGRANTE */}
-            <button
-              onClick={handleOpenNewModal}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#c5a059] hover:bg-[#d4b068] text-black font-semibold text-xs font-mono uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-lg shadow-[#c5a059]/10 hover:shadow-[#c5a059]/20 active:scale-95 flex-shrink-0"
-              id="open-new-musician-btn"
-            >
-              <UserPlus size={15} />
-              <span>Nuevo Integrante</span>
-            </button>
-          </div>
-        </div>
+            {/* Modos de Vista (Solo Íconos) */}
+            <div className="h-9 inline-flex items-center bg-[#0a0a0b] p-0.5 rounded-xl border border-[#26262b] flex-shrink-0">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`h-7.5 w-8 inline-flex items-center justify-center rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'grid'
+                    ? 'bg-[#c5a059] text-black font-bold shadow-sm'
+                    : 'text-[#888894] hover:text-white hover:bg-[#1f1f23]'
+                }`}
+                title="Vista de Tarjetas / Ventana"
+              >
+                <LayoutGrid size={15} />
+              </button>
 
-        {/* BARRA DE CONTROLES: MODOS DE VISUALIZACIÓN Y ORDENACIÓN */}
-        <div className="bg-[#0a0a0b] p-3 rounded-xl border border-[#1f1f23] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 text-xs">
-          {/* Selector de Modo de Visualización (Ventana / Listado / Detalles) */}
-          <div className="flex items-center gap-1.5 bg-[#141418] p-1 rounded-lg border border-[#1f1f23]">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[#6b6b75] px-2 hidden sm:inline">
-              Vista:
-            </span>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-mono text-[11px] uppercase tracking-wider transition-all cursor-pointer ${
-                viewMode === 'grid'
-                  ? 'bg-[#c5a059] text-black font-bold shadow-sm'
-                  : 'text-[#888894] hover:text-white hover:bg-[#1f1f23]'
-              }`}
-              title="Vista de Tarjetas / Ventana"
-            >
-              <LayoutGrid size={13} />
-              <span>Ventana</span>
-            </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`h-7.5 w-8 inline-flex items-center justify-center rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'list'
+                    ? 'bg-[#c5a059] text-black font-bold shadow-sm'
+                    : 'text-[#888894] hover:text-white hover:bg-[#1f1f23]'
+                }`}
+                title="Vista de Listado / Tabla compacta"
+              >
+                <List size={15} />
+              </button>
 
-            <button
-              onClick={() => setViewMode('list')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-mono text-[11px] uppercase tracking-wider transition-all cursor-pointer ${
-                viewMode === 'list'
-                  ? 'bg-[#c5a059] text-black font-bold shadow-sm'
-                  : 'text-[#888894] hover:text-white hover:bg-[#1f1f23]'
-              }`}
-              title="Vista de Listado / Tabla compacta"
-            >
-              <List size={13} />
-              <span>Listado</span>
-            </button>
+              <button
+                onClick={() => setViewMode('details')}
+                className={`h-7.5 w-8 inline-flex items-center justify-center rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'details'
+                    ? 'bg-[#c5a059] text-black font-bold shadow-sm'
+                    : 'text-[#888894] hover:text-white hover:bg-[#1f1f23]'
+                }`}
+                title="Vista de Detalles Completos"
+              >
+                <Layers size={15} />
+              </button>
+            </div>
 
-            <button
-              onClick={() => setViewMode('details')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-mono text-[11px] uppercase tracking-wider transition-all cursor-pointer ${
-                viewMode === 'details'
-                  ? 'bg-[#c5a059] text-black font-bold shadow-sm'
-                  : 'text-[#888894] hover:text-white hover:bg-[#1f1f23]'
-              }`}
-              title="Vista de Detalles Completos"
-            >
-              <Layers size={13} />
-              <span>Detalles</span>
-            </button>
-          </div>
-
-          {/* Selector de Ordenación (Alfabético / Rol / Género / Roles) */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <ArrowUpDown size={13} className="text-[#c5a059]" />
-              <span className="text-[10px] font-mono uppercase tracking-wider text-[#6b6b75]">
-                Organizar por:
-              </span>
+            {/* Selector de Ordenación Compacto */}
+            <div className="h-9 inline-flex items-center gap-1.5 bg-[#0a0a0b] px-2.5 rounded-xl border border-[#26262b] flex-shrink-0">
+              <ArrowUpDown size={12} className="text-[#c5a059]" />
               <select
                 value={sortBy}
                 onChange={e => setSortBy(e.target.value as SortOption)}
-                className="bg-[#141418] text-white text-xs rounded-lg px-2.5 py-1.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none cursor-pointer font-mono"
+                className="bg-transparent text-white text-xs focus:outline-none cursor-pointer font-mono"
+                title="Organizar por"
               >
-                <option value="name_asc">Alfabético (A → Z)</option>
-                <option value="name_desc">Alfabético (Z → A)</option>
-                <option value="role">Rol Primordial</option>
-                <option value="gender">Género (H / M)</option>
-                <option value="roles_count">Cantidad de Roles</option>
+                <option value="name_asc" className="bg-[#141418]">A → Z</option>
+                <option value="name_desc" className="bg-[#141418]">Z → A</option>
+                <option value="role" className="bg-[#141418]">Rol Principal</option>
+                <option value="gender" className="bg-[#141418]">Género</option>
+                <option value="roles_count" className="bg-[#141418]">Cant. Roles</option>
               </select>
             </div>
 
@@ -535,31 +516,43 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
             <select
               value={genderFilter}
               onChange={e => setGenderFilter(e.target.value as 'ALL' | 'H' | 'M')}
-              className="bg-[#141418] text-[#888894] text-xs rounded-lg px-2 py-1.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none cursor-pointer font-mono"
+              className="h-9 bg-[#0a0a0b] text-[#888894] text-xs rounded-xl px-2.5 border border-[#26262b] focus:border-[#c5a059] focus:outline-none cursor-pointer font-mono flex-shrink-0"
+              title="Filtrar por género"
             >
-              <option value="ALL">Género: Todos</option>
-              <option value="H">Solo Varones (H)</option>
-              <option value="M">Solo Mujeres (M)</option>
+              <option value="ALL" className="bg-[#141418]">Género: Todos</option>
+              <option value="H" className="bg-[#141418]">Varones (H)</option>
+              <option value="M" className="bg-[#141418]">Mujeres (M)</option>
             </select>
 
             {/* Filtro Rápido por Pareja */}
             <select
               value={coupleFilter}
               onChange={e => setCoupleFilter(e.target.value as 'ALL' | 'COUPLED' | 'SINGLE')}
-              className="bg-[#141418] text-[#888894] text-xs rounded-lg px-2 py-1.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none cursor-pointer font-mono"
+              className="h-9 bg-[#0a0a0b] text-[#888894] text-xs rounded-xl px-2.5 border border-[#26262b] focus:border-[#c5a059] focus:outline-none cursor-pointer font-mono flex-shrink-0"
+              title="Filtrar por pareja"
             >
-              <option value="ALL">Pareja: Todas</option>
-              <option value="COUPLED">Con Pareja</option>
-              <option value="SINGLE">Sin Pareja</option>
+              <option value="ALL" className="bg-[#141418]">Pareja: Todas</option>
+              <option value="COUPLED" className="bg-[#141418]">Con Pareja</option>
+              <option value="SINGLE" className="bg-[#141418]">Sin Pareja</option>
             </select>
+
+            {/* BOTÓN NUEVO INTEGRANTE (Solo Ícono) */}
+            <button
+              onClick={handleOpenNewModal}
+              className="h-9 w-9 inline-flex items-center justify-center bg-[#c5a059] hover:bg-[#d4b068] text-black rounded-xl transition-all cursor-pointer shadow-md shadow-[#c5a059]/15 active:scale-95 flex-shrink-0"
+              title="Nuevo Integrante"
+              id="open-new-musician-btn"
+            >
+              <UserPlus size={16} />
+            </button>
           </div>
         </div>
 
         {/* Barra de Filtros por Rol Específico */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-mono">
+        <div className="flex items-center gap-1.5 overflow-x-auto pt-1 pb-0.5 text-xs font-mono border-t border-[#1f1f23]">
           <button
             onClick={() => setSelectedRoleFilter('ALL')}
-            className={`px-3 py-1.5 rounded-lg text-[11px] uppercase tracking-wider border whitespace-nowrap cursor-pointer transition-all ${
+            className={`px-2.5 py-1 rounded-lg text-[11px] uppercase tracking-wider border whitespace-nowrap cursor-pointer transition-all ${
               selectedRoleFilter === 'ALL'
                 ? 'bg-[#1a1a1d] text-white border-[#c5a059]/40 shadow-[inset_0_0_10px_rgba(197,160,89,0.08)] font-semibold'
                 : 'bg-[#0a0a0b] text-[#6b6b75] border-[#1f1f23] hover:text-white'
@@ -573,7 +566,7 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
               <button
                 key={r.id}
                 onClick={() => setSelectedRoleFilter(r.id)}
-                className={`px-3 py-1.5 rounded-lg text-[11px] uppercase tracking-wider border whitespace-nowrap cursor-pointer transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] uppercase tracking-wider border whitespace-nowrap cursor-pointer transition-all ${
                   selectedRoleFilter === r.id
                     ? 'bg-[#1a1a1d] text-[#c5a059] border-[#c5a059]/40 shadow-[inset_0_0_10px_rgba(197,160,89,0.08)] font-semibold'
                     : 'bg-[#0a0a0b] text-[#6b6b75] border-[#1f1f23] hover:text-white'

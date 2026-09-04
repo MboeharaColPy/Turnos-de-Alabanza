@@ -148,27 +148,125 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
   };
 
   return (
-    <div className="space-y-6" id="song-catalog-view">
-      {/* Header Banner */}
-      <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-6 sm:p-8 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-mono text-[#c5a059] uppercase tracking-widest mb-1 font-bold">
-              <BookOpen size={14} />
-              <span>Repertorio Oficial de Alabanzas</span>
-            </div>
-            <h2 className="font-serif text-3xl font-light text-white">
-              Cancionero de <span className="italic text-[#c5a059]">Alabanza & Adoración</span>
-            </h2>
-            <p className="text-xs text-[#888894] mt-1 max-w-xl">
-              Cifrado americano directo sin corchetes, filtros por BPM y categorías para programar cultos.
-            </p>
+    <div className="space-y-4" id="song-catalog-view">
+      {/* Barra de Búsqueda y Filtros Compacta Unificada */}
+      <div className="bg-[#141418] border border-[#1f1f23] rounded-xl p-2.5 sm:p-3 shadow-md">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Buscador */}
+          <div className="relative flex-1 min-w-[180px] sm:min-w-[220px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6b6b75]" size={14} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Buscar por título, artista o tono..."
+              className="w-full pl-9 pr-7 py-1.5 bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-lg text-xs text-white placeholder-[#6b6b75] focus:outline-none transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6b6b75] hover:text-white p-0.5 cursor-pointer"
+                title="Borrar búsqueda"
+              >
+                <X size={12} />
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="bg-[#0a0a0b] px-4 py-2 rounded-xl border border-[#1f1f23] text-center">
-              <span className="text-xl font-serif font-medium text-[#c5a059]">{songs.length}</span>
-              <span className="block text-[10px] font-mono uppercase text-[#6b6b75] tracking-wider">Canciones</span>
+          {/* Desplegable de Categorías (Agrupadas en desplegable) */}
+          <div className="relative min-w-[135px]">
+            <Tag className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6b6b75] pointer-events-none" size={13} />
+            <select
+              value={selectedCategory}
+              onChange={e => setSelectedCategory(e.target.value)}
+              className="w-full pl-8 pr-7 py-1.5 bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-lg text-xs text-white focus:outline-none transition-all cursor-pointer appearance-none font-mono"
+            >
+              <option value="Todas">Todas las categorías</option>
+              {CATEGORIES.filter(c => c !== 'Todas').map(cat => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Desplegable de Artistas */}
+          <div className="relative min-w-[135px]">
+            <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6b6b75] pointer-events-none" size={13} />
+            <select
+              value={selectedArtist}
+              onChange={e => setSelectedArtist(e.target.value)}
+              className="w-full pl-8 pr-7 py-1.5 bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-lg text-xs text-white focus:outline-none transition-all cursor-pointer appearance-none font-mono"
+            >
+              <option value="all">Artistas ({uniqueArtists.length})</option>
+              {uniqueArtists.map(artist => (
+                <option key={artist} value={artist}>
+                  {artist}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Desplegable de Ritmo / BPM */}
+          <div className="relative min-w-[125px]">
+            <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6b6b75] pointer-events-none" size={13} />
+            <select
+              value={selectedSpeed}
+              onChange={e => setSelectedSpeed(e.target.value as SpeedFilter)}
+              className="w-full pl-8 pr-7 py-1.5 bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-lg text-xs text-white focus:outline-none transition-all cursor-pointer appearance-none font-mono"
+            >
+              <option value="all">Todos los ritmos</option>
+              <option value="slow">Lenta (&lt; 80 BPM)</option>
+              <option value="medium">Media (80 - 115 BPM)</option>
+              <option value="fast">Rápida (&gt; 115 BPM)</option>
+            </select>
+          </div>
+
+          {/* Limpiar filtros rápidos si hay filtros activos */}
+          {(searchQuery || selectedCategory !== 'Todas' || selectedArtist !== 'all' || selectedSpeed !== 'all') && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedCategory('Todas');
+                setSelectedArtist('all');
+                setSelectedSpeed('all');
+              }}
+              className="text-[11px] font-mono text-amber-400 hover:text-amber-300 underline cursor-pointer px-1 py-1 whitespace-nowrap"
+              title="Restablecer todos los filtros"
+            >
+              Limpiar
+            </button>
+          )}
+
+          {/* Conteo, Selector de Vista y Botón Nueva Canción unificados en la misma fila */}
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-xs font-mono text-[#888894] whitespace-nowrap hidden sm:inline">
+              <strong className="text-[#c5a059] font-bold">{filteredSongs.length}</strong>
+              {filteredSongs.length === songs.length ? ' canciones' : ` de ${songs.length}`}
+            </span>
+
+            {/* Selector de Vista: Tabla o Compacta */}
+            <div className="flex items-center gap-0.5 bg-[#0a0a0b] p-0.5 rounded-lg border border-[#232328]">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                  viewMode === 'table' ? 'bg-[#1f1f23] text-[#c5a059]' : 'text-[#6b6b75] hover:text-white'
+                }`}
+                title="Vista Tabla"
+              >
+                <TableIcon size={14} />
+              </button>
+              <button
+                onClick={() => setViewMode('compact')}
+                className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                  viewMode === 'compact' ? 'bg-[#1f1f23] text-[#c5a059]' : 'text-[#6b6b75] hover:text-white'
+                }`}
+                title="Vista Compacta"
+              >
+                <List size={14} />
+              </button>
             </div>
 
             {isAdmin && onAddSong && (
@@ -177,105 +275,13 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
                   setArtistInput('');
                   setShowAddModal(true);
                 }}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#c5a059] hover:bg-[#d4b068] text-black rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-[#c5a059]/20"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#c5a059] hover:bg-[#d4b068] text-black rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm shadow-[#c5a059]/20 whitespace-nowrap"
+                id="btn-add-song"
               >
-                <Plus size={15} />
+                <Plus size={14} />
                 <span>Nueva Canción</span>
               </button>
             )}
-          </div>
-        </div>
-
-        {/* Search & Main Filter Controls */}
-        <div className="mt-6 pt-6 border-t border-[#1f1f23] space-y-4">
-          {/* Row 1: Search, Artist Dropdown, Speed/BPM, View Toggle */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6b6b75]" size={15} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Buscar por título, artista o tono..."
-                className="w-full pl-10 pr-4 py-2 bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-xl text-xs text-white placeholder-[#6b6b75] focus:outline-none transition-all"
-              />
-            </div>
-
-            {/* Artist Dropdown */}
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6b6b75]" size={14} />
-              <select
-                value={selectedArtist}
-                onChange={e => setSelectedArtist(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-xl text-xs text-white focus:outline-none transition-all cursor-pointer appearance-none font-mono"
-              >
-                <option value="all">Todos los artistas ({uniqueArtists.length})</option>
-                {uniqueArtists.map(artist => (
-                  <option key={artist} value={artist}>
-                    {artist}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Speed / BPM Groups Filter */}
-            <div className="relative">
-              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6b6b75]" size={14} />
-              <select
-                value={selectedSpeed}
-                onChange={e => setSelectedSpeed(e.target.value as SpeedFilter)}
-                className="w-full pl-9 pr-8 py-2 bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-xl text-xs text-white focus:outline-none transition-all cursor-pointer appearance-none font-mono"
-              >
-                <option value="all">Todas las velocidades (BPM)</option>
-                <option value="slow">🐢 Lenta / Solemne (&lt; 80 BPM)</option>
-                <option value="medium">🚶 Media / Moderada (80 - 115 BPM)</option>
-                <option value="fast">⚡ Rápida / Júbilo (&gt; 115 BPM)</option>
-              </select>
-            </div>
-
-            {/* View Mode Toggle: Table, Compact */}
-            <div className="flex items-center justify-end gap-1 bg-[#0a0a0b] p-1 rounded-xl border border-[#232328] w-fit sm:w-auto">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                  viewMode === 'table' ? 'bg-[#1f1f23] text-[#c5a059]' : 'text-[#6b6b75] hover:text-white'
-                }`}
-                title="Vista Tabla Detallada"
-              >
-                <TableIcon size={15} />
-              </button>
-              <button
-                onClick={() => setViewMode('compact')}
-                className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                  viewMode === 'compact' ? 'bg-[#1f1f23] text-[#c5a059]' : 'text-[#6b6b75] hover:text-white'
-                }`}
-                title="Vista Lista Compacta"
-              >
-                <List size={15} />
-              </button>
-            </div>
-          </div>
-
-          {/* Row 2: Category Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-            <span className="text-[10px] font-mono uppercase text-[#888894] mr-1 flex items-center gap-1 flex-shrink-0">
-              <Tag size={11} />
-              <span>Categoría:</span>
-            </span>
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1 rounded-lg text-xs font-mono transition-all cursor-pointer flex-shrink-0 ${
-                  selectedCategory === cat
-                    ? 'bg-[#c5a059] text-black font-bold shadow-md shadow-[#c5a059]/10'
-                    : 'bg-[#0a0a0b] text-[#888894] hover:text-white border border-[#232328]'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
           </div>
         </div>
       </div>
@@ -291,85 +297,73 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
             <table className="w-full text-left text-xs font-mono">
               <thead className="bg-[#0e0e12] border-b border-[#232328] text-[#888894] uppercase tracking-wider">
                 <tr>
-                  <th className="py-3 px-4">#</th>
-                  <th className="py-3 px-4">Título</th>
-                  <th className="py-3 px-4">Artista / Autor</th>
-                  <th className="py-3 px-4">Tono</th>
-                  <th className="py-3 px-4">BPM</th>
-                  <th className="py-3 px-4">Categoría</th>
-                  <th className="py-3 px-4">Estado</th>
+                  <th className="py-2.5 px-4">Título</th>
+                  <th className="py-2.5 px-4">Artista / Autor</th>
+                  <th className="py-2.5 px-4">Tono</th>
+                  <th className="py-2.5 px-4">BPM</th>
+                  <th className="py-2.5 px-4">Categoría</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1f1f23]">
-                {filteredSongs.map((song, idx) => (
-                  <tr
-                    key={song.id || idx}
-                    onClick={() => onSelectSong && onSelectSong(song, filteredSongs)}
-                    className="hover:bg-[#1a1a1f] cursor-pointer transition-colors"
-                  >
-                    <td className="py-3 px-4 text-[#6b6b75]">{idx + 1}</td>
-                    <td className="py-3 px-4 font-sans font-medium text-white hover:text-[#c5a059]">
-                      {song.title}
-                    </td>
-                    <td className="py-3 px-4 text-[#a0a0ab]">{song.artist || 'Desconocido'}</td>
-                    <td className="py-3 px-4">
-                      {song.key ? (
-                        <span className="font-bold text-[#c5a059] bg-[#c5a059]/10 px-2 py-0.5 rounded border border-[#c5a059]/30">
-                          {song.key}
-                        </span>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-[#888894]">{song.bpm ? `${song.bpm}` : '-'}</td>
-                    <td className="py-3 px-4 text-slate-300">{song.category || 'General'}</td>
-                    <td className="py-3 px-4">
-                      {(() => {
-                        const hasPdf = (song.attachments || []).some(a => {
-                          const url = (a.url || '').toLowerCase();
-                          const name = (a.name || '').toLowerCase();
-                          return (
-                            url.startsWith('data:application/pdf') ||
-                            url.includes('.pdf') ||
-                            name.endsWith('.pdf') ||
-                            a.type === 'pdf'
-                          );
-                        });
+                {filteredSongs.map((song, idx) => {
+                  const hasPdf = (song.attachments || []).some(a => {
+                    const url = (a.url || '').toLowerCase();
+                    const name = (a.name || '').toLowerCase();
+                    return (
+                      url.startsWith('data:application/pdf') ||
+                      url.includes('.pdf') ||
+                      name.endsWith('.pdf') ||
+                      a.type === 'pdf'
+                    );
+                  });
 
-                        return (
-                          <div className="flex items-center gap-2">
-                            {song.lyrics ? (
-                              <span className="text-emerald-400 font-bold">✓ Acordes</span>
-                            ) : (
-                              <span className="text-[#6b6b75]">En blanco</span>
-                            )}
-                            {hasPdf && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onSelectSong && onSelectSong(song, filteredSongs, 'pdf');
-                                }}
-                                className="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-colors"
-                                title="Ver partitura PDF directamente"
-                              >
-                                <FileText size={10} />
-                                <span>PDF</span>
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </td>
-                  </tr>
-                ))}
+                  return (
+                    <tr
+                      key={song.id || idx}
+                      onClick={() => onSelectSong && onSelectSong(song, filteredSongs)}
+                      className="hover:bg-[#252530] cursor-pointer transition-colors"
+                    >
+                      <td className="py-2.5 px-4 font-sans font-medium text-white hover:text-[#c5a059]">
+                        <div className="flex items-center gap-2">
+                          <span>{song.title}</span>
+                          {hasPdf && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectSong && onSelectSong(song, filteredSongs, 'pdf');
+                              }}
+                              className="px-1.5 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[9px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                              title="Ver partitura PDF directamente"
+                            >
+                              <FileText size={10} />
+                              <span>PDF</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-4 text-[#a0a0ab]">{song.artist || 'Desconocido'}</td>
+                      <td className="py-2.5 px-4">
+                        {song.key ? (
+                          <span className="font-bold text-[#c5a059] bg-[#c5a059]/10 px-2 py-0.5 rounded border border-[#c5a059]/30">
+                            {song.key}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      <td className="py-2.5 px-4 text-[#888894]">{song.bpm ? `${song.bpm}` : '-'}</td>
+                      <td className="py-2.5 px-4 text-slate-300">{song.category || 'General'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* 3. COMPACT VIEW */}
+      {/* 2. COMPACT VIEW */}
       {viewMode === 'compact' && (
         <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl divide-y divide-[#1f1f23] overflow-hidden shadow-xl">
           {filteredSongs.map((song, idx) => {
@@ -388,10 +382,9 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
               <div
                 key={song.id || idx}
                 onClick={() => onSelectSong && onSelectSong(song, filteredSongs)}
-                className="p-3 sm:px-5 flex items-center justify-between hover:bg-[#1a1a1f] cursor-pointer transition-colors"
+                className="p-3 sm:px-5 flex items-center justify-between hover:bg-[#252530] cursor-pointer transition-colors"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="font-mono text-xs text-[#6b6b75] w-6">{idx + 1}.</span>
+                <div className="flex items-center gap-2.5 min-w-0">
                   <span className="font-medium text-sm text-white truncate hover:text-[#c5a059]">
                     {song.title}
                   </span>

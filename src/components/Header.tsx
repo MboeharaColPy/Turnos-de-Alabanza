@@ -46,16 +46,12 @@ interface HeaderProps {
   onLogoutAdmin: () => void;
   isSaving: boolean;
   isCloudConnected?: boolean;
-  onRefresh: () => void;
+  onSync: () => void;
   onOpenExplainer?: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   onChangeAdminPassword?: (newPass: string) => void;
   adminPassword?: string;
-  isInstallable?: boolean;
-  isInstalled?: boolean;
-  isIOS?: boolean;
-  onInstallApp?: () => Promise<boolean>;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -66,16 +62,12 @@ export const Header: React.FC<HeaderProps> = ({
   onLogoutAdmin,
   isSaving,
   isCloudConnected = true,
-  onRefresh,
+  onSync,
   onOpenExplainer,
   theme = 'dark',
   onToggleTheme,
   onChangeAdminPassword,
   adminPassword = 'alabanza2026',
-  isInstallable = false,
-  isInstalled = false,
-  isIOS = false,
-  onInstallApp,
 }) => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [currentPass, setCurrentPass] = useState('');
@@ -135,7 +127,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="border-b border-[#1f1f23] pb-5 mb-6" id="main-header">
+    <header className="border-b border-[#1f1f23] pb-0 mb-0" id="main-header">
       {/* Banner de Modo Edición Activo para Administradores */}
       {isAdmin && (
         <div
@@ -193,81 +185,105 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
-        {/* Brand / Logo */}
-        <div className="flex items-center gap-3.5">
-          <DoveLogo className="w-11 h-11 sm:w-14 sm:h-14 flex-shrink-0" />
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
+        {/* Brand / Logo & Quick Controls */}
+        <div className="flex items-center gap-3.5 min-w-0 pb-2">
+          <DoveLogo className="w-11 h-11 sm:w-13 sm:h-13 flex-shrink-0" />
           <div>
-            <div className="flex items-center gap-3 mb-1 flex-wrap">
-              <span className="font-serif italic text-2xl sm:text-3xl tracking-tight text-[#c5a059]">
-                Iglesia Dios es Amor
-              </span>
-              <span className="text-[10px] font-mono tracking-[0.25em] text-[#888894] uppercase border-l border-[#1f1f23] pl-3">
-                Ministerio de Alabanza
-              </span>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="flex items-center gap-3 font-serif text-2xl sm:text-3xl tracking-tight text-white m-0 flex-wrap">
+                <span className="italic text-[#c5a059]">Iglesia Dios es Amor</span>
+                <span className="text-xs sm:text-sm font-mono tracking-[0.2em] text-[#888894] uppercase border-l border-[#1f1f23] pl-3 font-normal">
+                  Ministerio de Alabanza
+                </span>
+              </h1>
 
-            {/* Cloud Sync Badge */}
-            <span
-              className={`inline-flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-0.5 rounded border uppercase tracking-widest ${
-                isCloudConnected
-                  ? 'text-[#c5a059] bg-[#c5a059]/10 border-[#c5a059]/30'
-                  : 'text-amber-400 bg-amber-500/10 border-amber-500/30'
-              }`}
-              title="Sincronización en la nube en tiempo real"
-            >
-              {isSaving ? (
-                <>
-                  <RotateCw size={10} className="text-[#c5a059] animate-spin" />
-                  <span>Guardando...</span>
-                </>
-              ) : (
-                <>
-                  <Radio size={10} className="text-[#c5a059] animate-pulse" />
-                  <span>En vivo</span>
-                </>
-              )}
-            </span>
+              {/* Acciones Rápidas: Sincronización, Modo Claro/Oscuro y Acceso Admin */}
+              <div className="flex items-center gap-1.5 flex-shrink-0" id="header-quick-actions">
+                {/* Botón Sincronizar / Refrescar */}
+                <button
+                  onClick={onSync}
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#141418] hover:bg-[#1a1a1d] text-[#888894] hover:text-white border border-[#1f1f23] hover:border-[#c5a059]/50 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 shadow-sm"
+                  title={isAdmin ? "Guardar cambios en la nube" : "Sincronizar datos de la nube"}
+                  id="btn-sync-refresh"
+                >
+                  <RotateCw size={14} className={isSaving ? 'animate-spin text-[#c5a059]' : ''} />
+                </button>
 
-            {/* Admin status pill */}
-            {isAdmin ? (
-              <div className="inline-flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-0.5 rounded-full border text-emerald-400 bg-emerald-950/40 border-emerald-800/50">
-                <ShieldCheck size={12} className="text-emerald-400" />
-                <span className="font-bold">ADMINISTRADOR</span>
+                {/* Botón General de Modo Claro / Oscuro */}
+                {onToggleTheme && (
+                  <button
+                    onClick={onToggleTheme}
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#141418] hover:bg-[#1a1a1d] text-[#888894] hover:text-[#c5a059] border border-[#1f1f23] hover:border-[#c5a059]/40 flex items-center justify-center transition-all cursor-pointer flex-shrink-0 shadow-sm"
+                    title={theme === 'dark' ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}
+                    id="btn-theme-toggle"
+                  >
+                    {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+                  </button>
+                )}
+
+                {/* Botón Acceso Admin: Solo un ícono al lado del cambio de tema */}
+                {isAdmin ? (
+                  <button
+                    onClick={onToggleAdminModal}
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-400 border border-emerald-800/50 hover:border-emerald-600 flex items-center justify-center transition-all cursor-pointer flex-shrink-0 shadow-sm"
+                    title="Sesión de Administrador activa (Click para ver estado o salir)"
+                    id="btn-login-admin"
+                  >
+                    <ShieldCheck size={16} className="text-emerald-400" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={onToggleAdminModal}
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#141418] hover:bg-[#1a1a1d] text-[#888894] hover:text-[#c5a059] border border-[#1f1f23] hover:border-[#c5a059]/40 flex items-center justify-center transition-all cursor-pointer flex-shrink-0 shadow-sm"
+                    title="Acceso Administrador (desbloquear edición)"
+                    id="btn-login-admin"
+                  >
+                    <Lock size={15} className="text-[#c5a059]" />
+                  </button>
+                )}
               </div>
-            ) : (
-              <button
-                onClick={onToggleAdminModal}
-                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-lg border text-[#e0e0e0] hover:text-white bg-[#18181c] hover:bg-[#222228] border-[#2e2e36] hover:border-[#c5a059]/40 cursor-pointer transition-all shadow-sm"
-                title="Desbloquear modo edición con contraseña de administrador"
-                id="btn-login-admin"
-              >
-                <Lock size={12} className="text-[#c5a059]" />
-                <span>Acceso Administrador</span>
-              </button>
-            )}
 
-            {/* Ayuda & Reglas: SOLO PARA ADMINISTRADOR */}
-            {isAdmin && onOpenExplainer && (
-              <button
-                onClick={onOpenExplainer}
-                className="inline-flex items-center gap-1 text-[11px] font-mono px-2.5 py-1 rounded-lg border text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 cursor-pointer transition-all"
-                title="Ver guía visual de reglas y descansos"
+              {/* Cloud Sync Badge */}
+              <span
+                className={`inline-flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-0.5 rounded border uppercase tracking-widest ${
+                  isCloudConnected
+                    ? 'text-[#c5a059] bg-[#c5a059]/10 border-[#c5a059]/30'
+                    : 'text-amber-400 bg-amber-500/10 border-amber-500/30'
+                }`}
+                title="Sincronización en la nube en tiempo real"
               >
-                <HelpCircle size={12} />
-                <span>Ayuda & Reglas</span>
-              </button>
-            )}
+                {isSaving ? (
+                  <>
+                    <RotateCw size={10} className="text-[#c5a059] animate-spin" />
+                    <span>Guardando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Radio size={10} className="text-[#c5a059] animate-pulse" />
+                    <span>En vivo</span>
+                  </>
+                )}
+              </span>
+
+              {/* Ayuda & Reglas: SOLO PARA ADMINISTRADOR */}
+              {isAdmin && onOpenExplainer && (
+                <button
+                  onClick={onOpenExplainer}
+                  className="inline-flex items-center gap-1 text-[11px] font-mono px-2.5 py-1 rounded-lg border text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 cursor-pointer transition-all"
+                  title="Ver guía visual de reglas y descansos"
+                >
+                  <HelpCircle size={12} />
+                  <span>Ayuda & Reglas</span>
+                </button>
+              )}
+            </div>
           </div>
-
-          <h1 className="font-serif text-2xl sm:text-3xl font-light tracking-tight text-white mt-1">
-            Plataforma de <span className="italic text-[#c5a059]">Alabanza</span>
-          </h1>
         </div>
-      </div>
 
-        {/* Tab Navigation on Desktop + Controls */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <nav className="hidden md:flex bg-[#0f0f12] p-1.5 rounded-2xl border border-[#1f1f23] shadow-inner overflow-x-auto max-w-full gap-1">
+        {/* Tab Navigation on Desktop: El borde inferior coincide exactamente con el borde del header */}
+        <div className="flex items-end gap-2.5 flex-wrap">
+          <nav className="hidden md:flex bg-[#0f0f12] p-1 rounded-t-xl rounded-b-none border border-b-0 border-[#1f1f23] shadow-inner overflow-x-auto max-w-full gap-1">
             {/* INICIO */}
             <button
               onClick={() => onTabChange('inicio')}
@@ -366,38 +382,6 @@ export const Header: React.FC<HeaderProps> = ({
               {!isAdmin && <Lock size={11} className="text-[#c5a059] ml-0.5" />}
             </button>
           </nav>
-
-          {/* Botón Instalar App (PWA) */}
-          {onInstallApp && (
-            <PWAInstallButton
-              isInstallable={isInstallable}
-              isInstalled={isInstalled}
-              isIOS={isIOS}
-              onInstall={onInstallApp}
-              variant="compact"
-            />
-          )}
-
-          {/* Botón General de Modo Claro / Oscuro */}
-          {onToggleTheme && (
-            <button
-              onClick={onToggleTheme}
-              className="w-11 h-11 rounded-xl bg-[#141418] hover:bg-[#1a1a1d] text-[#888894] hover:text-[#c5a059] border border-[#1f1f23] hover:border-[#c5a059]/40 flex items-center justify-center transition-all cursor-pointer flex-shrink-0 shadow-md min-h-[44px]"
-              title={theme === 'dark' ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}
-            >
-              {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
-            </button>
-          )}
-
-          {/* Botón Sincronizar / Refrescar */}
-          <button
-            onClick={onRefresh}
-            className="w-11 h-11 rounded-xl bg-[#141418] hover:bg-[#1a1a1d] text-[#888894] hover:text-white border border-[#1f1f23] hover:border-[#c5a059]/50 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 shadow-md min-h-[44px]"
-            title="Sincronizar datos con la nube"
-            id="btn-sync-refresh"
-          >
-            <RotateCw size={16} className={isSaving ? 'animate-spin text-[#c5a059]' : ''} />
-          </button>
         </div>
       </div>
 

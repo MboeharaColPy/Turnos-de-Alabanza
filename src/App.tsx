@@ -57,17 +57,17 @@ export default function App() {
 
   useEffect(() => {
     if (theme === 'light') {
-      document.documentElement.classList.add('light-theme');
-      document.documentElement.classList.remove('dark-theme');
+      document.documentElement.classList.add('light-theme', 'light');
+      document.documentElement.classList.remove('dark-theme', 'dark');
       document.documentElement.setAttribute('data-theme', 'light');
-      document.body.classList.add('light-theme');
-      document.body.classList.remove('dark-theme');
+      document.body.classList.add('light-theme', 'light');
+      document.body.classList.remove('dark-theme', 'dark');
     } else {
-      document.documentElement.classList.add('dark-theme');
-      document.documentElement.classList.remove('light-theme');
+      document.documentElement.classList.add('dark-theme', 'dark');
+      document.documentElement.classList.remove('light-theme', 'light');
       document.documentElement.setAttribute('data-theme', 'dark');
-      document.body.classList.add('dark-theme');
-      document.body.classList.remove('light-theme');
+      document.body.classList.add('dark-theme', 'dark');
+      document.body.classList.remove('light-theme', 'light');
     }
 
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
@@ -664,16 +664,21 @@ export default function App() {
           onLogoutAdmin={handleLogoutAdmin}
           isSaving={isSaving}
           isCloudConnected={isCloudConnected}
-          onRefresh={handleRefresh}
+          onSync={async () => {
+            if (isAdmin) {
+              setIsSaving(true);
+              await saveCloudState(state);
+              setIsSaving(false);
+              showToast('Datos guardados en la nube.');
+            } else {
+              await handleRefresh();
+            }
+          }}
           onOpenExplainer={isAdmin ? () => setShowGlobalExplainerModal(true) : undefined}
           theme={theme}
           onToggleTheme={handleToggleTheme}
           onChangeAdminPassword={handleUpdateAdminPassword}
           adminPassword={state.adminPassword || 'alabanza2026'}
-          isInstallable={isInstallable}
-          isInstalled={isInstalled}
-          isIOS={isIOS}
-          onInstallApp={installApp}
         />
 
         {/* Contenido según pestaña activa */}

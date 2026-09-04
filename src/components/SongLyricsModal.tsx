@@ -293,9 +293,13 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
   const prevSong = currentSongIndex > 0 ? allSongs[currentSongIndex - 1] : null;
   const nextSong = currentSongIndex >= 0 && currentSongIndex < allSongs.length - 1 ? allSongs[currentSongIndex + 1] : null;
 
-  // Keyboard shortcut listener for previous/next song
+  // Keyboard shortcut listener for previous/next song and Escape to close
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
       const activeTag = (document.activeElement?.tagName || '').toLowerCase();
       if (activeTag === 'input' || activeTag === 'textarea') return;
       if (e.key === 'ArrowLeft' && prevSong && onNavigateToSong) {
@@ -308,7 +312,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [prevSong, nextSong, onNavigateToSong]);
+  }, [prevSong, nextSong, onNavigateToSong, onClose]);
 
   const scrollToSection = (lineIndex: number) => {
     const el = document.getElementById(`section-node-${lineIndex}`);
@@ -593,130 +597,124 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md overflow-hidden ${
-        isFullScreen ? 'p-0' : ''
-      }`}
-      onClick={onClose}
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-2 md:p-3 overflow-hidden animate-fadeIn"
+      id="song-lyrics-modal-backdrop"
+      onClick={e => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
     >
       <div
-        ref={scrollContainerRef}
-        className={`bg-[#141418] flex flex-col shadow-2xl overflow-y-auto transition-all select-text scroll-smooth ${
+        className={`bg-[#141418] border border-[#2a2a2e] sm:rounded-2xl w-full h-full flex flex-col shadow-2xl overflow-hidden transition-all ${
           isFullScreen
-            ? 'w-full h-full rounded-none'
-            : 'w-full h-full rounded-none'
+            ? 'fixed inset-0 rounded-none z-[60] max-h-screen max-w-full'
+            : 'sm:max-h-[96vh] sm:max-w-7xl'
         }`}
-        onClick={e => e.stopPropagation()}
+        id="song-lyrics-modal-card"
       >
         {/* ======================================================== */}
         {/* 1. HEADER: Título, Tono, Setlist Nav, Video YouTube & Slider Acordes */}
         {/* ======================================================== */}
-        <div className="p-1 sm:p-2 bg-[#1a1a1d] flex flex-col lg:flex-row lg:items-center justify-between gap-2 flex-shrink-0">
-          {/* Título & Meta */}
-          <div className="flex items-start sm:items-center gap-3 min-w-0">
+        <div className="p-2 sm:p-2.5 bg-[#161619] border-b border-[#242429] flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 flex-shrink-0">
+          {/* Título & Tono/BPM */}
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-[#c5a059]/10 border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059] flex-shrink-0">
               <Music size={20} />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#c5a059] font-bold">
-                  Cancionero · Cifrado Americano
+            <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+              <h3 className="font-serif text-lg sm:text-xl text-white font-medium tracking-tight truncate">
+                {song.title}
+              </h3>
+              {song.artist && (
+                <span className="text-xs sm:text-sm text-[#8e8e99] italic truncate">
+                  — {song.artist}
                 </span>
+              )}
 
-                {/* Tono Actual con indicador si está transportado */}
-                <button
-                  onClick={() => setShowKeyPickerPopover(!showKeyPickerPopover)}
-                  className="inline-flex items-center gap-1.5 bg-[#0a0a0b] hover:bg-[#1f1f23] px-2 py-0.5 rounded-lg border border-[#c5a059]/40 cursor-pointer transition-colors"
-                  title="Haz clic para cambiar el tono de la canción"
-                >
-                  <KeyRound size={11} className="text-[#c5a059]" />
-                  <span className="text-[10px] font-mono text-[#888894]">Tono:</span>
-                  <span className="font-mono text-xs font-bold text-[#c5a059]">
-                    {soundingKey}
-                    {transposeOffset !== 0 && (
-                      <span className="text-[10px] text-amber-300 ml-1">
-                        ({transposeOffset > 0 ? `+${transposeOffset}` : transposeOffset})
-                      </span>
-                    )}
-                  </span>
-                </button>
-
-                {/* Capo Display */}
-                {capoFret > 0 && (
-                  <button
-                    onClick={() => setShowCapoPickerPopover(!showCapoPickerPopover)}
-                    className="text-[10px] font-mono text-amber-300 bg-amber-950/40 border border-amber-800/40 px-2 py-0.5 rounded-lg cursor-pointer hover:bg-amber-900/40"
-                    title="Cejilla activa"
-                  >
-                    Capo {capoFret} ({fingeredKey})
-                  </button>
-                )}
-
-                {/* BPM */}
-                <div className="flex items-center gap-1 bg-[#0a0a0b] px-2 py-0.5 rounded-lg border border-[#1f1f23]">
-                  <Clock size={11} className="text-[#888894]" />
-                  <span className="text-[10px] font-mono text-[#888894]">BPM:</span>
-                  {isAdmin && viewMode === 'edit' ? (
-                    <input
-                      type="number"
-                      value={bpm}
-                      onChange={e => setBpm(Math.max(40, Math.min(260, parseInt(e.target.value, 10) || 120)))}
-                      className="w-12 bg-transparent font-mono text-xs font-bold text-white focus:outline-none text-center"
-                    />
-                  ) : (
-                    <span className="text-[10px] font-mono text-white font-bold">{bpm}</span>
+              {/* Tono Actual con indicador si está transportado */}
+              <button
+                onClick={() => setShowKeyPickerPopover(!showKeyPickerPopover)}
+                className="h-8 inline-flex items-center gap-1.5 bg-[#0a0a0b] hover:bg-[#1f1f23] px-2.5 rounded-lg border border-[#c5a059]/40 cursor-pointer transition-colors"
+                title="Haz clic para cambiar el tono de la canción"
+              >
+                <KeyRound size={12} className="text-[#c5a059]" />
+                <span className="text-xs font-mono text-[#888894]">Tono:</span>
+                <span className="font-mono text-xs font-bold text-[#c5a059]">
+                  {soundingKey}
+                  {transposeOffset !== 0 && (
+                    <span className="text-[10px] text-amber-300 ml-1">
+                      ({transposeOffset > 0 ? `+${transposeOffset}` : transposeOffset})
+                    </span>
                   )}
-                </div>
-              </div>
+                </span>
+              </button>
 
-              <div className="flex items-center gap-2 mt-0.5 min-w-0">
-                <h3 className="font-serif text-lg sm:text-xl text-white font-medium tracking-tight truncate">
-                  {song.title}
-                </h3>
-                {song.artist && (
-                  <span className="text-xs text-[#8e8e99] italic truncate">
-                    — {song.artist}
-                  </span>
+              {/* Capo Display */}
+              {capoFret > 0 && (
+                <button
+                  onClick={() => setShowCapoPickerPopover(!showCapoPickerPopover)}
+                  className="h-8 inline-flex items-center gap-1 text-xs font-mono text-amber-300 bg-amber-950/40 border border-amber-800/40 px-2.5 rounded-lg cursor-pointer hover:bg-amber-900/40"
+                  title="Cejilla activa"
+                >
+                  Capo {capoFret} ({fingeredKey})
+                </button>
+              )}
+
+              {/* BPM */}
+              <div className="h-8 inline-flex items-center gap-1.5 bg-[#0a0a0b] px-2.5 rounded-lg border border-[#26262b]">
+                <Clock size={12} className="text-[#888894]" />
+                <span className="text-xs font-mono text-[#888894]">BPM:</span>
+                {isAdmin && viewMode === 'edit' ? (
+                  <input
+                    type="number"
+                    value={bpm}
+                    onChange={e => setBpm(Math.max(40, Math.min(260, parseInt(e.target.value, 10) || 120)))}
+                    className="w-12 bg-transparent font-mono text-xs font-bold text-white focus:outline-none text-center"
+                  />
+                ) : (
+                  <span className="text-xs font-mono text-white font-bold">{bpm}</span>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Acciones Centrales & Derechas del Header */}
+          {/* Acciones Centrales & Derechas del Header (Mismo tamaño h-9 y estilo) */}
           <div className="flex items-center gap-2 flex-wrap justify-between lg:justify-end">
-            {/* Navegación Entre Canciones (Exclusiva de la lista contextual / semanal) */}
+            {/* Navegación Entre Canciones */}
             {allSongs.length > 1 && onNavigateToSong && (
-              <div className="flex items-center bg-[#0a0a0b] border border-[#26262b] rounded-xl p-0.5 shadow-sm">
+              <div className="h-9 inline-flex items-center bg-[#0a0a0b] border border-[#26262b] rounded-xl px-1 shadow-sm">
                 <button
                   onClick={() => prevSong && onNavigateToSong(prevSong)}
                   disabled={!prevSong}
-                  className="p-3 text-[#888894] hover:text-[#c5a059] hover:bg-[#c5a059]/10 disabled:opacity-30 disabled:hover:text-[#888894] disabled:hover:bg-transparent transition-colors cursor-pointer rounded-lg"
+                  className="h-7 w-7 flex items-center justify-center text-[#888894] hover:text-[#c5a059] hover:bg-[#c5a059]/10 disabled:opacity-30 disabled:hover:text-[#888894] disabled:hover:bg-transparent transition-colors cursor-pointer rounded-lg"
                   title={prevSong ? `Anterior en la lista: ${prevSong.title}` : 'Primera de la lista'}
                 >
-                  <ChevronLeft size={20} />
+                  <ChevronLeft size={16} />
                 </button>
-                <span className="text-xs font-mono text-[#888894] px-4 font-medium whitespace-nowrap">
+                <span className="text-xs font-mono text-[#888894] px-2.5 font-medium whitespace-nowrap">
                   {currentSongIndex >= 0 ? currentSongIndex + 1 : 1} de {allSongs.length}
                 </span>
                 <button
                   onClick={() => nextSong && onNavigateToSong(nextSong)}
                   disabled={!nextSong}
-                  className="p-3 text-[#888894] hover:text-[#c5a059] hover:bg-[#c5a059]/10 disabled:opacity-30 disabled:hover:text-[#888894] disabled:hover:bg-transparent transition-colors cursor-pointer rounded-lg"
+                  className="h-7 w-7 flex items-center justify-center text-[#888894] hover:text-[#c5a059] hover:bg-[#c5a059]/10 disabled:opacity-30 disabled:hover:text-[#888894] disabled:hover:bg-transparent transition-colors cursor-pointer rounded-lg"
                   title={nextSong ? `Siguiente en la lista: ${nextSong.title}` : 'Última de la lista'}
                 >
-                  <ChevronRight size={20} />
+                  <ChevronRight size={16} />
                 </button>
               </div>
             )}
 
-            {/* BOTÓN YOUTUBE INDEPENDIENTE (Fuera de herramientas) */}
+            {/* BOTÓN YOUTUBE INDEPENDIENTE */}
             <button
               onClick={() => setShowYouTubePanel(!showYouTubePanel)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 border transition-all cursor-pointer ${
+              className={`h-9 px-3 rounded-xl text-xs font-mono uppercase tracking-wider inline-flex items-center gap-1.5 border transition-all cursor-pointer ${
                 showYouTubePanel
                   ? 'bg-red-500/20 text-red-400 border-red-500/50 font-bold shadow-sm'
                   : youtubeUrlInput
                   ? 'bg-[#0a0a0b] text-red-400 border-red-500/30 hover:bg-red-950/20'
-                  : 'bg-[#0a0a0b] text-[#8e8e99] border-[#232328] hover:text-white'
+                  : 'bg-[#0a0a0b] text-[#8e8e99] border-[#26262b] hover:text-white hover:border-[#383842]'
               }`}
               title="Reproducir o configurar video de YouTube"
             >
@@ -724,11 +722,11 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               <span>{youtubeUrlInput ? (showYouTubePanel ? 'Ocultar Video' : 'Video YouTube') : '+ Video'}</span>
             </button>
 
-            {/* DESLIZABLE SEGMENTADO: ACORDES vs SOLO LETRA (Guardado por dispositivo) */}
-            <div className="flex items-center bg-[#0a0a0b] p-1 rounded-xl border border-[#232328]">
+            {/* DESLIZABLE SEGMENTADO: ACORDES vs SOLO LETRA */}
+            <div className="h-9 inline-flex items-center bg-[#0a0a0b] p-0.5 rounded-xl border border-[#26262b]">
               <button
                 onClick={() => handleToggleShowChords(true)}
-                className={`px-3 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`h-7.5 px-3 rounded-lg text-xs font-mono uppercase tracking-wider inline-flex items-center gap-1.5 transition-all cursor-pointer ${
                   showChords
                     ? 'bg-[#c5a059] text-black font-bold shadow-sm'
                     : 'text-[#888894] hover:text-white'
@@ -740,7 +738,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               </button>
               <button
                 onClick={() => handleToggleShowChords(false)}
-                className={`px-3 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`h-7.5 px-3 rounded-lg text-xs font-mono uppercase tracking-wider inline-flex items-center gap-1.5 transition-all cursor-pointer ${
                   !showChords
                     ? 'bg-[#c5a059] text-black font-bold shadow-sm'
                     : 'text-[#888894] hover:text-white'
@@ -752,13 +750,13 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               </button>
             </div>
 
-            {/* Botón para intercambiar entre vista PDF y vista normal si hay un PDF cargado */}
+            {/* Botón Partitura PDF */}
             {activePdf ? (
               <button
                 onClick={() => setViewMode(viewMode === 'pdf' ? 'view' : 'pdf')}
-                className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 border transition-all cursor-pointer ${
+                className={`h-9 px-3 rounded-xl text-xs font-mono uppercase tracking-wider inline-flex items-center gap-1.5 border transition-all cursor-pointer ${
                   viewMode === 'pdf'
-                    ? 'bg-[#c5a059] text-black font-bold shadow-sm'
+                    ? 'bg-[#c5a059] text-black font-bold shadow-sm border-[#c5a059]'
                     : 'bg-[#0a0a0b] hover:bg-[#1a1a1d] text-[#c5a059] border-[#c5a059]/40'
                 }`}
                 title={viewMode === 'pdf' ? 'Volver a la vista de acordes y letra' : 'Ver partitura PDF cargada'}
@@ -769,10 +767,10 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
             ) : (
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="px-2.5 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 border border-[#232328] text-[#8e8e99] hover:text-[#c5a059] hover:border-[#c5a059]/30 transition-all cursor-pointer"
+                className="h-9 px-3 rounded-xl text-xs font-mono uppercase tracking-wider inline-flex items-center gap-1.5 border border-[#26262b] text-[#8e8e99] hover:text-[#c5a059] hover:border-[#c5a059]/30 bg-[#0a0a0b] transition-all cursor-pointer"
                 title="Subir partitura PDF para esta canción"
               >
-                <Upload size={12} />
+                <Upload size={13} />
                 <span>+ PDF</span>
               </button>
             )}
@@ -787,17 +785,17 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                     showToast('Ingresa con la contraseña de administrador para editar letras y tonos.');
                   }
                 }}
-                className="px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 bg-[#0a0a0b] hover:bg-[#1a1a1d] text-[#888894] hover:text-[#c5a059] border border-[#232328] hover:border-[#c5a059]/40 transition-colors cursor-pointer"
+                className="h-9 px-3 rounded-xl text-xs font-mono uppercase tracking-wider inline-flex items-center gap-1.5 bg-[#0a0a0b] hover:bg-[#1a1a1d] text-[#888894] hover:text-[#c5a059] border border-[#26262b] hover:border-[#c5a059]/40 transition-colors cursor-pointer"
                 title="Desbloquear edición con contraseña de administrador"
               >
                 <Edit3 size={13} />
                 <span>Editar</span>
               </button>
             ) : (
-              <div className="flex bg-[#0a0a0b] p-1 rounded-xl border border-[#232328]">
+              <div className="h-9 inline-flex items-center bg-[#0a0a0b] p-0.5 rounded-xl border border-[#26262b]">
                 <button
                   onClick={() => setViewMode('view')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer ${
+                  className={`h-7.5 px-3 rounded-lg text-xs font-mono uppercase tracking-wider inline-flex items-center gap-1 transition-colors cursor-pointer ${
                     viewMode === 'view'
                       ? 'bg-[#1a1a1d] text-[#c5a059] border border-[#c5a059]/30 font-medium'
                       : 'text-[#6b6b75] hover:text-white'
@@ -809,7 +807,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                 </button>
                 <button
                   onClick={() => setViewMode('edit')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer ${
+                  className={`h-7.5 px-3 rounded-lg text-xs font-mono uppercase tracking-wider inline-flex items-center gap-1 transition-colors cursor-pointer ${
                     viewMode === 'edit'
                       ? 'bg-[#1a1a1d] text-[#c5a059] border border-[#c5a059]/30 font-medium'
                       : 'text-[#6b6b75] hover:text-white'
@@ -825,10 +823,10 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
             {/* Partituras / Adjuntos */}
             <button
               onClick={() => setShowAttachmentsPanel(!showAttachmentsPanel)}
-              className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+              className={`h-9 w-9 inline-flex items-center justify-center rounded-xl border transition-colors cursor-pointer ${
                 showAttachmentsPanel
                   ? 'bg-[#c5a059]/20 text-[#c5a059] border-[#c5a059]/40'
-                  : 'bg-[#0a0a0b] hover:bg-[#1f1f23] text-[#888894] hover:text-white border-[#232328]'
+                  : 'bg-[#0a0a0b] hover:bg-[#1f1f23] text-[#888894] hover:text-white border-[#26262b]'
               }`}
               title={`Partituras y archivos (${attachments.length})`}
             >
@@ -838,7 +836,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
             {/* Cerrar */}
             <button
               onClick={onClose}
-              className="p-2 rounded-xl bg-[#0a0a0b] hover:bg-[#1f1f23] text-[#888894] hover:text-white border border-[#232328] transition-colors cursor-pointer"
+              className="h-9 w-9 inline-flex items-center justify-center rounded-xl bg-[#0a0a0b] hover:bg-[#1f1f23] text-[#888894] hover:text-white border border-[#26262b] transition-colors cursor-pointer"
               title="Cerrar modal"
             >
               <X size={17} />
@@ -1258,9 +1256,19 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
         {/* ======================================================== */}
         {/* 7. CONTENEDOR PRINCIPAL (LETRA + BARRA VERTICAL DERECHA) */}
         {/* ======================================================== */}
-        <div className="flex-1 flex flex-row relative min-h-0">
-          {/* A. ÁREA DE LETRA, ACORDES Y PARTITURAS PDF */}
-          <div className="flex-1 min-w-0 p-1 bg-[#0a0a0b] relative select-text overflow-x-hidden">
+        <div className="flex-1 flex flex-row relative min-h-0 overflow-hidden">
+          {/* ÁREA DE LETRA, ACORDES Y PARTITURAS PDF (AMPLIADA A TODO EL ESPACIO) */}
+          <div
+            ref={scrollContainerRef}
+            id="song-lyrics-scroll-container"
+            className={`flex-1 min-w-0 bg-[#121215] relative select-text overflow-x-hidden overflow-y-auto ${
+              viewMode === 'view'
+                ? `p-5 sm:p-8 md:p-10 font-mono ${textSizeClass} leading-relaxed ${
+                    columnsCount === 2 ? 'md:columns-2 md:gap-8' : ''
+                  }`
+                : 'p-4 sm:p-6'
+            }`}
+          >
             {/* VISTA 1: PARTITURA PDF */}
             {viewMode === 'pdf' && activePdf ? (
               <div className="flex flex-col gap-2 min-h-[600px] h-[82vh] sm:h-[86vh]">
@@ -1302,7 +1310,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                 </div>
               </div>
             ) : viewMode === 'pdf' ? (
-              <div className="bg-[#121215] border border-[#1f1f23] rounded-2xl p-8 text-center my-6">
+              <div className="bg-[#18181c] border border-[#26262b] rounded-2xl p-8 text-center my-6 max-w-md mx-auto">
                 <FileText size={40} className="mx-auto mb-3 text-[#c5a059]" />
                 <h4 className="text-white font-medium text-base mb-1">No hay archivo PDF cargado</h4>
                 <p className="text-xs text-[#8e8e99] max-w-sm mx-auto mb-4">
@@ -1318,96 +1326,90 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                 </button>
               </div>
             ) : viewMode === 'view' ? (
-              <div
-                className={`bg-[#121215] border border-[#1f1f23] rounded-2xl p-5 sm:p-8 shadow-inner font-mono ${textSizeClass} leading-relaxed select-text ${
-                  columnsCount === 2 ? 'md:columns-2 md:gap-8' : ''
-                }`}
-              >
-                {renderedLines.length === 0 || (renderedLines.length === 1 && !renderedLines[0].trim()) ? (
-                  <div className="text-center py-12 text-[#6b6b75]">
-                    <Music size={32} className="mx-auto mb-2 text-[#34343d]" />
-                    <p className="text-sm font-sans text-[#a0a0ab]">Esta canción no tiene letra cargada aún.</p>
-                    {isAdmin && (
-                      <button
-                        onClick={() => setViewMode('edit')}
-                        className="mt-3 px-4 py-2 bg-[#1a1a1d] hover:bg-[#232328] text-[#c5a059] rounded-xl text-xs font-mono uppercase tracking-wider border border-[#c5a059]/30 transition-colors cursor-pointer"
-                      >
-                        Escribir o pegar letra y acordes
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  renderedLines.map((line, lineIdx) => {
-                    const trimmed = line.trim();
+              renderedLines.length === 0 || (renderedLines.length === 1 && !renderedLines[0].trim()) ? (
+                <div className="text-center py-16 text-[#6b6b75]">
+                  <Music size={32} className="mx-auto mb-2 text-[#34343d]" />
+                  <p className="text-sm font-sans text-[#a0a0ab]">Esta canción no tiene letra cargada aún.</p>
+                  {isAdmin && (
+                    <button
+                      onClick={() => setViewMode('edit')}
+                      className="mt-3 px-4 py-2 bg-[#1a1a1d] hover:bg-[#232328] text-[#c5a059] rounded-xl text-xs font-mono uppercase tracking-wider border border-[#c5a059]/30 transition-colors cursor-pointer"
+                    >
+                      Escribir o pegar letra y acordes
+                    </button>
+                  )}
+                </div>
+              ) : (
+                renderedLines.map((line, lineIdx) => {
+                  const trimmed = line.trim();
 
-                    if (!trimmed) {
-                      return <div key={lineIdx} className="h-4" />;
-                    }
+                  if (!trimmed) {
+                    return <div key={lineIdx} className="h-4" />;
+                  }
 
-                    // Encabezado de Sección: [Intro], [Estrofa 1], [Coro], [Puente]
-                    if (isSectionHeader(trimmed)) {
-                      const { code, colorClass } = getSectionBadgeCode(trimmed);
-                      return (
-                        <div
-                          key={lineIdx}
-                          id={`section-node-${lineIdx}`}
-                          className="pt-5 pb-2 break-inside-avoid scroll-mt-6 flex items-center gap-2"
-                        >
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-3 py-1 font-bold text-xs rounded-lg border tracking-wider shadow-sm ${colorClass}`}
-                          >
-                            <span className="font-mono">{code}</span>
-                            <span className="text-[#a0a0ab] font-sans font-normal text-[11px]">
-                              · {trimmed.replace(/[[\]]/g, '')}
-                            </span>
-                          </span>
-                        </div>
-                      );
-                    }
-
-                    // Ocultar si usuario eligió "Solo Letra" y toda la línea es acordes
-                    const isLineAllChords = isChordLine(line);
-                    if (!showChords && isLineAllChords) {
-                      return null;
-                    }
-
-                    const tokens = parseLyricsLineTokens(line);
-
+                  // Encabezado de Sección: [Intro], [Estrofa 1], [Coro], [Puente]
+                  if (isSectionHeader(trimmed)) {
+                    const { code, colorClass } = getSectionBadgeCode(trimmed);
                     return (
                       <div
                         key={lineIdx}
-                        className={`whitespace-pre-wrap ${
-                          isLineAllChords ? 'text-[#c5a059] font-bold py-0.5' : 'text-[#f0f0f5] py-0.5'
-                        }`}
+                        id={`section-node-${lineIdx}`}
+                        className="pt-5 pb-2 break-inside-avoid scroll-mt-6 flex items-center gap-2"
                       >
-                        {tokens.map((token, tIdx) => {
-                          if (token.isChord) {
-                            if (!showChords) return null;
-                            return (
-                              <span
-                                key={tIdx}
-                                onClick={() => setSelectedChordForPopover(token.text)}
-                                className="inline-block font-bold text-[#c5a059] bg-[#c5a059]/10 hover:bg-[#c5a059]/25 px-1.5 py-0.5 rounded mx-0.5 border border-[#c5a059]/30 hover:border-[#c5a059] transition-all cursor-pointer select-text"
-                                title={`Ver diagrama de acorde: ${token.text}`}
-                              >
-                                {token.text}
-                              </span>
-                            );
-                          }
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 font-bold text-xs rounded-lg border tracking-wider shadow-sm ${colorClass}`}
+                        >
+                          <span className="font-mono">{code}</span>
+                          <span className="text-[#a0a0ab] font-sans font-normal text-[11px]">
+                            · {trimmed.replace(/[[\]]/g, '')}
+                          </span>
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  // Ocultar si usuario eligió "Solo Letra" y toda la línea es acordes
+                  const isLineAllChords = isChordLine(line);
+                  if (!showChords && isLineAllChords) {
+                    return null;
+                  }
+
+                  const tokens = parseLyricsLineTokens(line);
+
+                  return (
+                    <div
+                      key={lineIdx}
+                      className={`whitespace-pre-wrap ${
+                        isLineAllChords ? 'text-[#c5a059] font-bold py-0.5' : 'text-[#f0f0f5] py-0.5'
+                      }`}
+                    >
+                      {tokens.map((token, tIdx) => {
+                        if (token.isChord) {
+                          if (!showChords) return null;
                           return (
-                            <span key={tIdx} className="text-[#f0f0f5]">
+                            <span
+                              key={tIdx}
+                              onClick={() => setSelectedChordForPopover(token.text)}
+                              className="inline-block font-bold text-[#c5a059] bg-[#c5a059]/10 hover:bg-[#c5a059]/25 px-1.5 py-0.5 rounded mx-0.5 border border-[#c5a059]/30 hover:border-[#c5a059] transition-all cursor-pointer select-text"
+                              title={`Ver diagrama de acorde: ${token.text}`}
+                            >
                               {token.text}
                             </span>
                           );
-                        })}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+                        }
+                        return (
+                          <span key={tIdx} className="text-[#f0f0f5]">
+                            {token.text}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  );
+                })
+              )
             ) : (
               /* Modo Editor */
-              <div className="space-y-3">
+              <div className="space-y-3 max-w-4xl mx-auto">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <label className="text-xs font-mono uppercase tracking-wider text-[#6b6b75] block">
                     {isAdmin

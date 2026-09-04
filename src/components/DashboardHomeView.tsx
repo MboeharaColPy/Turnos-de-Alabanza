@@ -198,7 +198,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: 'Director',
       icon: UserCheck,
       headerBadge: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-      tagBg: 'bg-amber-950/20 border-amber-500/35 hover:border-amber-500/60',
+      tagBg: 'bg-[#141418] border-[#232328] hover:border-amber-500/60 shadow-sm',
       roleColor: 'text-amber-400 font-bold',
       members: nextEventMusicians.filter(m => m.category === 'director'),
     },
@@ -207,7 +207,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: 'Voces',
       icon: Mic,
       headerBadge: 'bg-rose-500/10 text-rose-300 border-rose-500/30',
-      tagBg: 'bg-[#141418] border-[#232328] hover:border-rose-500/40',
+      tagBg: 'bg-[#141418] border-[#232328] hover:border-rose-500/40 shadow-sm',
       roleColor: 'text-rose-300 font-semibold',
       members: nextEventMusicians.filter(m => m.category === 'voz'),
     },
@@ -216,7 +216,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: 'Instrumentos',
       icon: Music,
       headerBadge: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
-      tagBg: 'bg-[#141418] border-[#232328] hover:border-emerald-500/40',
+      tagBg: 'bg-[#141418] border-[#232328] hover:border-emerald-500/40 shadow-sm',
       roleColor: 'text-emerald-300 font-semibold',
       members: nextEventMusicians.filter(m => m.category === 'instrument'),
     },
@@ -225,7 +225,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: 'Sonido y audiovisual',
       icon: Sliders,
       headerBadge: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30',
-      tagBg: 'bg-[#141418] border-[#232328] hover:border-cyan-500/40',
+      tagBg: 'bg-[#141418] border-[#232328] hover:border-cyan-500/40 shadow-sm',
       roleColor: 'text-cyan-300 font-semibold',
       members: nextEventMusicians.filter(m => m.category === 'tech'),
     },
@@ -384,7 +384,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                 return (
                   <div
                     key={group.key}
-                    className="p-3 bg-[#0c0c0f] border border-[#1c1c20] rounded-xl space-y-2"
+                    className="p-3 bg-[#0a0a0b] border border-[#232328] rounded-xl space-y-2"
                   >
                     <div className="flex items-center gap-2">
                       <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded border inline-flex items-center gap-1.5 ${group.headerBadge}`}>
