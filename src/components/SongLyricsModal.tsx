@@ -600,17 +600,17 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
     >
       <div
         ref={scrollContainerRef}
-        className={`bg-[#141418] border border-[#26262b] flex flex-col shadow-2xl overflow-y-auto transition-all select-text scroll-smooth ${
+        className={`bg-[#141418] flex flex-col shadow-2xl overflow-y-auto transition-all select-text scroll-smooth ${
           isFullScreen
-            ? 'w-full h-full rounded-none border-none'
-            : 'w-full max-w-6xl max-h-[96vh] h-[96vh] rounded-2xl my-auto'
+            ? 'w-full h-full rounded-none'
+            : 'w-full h-full rounded-none'
         }`}
         onClick={e => e.stopPropagation()}
       >
         {/* ======================================================== */}
         {/* 1. HEADER: Título, Tono, Setlist Nav, Video YouTube & Slider Acordes */}
         {/* ======================================================== */}
-        <div className="p-3 sm:p-4 bg-[#1a1a1d] border-b border-[#232328] flex flex-col lg:flex-row lg:items-center justify-between gap-3 flex-shrink-0">
+        <div className="p-1 sm:p-2 bg-[#1a1a1d] flex flex-col lg:flex-row lg:items-center justify-between gap-2 flex-shrink-0">
           {/* Título & Meta */}
           <div className="flex items-start sm:items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-[#c5a059]/10 border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059] flex-shrink-0">
@@ -689,21 +689,21 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                 <button
                   onClick={() => prevSong && onNavigateToSong(prevSong)}
                   disabled={!prevSong}
-                  className="p-1.5 text-[#888894] hover:text-[#c5a059] disabled:opacity-30 disabled:hover:text-[#888894] transition-colors cursor-pointer rounded-lg"
+                  className="p-3 text-[#888894] hover:text-[#c5a059] hover:bg-[#c5a059]/10 disabled:opacity-30 disabled:hover:text-[#888894] disabled:hover:bg-transparent transition-colors cursor-pointer rounded-lg"
                   title={prevSong ? `Anterior en la lista: ${prevSong.title}` : 'Primera de la lista'}
                 >
-                  <ChevronLeft size={16} />
+                  <ChevronLeft size={20} />
                 </button>
-                <span className="text-[10px] font-mono text-[#888894] px-2 font-medium whitespace-nowrap">
+                <span className="text-xs font-mono text-[#888894] px-4 font-medium whitespace-nowrap">
                   {currentSongIndex >= 0 ? currentSongIndex + 1 : 1} de {allSongs.length}
                 </span>
                 <button
                   onClick={() => nextSong && onNavigateToSong(nextSong)}
                   disabled={!nextSong}
-                  className="p-1.5 text-[#888894] hover:text-[#c5a059] disabled:opacity-30 disabled:hover:text-[#888894] transition-colors cursor-pointer rounded-lg"
+                  className="p-3 text-[#888894] hover:text-[#c5a059] hover:bg-[#c5a059]/10 disabled:opacity-30 disabled:hover:text-[#888894] disabled:hover:bg-transparent transition-colors cursor-pointer rounded-lg"
                   title={nextSong ? `Siguiente en la lista: ${nextSong.title}` : 'Última de la lista'}
                 >
-                  <ChevronRight size={16} />
+                  <ChevronRight size={20} />
                 </button>
               </div>
             )}
@@ -1260,7 +1260,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
         {/* ======================================================== */}
         <div className="flex-1 flex flex-row relative min-h-0">
           {/* A. ÁREA DE LETRA, ACORDES Y PARTITURAS PDF */}
-          <div className="flex-1 min-w-0 p-3 sm:p-5 md:p-7 bg-[#0a0a0b] relative select-text overflow-x-hidden">
+          <div className="flex-1 min-w-0 p-1 bg-[#0a0a0b] relative select-text overflow-x-hidden">
             {/* VISTA 1: PARTITURA PDF */}
             {viewMode === 'pdf' && activePdf ? (
               <div className="flex flex-col gap-2 min-h-[600px] h-[82vh] sm:h-[86vh]">
