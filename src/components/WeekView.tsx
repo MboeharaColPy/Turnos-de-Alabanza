@@ -48,6 +48,8 @@ interface WeekViewProps {
   onApplySchedule: (newAssignments: Record<string, Record<string, string>>) => void;
   showToast: (msg: string) => void;
   onRequestAdmin?: () => void;
+  agendaViewMode?: 'mes' | 'semana';
+  onAgendaViewModeChange?: (mode: 'mes' | 'semana') => void;
 }
 
 export const WeekView: React.FC<WeekViewProps> = ({
@@ -65,6 +67,8 @@ export const WeekView: React.FC<WeekViewProps> = ({
   onApplySchedule,
   showToast,
   onRequestAdmin,
+  agendaViewMode,
+  onAgendaViewModeChange,
 }) => {
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -216,6 +220,35 @@ export const WeekView: React.FC<WeekViewProps> = ({
 
         {/* Barra de Botones de Acción Destacados (Fácil Visualización) */}
         <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Selector de Vista Principal: [Vista Mes | Vista Semana] */}
+          {onAgendaViewModeChange && (
+            <div className="flex bg-[#0a0a0b] p-1 rounded-xl border border-[#232328]">
+              <button
+                onClick={() => onAgendaViewModeChange('mes')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                  agendaViewMode === 'mes'
+                    ? 'bg-[#1e1e24] text-white border border-[#c5a059]/40 font-bold shadow-sm'
+                    : 'text-[#8e8e99] hover:text-white'
+                }`}
+              >
+                <Calendar size={13} className={agendaViewMode === 'mes' ? 'text-[#c5a059]' : ''} />
+                <span>Vista Mes</span>
+              </button>
+
+              <button
+                onClick={() => onAgendaViewModeChange('semana')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                  agendaViewMode === 'semana'
+                    ? 'bg-[#1e1e24] text-white border border-[#c5a059]/40 font-bold shadow-sm'
+                    : 'text-[#8e8e99] hover:text-white'
+                }`}
+              >
+                <Layers size={13} className={agendaViewMode === 'semana' ? 'text-[#c5a059]' : ''} />
+                <span>Vista Semana</span>
+              </button>
+            </div>
+          )}
+
           {onOpenCatalog && (
             <button
               onClick={onOpenCatalog}

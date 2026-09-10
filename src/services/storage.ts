@@ -425,7 +425,9 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
       seeded: !!state.seeded,
       lastUpdated: new Date().toISOString(),
     };
-    await setDoc(docRef, payload, { merge: true });
+    // Sanitizar profundamente para evitar cualquier valor undefined que rechace Firestore
+    const cleanPayload = JSON.parse(JSON.stringify(payload));
+    await setDoc(docRef, cleanPayload, { merge: true });
     return true;
   } catch (error) {
     console.warn('Almacenamiento en la nube en modo diferido/offline:', error);

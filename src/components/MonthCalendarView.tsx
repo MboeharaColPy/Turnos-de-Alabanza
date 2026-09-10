@@ -32,6 +32,8 @@ import {
   Heart,
   Check,
   Info,
+  Layers,
+  CalendarDays,
 } from 'lucide-react';
 import { generateRotativeSchedule, getRoleCategory } from '../services/rotativeScheduler';
 import { ConflictExplainerModal } from './ConflictExplainerModal';
@@ -44,6 +46,8 @@ interface MonthCalendarViewProps {
   onSelectSong?: (song: SongItem, contextSongs?: SongItem[]) => void;
   showToast: (msg: string) => void;
   onRequestAdmin?: () => void;
+  agendaViewMode?: 'mes' | 'semana';
+  onAgendaViewModeChange?: (mode: 'mes' | 'semana') => void;
 }
 
 export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
@@ -54,6 +58,8 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
   onSelectSong,
   showToast,
   onRequestAdmin,
+  agendaViewMode,
+  onAgendaViewModeChange,
 }) => {
   // Inicialización inteligente: Si ya pasó el último domingo de este mes, abre en el siguiente mes
   const [currentDate, setCurrentDate] = useState<Date>(() => getDefaultMonthDate(new Date()));
@@ -258,143 +264,183 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
         onClose={() => setShowExplainerModal(false)}
       />
 
-      {/* Barra de Navegación del Mes */}
-      <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Título del Mes y Navegación */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="w-10 h-10 rounded-xl bg-[#c5a059]/10 border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059] flex-shrink-0">
-            <CalendarIcon size={18} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#6b6b75] block">
-                Agenda & Turnos del Mes
-              </span>
-              {isAutoAdvancedNextMonth && (
-                <span className="font-mono text-[9px] uppercase tracking-wider text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <Check size={10} />
-                  <span>Ciclo Activo</span>
-                </span>
-              )}
+      {/* Barra de Navegación Unificada: Selector de Mes / Semana + Controles del Mes */}
+      <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col gap-4" id="month-calendar-header">
+        {/* Fila Principal: Título, Ciclo, Navegación de Mes y Alternancia Mes/Semana */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
+          {/* Título del Mes y Navegación */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="w-10 h-10 rounded-xl bg-[#c5a059]/10 border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059] flex-shrink-0">
+              <CalendarIcon size={18} />
             </div>
-            <h2 className="font-serif text-2xl sm:text-3xl font-light text-white tracking-tight">
-              {capitalizedMonthName}
-            </h2>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#6b6b75] block">
+                  Calendario de Cultos & Ensayos
+                </span>
+                {isAutoAdvancedNextMonth && (
+                  <span className="font-mono text-[9px] uppercase tracking-wider text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Check size={10} />
+                    <span>Ciclo Activo</span>
+                  </span>
+                )}
+              </div>
+              <h2 className="font-serif text-2xl sm:text-3xl font-light text-white tracking-tight">
+                {capitalizedMonthName}
+              </h2>
+            </div>
+
+            {/* Selector de Mes: < Ciclo Activo > */}
+            <div className="flex items-center gap-1.5 ml-0 sm:ml-4 bg-[#0a0a0b] p-1 rounded-xl border border-[#1f1f23]">
+              <button
+                onClick={prevMonth}
+                className="w-9 h-9 rounded-lg bg-[#1a1a1d] hover:bg-[#232328] text-white flex items-center justify-center cursor-pointer transition-colors min-h-[36px]"
+                title="Mes anterior"
+                id="prev-month-btn"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                onClick={setThisMonth}
+                className="px-3.5 py-1.5 bg-[#1a1a1d] hover:bg-[#232328] text-xs font-mono uppercase tracking-wider text-[#a0a0ab] hover:text-white rounded-lg transition-colors cursor-pointer min-h-[36px]"
+                title="Ir al mes del ciclo activo actual"
+                id="this-month-btn"
+              >
+                Ciclo Activo
+              </button>
+              <button
+                onClick={nextMonth}
+                className="w-9 h-9 rounded-lg bg-[#1a1a1d] hover:bg-[#232328] text-white flex items-center justify-center cursor-pointer transition-colors min-h-[36px]"
+                title="Mes siguiente"
+                id="next-month-btn"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1.5 ml-0 sm:ml-4 bg-[#0a0a0b] p-1 rounded-xl border border-[#1f1f23]">
-            <button
-              onClick={prevMonth}
-              className="w-9 h-9 rounded-lg bg-[#1a1a1d] hover:bg-[#232328] text-white flex items-center justify-center cursor-pointer transition-colors min-h-[36px]"
-              title="Mes anterior"
-              id="prev-month-btn"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              onClick={setThisMonth}
-              className="px-3.5 py-1.5 bg-[#1a1a1d] hover:bg-[#232328] text-xs font-mono uppercase tracking-wider text-[#a0a0ab] hover:text-white rounded-lg transition-colors cursor-pointer min-h-[36px]"
-              title="Ir al mes del ciclo activo actual"
-              id="this-month-btn"
-            >
-              Ciclo Activo
-            </button>
-            <button
-              onClick={nextMonth}
-              className="w-9 h-9 rounded-lg bg-[#1a1a1d] hover:bg-[#232328] text-white flex items-center justify-center cursor-pointer transition-colors min-h-[36px]"
-              title="Mes siguiente"
-              id="next-month-btn"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
+          {/* Selector de Vista Principal: [Vista Mes | Vista Semana] (Combinado) */}
+          {onAgendaViewModeChange && (
+            <div className="flex items-center gap-2 self-start lg:self-center">
+              <div className="flex bg-[#0a0a0b] p-1 rounded-xl border border-[#232328]">
+                <button
+                  onClick={() => onAgendaViewModeChange('mes')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                    agendaViewMode === 'mes'
+                      ? 'bg-[#1e1e24] text-white border border-[#c5a059]/40 font-bold shadow-sm'
+                      : 'text-[#8e8e99] hover:text-white'
+                  }`}
+                >
+                  <CalendarDays size={13} className={agendaViewMode === 'mes' ? 'text-[#c5a059]' : ''} />
+                  <span>Vista Mes</span>
+                </button>
 
-          <button
-            onClick={() => setShowExplainerModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-medium transition-colors cursor-pointer min-h-[36px]"
-            title="Ver guía visual de alertas y reglas de parejas"
-          >
-            <HelpCircle size={14} />
-            <span>Guía de Alertas</span>
-          </button>
+                <button
+                  onClick={() => onAgendaViewModeChange('semana')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                    agendaViewMode === 'semana'
+                      ? 'bg-[#1e1e24] text-white border border-[#c5a059]/40 font-bold shadow-sm'
+                      : 'text-[#8e8e99] hover:text-white'
+                  }`}
+                >
+                  <Layers size={13} className={agendaViewMode === 'semana' ? 'text-[#c5a059]' : ''} />
+                  <span>Vista Semana</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Acciones & Toggle de Vista */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {/* Switch de modo de vista (Agenda / Calendario / Tabla) */}
-          <div className="flex bg-[#0a0a0b] p-1 rounded-xl border border-[#1f1f23]">
+        {/* Fila Secundaria: Modos de Visualización del Mes (Agenda / Cuadrícula / Tabla) y Acciones */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#1f1f23]">
+          {/* Sub-vistas del mes: Agenda / Cuadrícula / Tabla */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex bg-[#0a0a0b] p-1 rounded-xl border border-[#1f1f23]">
+              <button
+                onClick={() => setViewMode('agenda')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer min-h-[36px] ${
+                  viewMode === 'agenda'
+                    ? 'bg-[#1e1e24] text-amber-300 border border-amber-500/40 font-bold'
+                    : 'text-[#888894] hover:text-white'
+                }`}
+                title="Vista de agenda con fechas y detalles asignados"
+              >
+                <ListFilter size={14} />
+                <span>Agenda</span>
+              </button>
+              <button
+                onClick={() => setViewMode('calendar')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer min-h-[36px] ${
+                  viewMode === 'calendar'
+                    ? 'bg-[#1e1e24] text-amber-300 border border-amber-500/40 font-bold'
+                    : 'text-[#888894] hover:text-white'
+                }`}
+                title="Vista cuadrícula de calendario"
+              >
+                <LayoutGrid size={14} />
+                <span>Cuadrícula</span>
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer min-h-[36px] ${
+                  viewMode === 'table'
+                    ? 'bg-[#1e1e24] text-amber-300 border border-amber-500/40 font-bold'
+                    : 'text-[#888894] hover:text-white'
+                }`}
+                title="Vista simultánea en tabla"
+              >
+                <TableIcon size={14} />
+                <span>Tabla</span>
+              </button>
+            </div>
+
+            {/* Toggle Fechas Pasadas */}
             <button
-              onClick={() => setViewMode('agenda')}
-              className={`px-3 py-2 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer min-h-[40px] ${
-                viewMode === 'agenda'
-                  ? 'bg-[#1e1e24] text-amber-300 border border-amber-500/40 font-bold'
-                  : 'text-[#888894] hover:text-white'
+              onClick={() => setHidePastDates(!hidePastDates)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wider border transition-colors cursor-pointer flex items-center gap-1.5 min-h-[36px] ${
+                hidePastDates
+                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 font-bold'
+                  : 'bg-[#0a0a0b] border-[#1f1f23] text-[#888894] hover:text-white'
               }`}
-              title="Vista de agenda con fechas y detalles asignados"
+              title={hidePastDates ? 'Mostrando solo fechas vigentes y futuras (incluyendo cultos en curso de 3h)' : 'Ocultar fechas ya finalizadas del mes'}
             >
-              <ListFilter size={14} />
-              <span>Agenda</span>
-            </button>
-            <button
-              onClick={() => setViewMode('calendar')}
-              className={`px-3 py-2 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer min-h-[40px] ${
-                viewMode === 'calendar'
-                  ? 'bg-[#1e1e24] text-amber-300 border border-amber-500/40 font-bold'
-                  : 'text-[#888894] hover:text-white'
-              }`}
-              title="Vista cuadrícula de calendario"
-            >
-              <LayoutGrid size={14} />
-              <span>Cuadrícula</span>
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              className={`px-3 py-2 rounded-lg text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer min-h-[40px] ${
-                viewMode === 'table'
-                  ? 'bg-[#1e1e24] text-amber-300 border border-amber-500/40 font-bold'
-                  : 'text-[#888894] hover:text-white'
-              }`}
-              title="Vista simultánea en tabla"
-            >
-              <TableIcon size={14} />
-              <span>Tabla</span>
+              <span>{hidePastDates ? 'Pasadas Ocultas' : 'Minimizar Pasadas'}</span>
             </button>
           </div>
 
-          {/* Toggle Fechas Pasadas */}
-          <button
-            onClick={() => setHidePastDates(!hidePastDates)}
-            className={`px-3 py-2 rounded-xl text-xs font-mono uppercase tracking-wider border transition-colors cursor-pointer flex items-center gap-1.5 min-h-[40px] ${
-              hidePastDates
-                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 font-bold'
-                : 'bg-[#0a0a0b] border-[#1f1f23] text-[#888894] hover:text-white'
-            }`}
-            title={hidePastDates ? 'Mostrando solo fechas vigentes y futuras' : 'Ocultar fechas ya pasadas del mes'}
-          >
-            <span>{hidePastDates ? 'Pasadas Ocultas' : 'Minimizar Pasadas'}</span>
-          </button>
+          {/* Acciones: Guía de Alertas y Sugerir Mes IA */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setShowExplainerModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-medium transition-colors cursor-pointer min-h-[36px]"
+              title="Ver guía visual de alertas y reglas de parejas"
+            >
+              <HelpCircle size={14} />
+              <span>Guía de Alertas</span>
+            </button>
 
-          {isAdmin ? (
-            <button
-              onClick={handleAutoGenerateMonth}
-              disabled={isGenerating || sortedSlots.length === 0}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-slate-950 font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50 min-h-[42px] active:scale-95"
-              id="auto-generate-month-btn"
-              title="Sugerir automáticamente los turnos del mes respetando directores, balance 3H/3M, descansos y parejas"
-            >
-              <Sparkles size={14} className={isGenerating ? 'animate-spin' : ''} />
-              <span>{isGenerating ? 'Generando...' : 'Sugerir Mes (IA)'}</span>
-            </button>
-          ) : (
-            <button
-              onClick={onRequestAdmin}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-[#18181c] hover:bg-[#222228] text-[#a0a0ab] hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider border border-[#2e2e36] cursor-pointer transition-all min-h-[42px]"
-              title="Desbloquear modo administrador"
-            >
-              <Lock size={12} className="text-amber-400" />
-              <span>Modo Admin</span>
-            </button>
-          )}
+            {isAdmin ? (
+              <button
+                onClick={handleAutoGenerateMonth}
+                disabled={isGenerating || sortedSlots.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-slate-950 font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50 min-h-[38px] active:scale-95"
+                id="auto-generate-month-btn"
+                title="Sugerir automáticamente los turnos del mes respetando directores, balance 3H/3M, descansos y parejas"
+              >
+                <Sparkles size={14} className={isGenerating ? 'animate-spin' : ''} />
+                <span>{isGenerating ? 'Generando...' : 'Sugerir Mes (IA)'}</span>
+              </button>
+            ) : (
+              <button
+                onClick={onRequestAdmin}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-[#18181c] hover:bg-[#222228] text-[#a0a0ab] hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider border border-[#2e2e36] cursor-pointer transition-all min-h-[38px]"
+                title="Desbloquear modo administrador"
+              >
+                <Lock size={12} className="text-amber-400" />
+                <span>Modo Admin</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -402,11 +448,15 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
       {viewMode === 'agenda' && (
         <div className="space-y-5">
           {(() => {
+            const now = new Date();
             const filteredAgenda = agendaEvents.filter(evt => {
               if (hidePastDates) {
-                const evtMidnight = new Date(evt.date);
-                evtMidnight.setHours(0, 0, 0, 0);
-                return evtMidnight >= todayStart;
+                const [h, m] = (evt.slot.time || '10:00').split(':').map(Number);
+                const evtStart = new Date(evt.date);
+                evtStart.setHours(h || 0, m || 0, 0, 0);
+                // Cada evento dura 3 horas y sigue mostrándose hasta que finalice
+                const evtEnd = new Date(evtStart.getTime() + 3 * 60 * 60 * 1000);
+                return now <= evtEnd;
               }
               return true;
             });
@@ -430,10 +480,18 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
             }
 
             return filteredAgenda.map((evt, idx) => {
-              const evtMidnight = new Date(evt.date);
-              evtMidnight.setHours(0, 0, 0, 0);
-              const isPast = evtMidnight < todayStart;
+              const [h, m] = (evt.slot.time || '10:00').split(':').map(Number);
+              const evtStart = new Date(evt.date);
+              evtStart.setHours(h || 0, m || 0, 0, 0);
+              // La duración de cada evento es de 3 horas
+              const evtEnd = new Date(evtStart.getTime() + 3 * 60 * 60 * 1000);
+              const isLiveNow = now >= evtStart && now <= evtEnd;
+              const isPast = now > evtEnd;
               const isExpanded = expandedPastKeys[evt.shiftKey] ?? !isPast;
+
+              const endH = String(evtEnd.getHours()).padStart(2, '0');
+              const endM = String(evtEnd.getMinutes()).padStart(2, '0');
+              const formattedEvtEndTime = `${endH}:${endM}`;
 
               // Extraer y categorizar TODOS los roles configurados + asignaciones activas
               const slotRoleIds = (evt.slot.roleIds || []).filter(rid =>
@@ -555,12 +613,22 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                           <h3 className="font-serif text-xl sm:text-2xl font-medium text-white tracking-tight">
                             {DAYS_OF_WEEK[evt.dayOfWeek]} {evt.date.getDate()} de {capitalizedMonthName}
                           </h3>
-                          <span className="font-mono text-xs text-[#c5a059] bg-[#c5a059]/10 border border-[#c5a059]/30 px-2.5 py-0.5 rounded-full font-semibold">
-                            {evt.slot.time} HS
+                          <span className={`font-mono text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
+                            isLiveNow
+                              ? 'bg-emerald-950/60 text-emerald-300 border-emerald-700/60 shadow-sm'
+                              : 'text-[#c5a059] bg-[#c5a059]/10 border-[#c5a059]/30'
+                          }`}>
+                            {evt.slot.time} HS {isLiveNow ? `→ ${formattedEvtEndTime} hs` : '(3h)'}
                           </span>
+                          {isLiveNow && (
+                            <span className="font-mono text-[9px] uppercase tracking-wider text-emerald-400 bg-emerald-950/60 border border-emerald-700/60 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+                              En Curso Ahora
+                            </span>
+                          )}
                           {isPast && (
                             <span className="font-mono text-[9px] uppercase tracking-wider text-[#7d7d88] bg-[#0a0a0b] border border-[#222226] px-2 py-0.5 rounded">
-                              Fecha Pasada
+                              Fecha Finalizada
                             </span>
                           )}
                         </div>

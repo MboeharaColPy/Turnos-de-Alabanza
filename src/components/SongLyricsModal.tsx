@@ -616,7 +616,10 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
         {/* ======================================================== */}
         {/* 1. HEADER: Título, Tono, Setlist Nav, Video YouTube & Slider Acordes */}
         {/* ======================================================== */}
-        <div className="p-2 sm:p-2.5 bg-[#161619] border-b border-[#242429] flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 flex-shrink-0">
+        <div
+          id="song-lyrics-modal-header"
+          className="p-2 sm:p-2.5 bg-[#161619] border-b border-[#242429] flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 flex-shrink-0"
+        >
           {/* Título & Tono/BPM */}
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-[#c5a059]/10 border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059] flex-shrink-0">

@@ -20,6 +20,7 @@ try {
   firestoreInstance = initializeFirestore(
     app,
     {
+      ignoreUndefinedProperties: true,
       localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager()
       })

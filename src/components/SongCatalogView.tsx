@@ -128,9 +128,10 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
         artists: [finalArtist],
         category: newCategory,
         key: newKey.trim() || 'G',
-        bpm: newBpm ? Number(newBpm) : undefined,
+        bpm: newBpm ? Number(newBpm) : 0,
         lyrics: newLyrics.trim() || '',
-        youtubeUrl: newYoutubeUrl.trim() || undefined,
+        youtubeUrl: newYoutubeUrl.trim() || '',
+        attachments: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
@@ -353,7 +354,7 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
                         )}
                       </td>
                       <td className="py-2.5 px-4 text-[#888894]">{song.bpm ? `${song.bpm}` : '-'}</td>
-                      <td className="py-2.5 px-4 text-slate-300">{song.category || 'General'}</td>
+                      <td className="py-2.5 px-4 text-[#888894]">{song.category || 'General'}</td>
                     </tr>
                   );
                 })}

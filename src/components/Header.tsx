@@ -21,6 +21,8 @@ import {
   Check,
   Eye,
   EyeOff,
+  Save,
+  CloudUpload,
 } from 'lucide-react';
 
 import { PWAInstallButton } from './PWAInstallButton';
@@ -198,17 +200,30 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </h1>
 
-              {/* Acciones Rápidas: Sincronización, Modo Claro/Oscuro y Acceso Admin */}
+              {/* Acciones Rápidas: Sincronización/Guardar, Modo Claro/Oscuro y Acceso Admin */}
               <div className="flex items-center gap-1.5 flex-shrink-0" id="header-quick-actions">
-                {/* Botón Sincronizar / Refrescar */}
-                <button
-                  onClick={onSync}
-                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#141418] hover:bg-[#1a1a1d] text-[#888894] hover:text-white border border-[#1f1f23] hover:border-[#c5a059]/50 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 shadow-sm"
-                  title={isAdmin ? "Guardar cambios en la nube" : "Sincronizar datos de la nube"}
-                  id="btn-sync-refresh"
-                >
-                  <RotateCw size={14} className={isSaving ? 'animate-spin text-[#c5a059]' : ''} />
-                </button>
+                {/* Botón Sincronizar / Guardar: En modo Admin se muestra claro y destacado */}
+                {isAdmin ? (
+                  <button
+                    onClick={onSync}
+                    disabled={isSaving}
+                    className="h-8 sm:h-9 px-2.5 sm:px-3 rounded-xl bg-gradient-to-r from-[#c5a059] to-[#d4b068] hover:from-[#d4b068] hover:to-[#e3bf77] text-black font-extrabold text-[11px] sm:text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-[#c5a059]/20 active:scale-95 flex-shrink-0 disabled:opacity-75"
+                    title="Guardar todos los cambios en la nube de Firebase"
+                    id="btn-admin-save-cloud"
+                  >
+                    <Save size={14} className={isSaving ? 'animate-spin' : ''} />
+                    <span>{isSaving ? 'Guardando...' : 'Guardar'}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={onSync}
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#141418] hover:bg-[#1a1a1d] text-[#888894] hover:text-white border border-[#1f1f23] hover:border-[#c5a059]/50 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 shadow-sm"
+                    title="Sincronizar datos de la nube"
+                    id="btn-sync-refresh"
+                  >
+                    <RotateCw size={14} className={isSaving ? 'animate-spin text-[#c5a059]' : ''} />
+                  </button>
+                )}
 
                 {/* Botón General de Modo Claro / Oscuro */}
                 {onToggleTheme && (

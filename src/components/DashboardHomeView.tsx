@@ -53,6 +53,22 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
 
   const nextMainEvent = sortedUpcomingSlots[0];
 
+  // Comprobar si el evento está en curso (duración de 3 horas)
+  const isEventLiveNow = Boolean(
+    nextMainEvent &&
+    now.getTime() >= nextMainEvent.nextDate.getTime() &&
+    now.getTime() <= nextMainEvent.nextDate.getTime() + 3 * 60 * 60 * 1000
+  );
+
+  const formattedEndTime = nextMainEvent
+    ? (() => {
+        const end = new Date(nextMainEvent.nextDate.getTime() + 3 * 60 * 60 * 1000);
+        const h = String(end.getHours()).padStart(2, '0');
+        const m = String(end.getMinutes()).padStart(2, '0');
+        return `${h}:${m}`;
+      })()
+    : '';
+
   // 2. Músicos asignados en el próximo evento principal
   // Orden estricto requerido:
   // 1. Director
@@ -238,13 +254,24 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
         <div className="bg-[#141418] border border-[#232328] rounded-2xl p-5 sm:p-6 shadow-md relative overflow-hidden">
           <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-[#1f1f23]">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                isEventLiveNow
+                  ? 'bg-emerald-950/50 border border-emerald-500/50 text-emerald-400'
+                  : 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+              }`}>
                 <Calendar size={18} />
               </div>
               <div>
-                <span className="text-[10px] font-mono uppercase tracking-widest text-[#c5a059] font-bold block">
-                  Próxima Convocatoria
-                </span>
+                {isEventLiveNow ? (
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
+                    En Curso Ahora · Duración 3 horas (hasta {formattedEndTime} hs)
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-[#c5a059] font-bold block">
+                    Próxima Convocatoria
+                  </span>
+                )}
                 <h3 className="font-serif text-xl sm:text-2xl text-white font-medium">
                   {nextMainEvent.slot.label}
                 </h3>
@@ -252,9 +279,15 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-white bg-[#0a0a0b] px-3 py-1.5 rounded-xl border border-[#2a2a30] flex items-center gap-1.5">
-                <Clock size={13} className="text-[#c5a059]" />
-                <span>{nextMainEvent.slot.time} hs</span>
+              <span className={`text-xs font-mono px-3 py-1.5 rounded-xl border flex items-center gap-1.5 ${
+                isEventLiveNow
+                  ? 'bg-emerald-950/40 text-emerald-300 border-emerald-700/50 shadow-sm shadow-emerald-950/30'
+                  : 'bg-[#0a0a0b] text-white border-[#2a2a30]'
+              }`}>
+                <Clock size={13} className={isEventLiveNow ? 'text-emerald-400 animate-pulse' : 'text-[#c5a059]'} />
+                <span>
+                  {nextMainEvent.slot.time} hs {isEventLiveNow ? `→ ${formattedEndTime} hs` : '(3h)'}
+                </span>
               </span>
               <button
                 onClick={() => onNavigateTab('calendario')}

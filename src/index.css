@@ -94,6 +94,7 @@ body.light-theme,
 
 /* Main Cards & Base Surfaces in Light Mode (White cards) */
 .light-theme .bg-\[\#141418\],
+.light-theme .bg-\[\#161619\],
 .light-theme .bg-\[\#16161b\],
 .light-theme .bg-\[\#16161a\],
 .light-theme .bg-\[\#1e1e24\],
@@ -135,6 +136,7 @@ body.light-theme,
 }
 
 /* Nested Wells, Tables, Inset Panels in Light Mode (Subtle slate tint for visual depth) */
+.light-theme .bg-\[\#08080a\],
 .light-theme .bg-\[\#0a0a0b\],
 .light-theme .bg-\[\#0a0a0c\],
 .light-theme .bg-\[\#0b0b0d\],
@@ -152,10 +154,15 @@ body.light-theme,
 .light-theme .bg-\[\#121215\],
 .light-theme .bg-\[\#121215\]\/80,
 .light-theme .bg-\[\#121216\],
+.light-theme .bg-\[\#18181b\],
+.light-theme .bg-\[\#18181e\],
 .light-theme .bg-\[\#1a1a1d\]\/90,
 .light-theme .bg-\[\#1b1b1f\],
+.light-theme .bg-\[\#202025\],
 .light-theme .bg-\[\#202026\],
-.light-theme .bg-\[\#222228\] {
+.light-theme .bg-\[\#222228\],
+.light-theme .bg-\[\#25252b\],
+.light-theme .bg-\[\#303036\] {
   background-color: #f8fafc !important;
   border-color: #e2e8f0 !important;
 }
@@ -178,7 +185,9 @@ body.light-theme,
 .light-theme .hover\:bg-\[\#232328\]:hover,
 .light-theme .hover\:bg-\[\#252529\]:hover,
 .light-theme .hover\:bg-\[\#25252a\]:hover,
+.light-theme .hover\:bg-\[\#25252b\]:hover,
 .light-theme .hover\:bg-\[\#252530\]:hover,
+.light-theme .hover\:bg-\[\#28282e\]:hover,
 .light-theme .hover\:bg-\[\#2a2a36\]:hover,
 .light-theme .hover\:bg-\[\#282830\]:hover,
 .light-theme .hover\:bg-\[\#2a2a33\]:hover {
@@ -233,17 +242,36 @@ body.light-theme,
 .light-theme .text-\[\#a0a0ab\],
 .light-theme .text-\[\#8e8e99\],
 .light-theme .text-\[\#888894\],
-.light-theme .text-\[\#7d7d88\] {
+.light-theme .text-\[\#7d7d88\],
+.light-theme .text-slate-400 {
   color: #475569 !important;
+}
+.light-theme .text-slate-300 {
+  color: #334155 !important;
 }
 .light-theme .text-\[\#6b6b75\],
 .light-theme .text-\[\#777785\],
-.light-theme .text-\[\#44444c\] {
+.light-theme .text-\[\#44444c\],
+.light-theme .text-\[\#34343d\] {
   color: #64748b !important;
+}
+
+.light-theme .text-indigo-400 {
+  color: #4338ca !important;
+  font-weight: 600 !important;
+}
+.light-theme .text-orange-400 {
+  color: #c2410c !important;
+  font-weight: 600 !important;
+}
+.light-theme .text-purple-400 {
+  color: #7e22ce !important;
+  font-weight: 600 !important;
 }
 
 /* Border Hierarchy in Light Mode */
 .light-theme .border-\[\#1a1a1d\],
+.light-theme .border-\[\#1b1b20\],
 .light-theme .border-\[\#1c1c20\],
 .light-theme .border-\[\#1e1e24\],
 .light-theme .border-\[\#1a1a1e\],
@@ -265,6 +293,7 @@ body.light-theme,
 .light-theme .border-\[\#2e2e34\],
 .light-theme .border-\[\#2e2e36\],
 .light-theme .border-\[\#33333d\],
+.light-theme .border-\[\#383842\],
 .light-theme .border-\[\#3e3e48\] {
   border-color: #e2e8f0 !important;
 }
@@ -494,5 +523,42 @@ body.light-theme,
 .light-theme .lyrics-text {
   color: #0f172a !important;
 }
+
+/* =========================================================
+   SONG LYRICS & CHORDS MODAL (VISTA DE CANCIONES) EN MODO CLARO
+   ========================================================= */
+.light-theme #song-lyrics-modal-card {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.light-theme #song-lyrics-modal-header,
+.light-theme #song-lyrics-modal-card .bg-\[\#161619\] {
+  background-color: #ffffff !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+.light-theme #song-lyrics-modal-card .bg-\[\#121215\] {
+  background-color: #ffffff !important;
+}
+
+.light-theme #song-lyrics-modal-card aside.bg-\[\#101013\] {
+  background-color: #f8fafc !important;
+  border-left-color: #e2e8f0 !important;
+}
+
+/* SVG Chord Diagrams in Light Mode */
+.light-theme svg line[stroke="#2e2e36"],
+.light-theme svg line[stroke="#4a4a55"] {
+  stroke: #cbd5e1 !important;
+}
+.light-theme svg line[stroke="#44444e"] {
+  stroke: #94a3b8 !important;
+}
+.light-theme svg circle[stroke="#0a0a0b"] {
+  stroke: #ffffff !important;
+}
+
 
 

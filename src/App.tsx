@@ -309,12 +309,26 @@ export default function App() {
   const handleAddSongDirectToCatalog = (songData: Omit<SongItem, 'id'>) => {
     const newSong: SongItem = {
       ...songData,
-      id: `sng_${Date.now()}`,
+      id: `sng_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      title: songData.title.trim(),
+      artist: songData.artist || 'Desconocido',
+      artists: songData.artists || [songData.artist || 'Desconocido'],
+      category: songData.category || 'Adoración',
+      key: songData.key || 'G',
+      bpm: songData.bpm || 0,
+      lyrics: songData.lyrics || '',
+      youtubeUrl: songData.youtubeUrl || '',
+      attachments: songData.attachments || [],
+      createdAt: songData.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
-    updateStateAndSave(prev => ({
-      ...prev,
-      songCatalog: [...(prev.songCatalog || []), newSong],
-    }));
+    updateStateAndSave(prev => {
+      const existing = (prev.songCatalog || []).filter(s => s.id !== newSong.id);
+      return {
+        ...prev,
+        songCatalog: [...existing, newSong],
+      };
+    });
     showToast(`Canción "${newSong.title}" agregada al catálogo.`);
   };
 

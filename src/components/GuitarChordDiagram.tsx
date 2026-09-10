@@ -22,7 +22,7 @@ export const GuitarChordDiagram: React.FC<ChordDiagramProps> = ({
 
   if (!diagram) {
     return (
-      <div className="flex flex-col items-center justify-center p-3 bg-[#0a0a0b] dark:bg-[#0a0a0b] bg-slate-900 border border-[#232328] rounded-xl text-center">
+      <div className="flex flex-col items-center justify-center p-3 bg-[#0a0a0b] dark:bg-[#0a0a0b] border border-[#232328] rounded-xl text-center">
         {showTitle && <span className="font-bold text-[#c5a059] text-xs font-mono mb-1">{chordName}</span>}
         <span className="text-[10px] text-[#6b6b75] italic">Diagrama</span>
       </div>

@@ -76,9 +76,19 @@ export function isPastLastSundayOfMonth(year: number, month: number, referenceDa
 }
 
 /**
- * Obtiene la próxima fecha en la que se ejecuta un Slot (por día de la semana 0..6 y hora HH:mm)
+ * Duración estándar de cada evento o culto (3 horas)
  */
-export function getNextUpcomingDateForSlot(dayOfWeekIndex: number, timeStr: string): Date {
+export const EVENT_DURATION_HOURS = 3;
+
+/**
+ * Obtiene la próxima fecha en la que se ejecuta un Slot (por día de la semana 0..6 y hora HH:mm).
+ * La duración de cada evento es de 3 horas y sigue mostrándose como evento actual hasta que finaliza.
+ */
+export function getNextUpcomingDateForSlot(
+  dayOfWeekIndex: number,
+  timeStr: string,
+  durationHours: number = EVENT_DURATION_HOURS
+): Date {
   const now = new Date();
   const [hours, minutes] = (timeStr || '10:00').split(':').map(Number);
   
@@ -94,15 +104,18 @@ export function getNextUpcomingDateForSlot(dayOfWeekIndex: number, timeStr: stri
     const convertedIndex = candidateJsDay === 0 ? 6 : candidateJsDay - 1;
 
     if (convertedIndex === dayOfWeekIndex) {
-      if (candidate >= now || i > 0) {
+      const eventEndTime = new Date(candidate.getTime() + durationHours * 60 * 60 * 1000);
+      // Si el evento aún no ha finalizado (está por comenzar o en curso durante sus 3 horas)
+      if (now <= eventEndTime || i > 0) {
         return candidate;
       }
     }
   }
 
-  // Si no se encontró en esta semana, calcular la próxima
+  // Si ya finalizó hoy o no se encontró en esta semana, calcular la próxima
   const fallback = new Date(now);
   fallback.setDate(now.getDate() + 7);
+  fallback.setHours(hours || 0, minutes || 0, 0, 0);
   return fallback;
 }
 
