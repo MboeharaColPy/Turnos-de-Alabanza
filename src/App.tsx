@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { AppState, Musician, Role, Slot, SongItem, Couple, SongAttachment } from './types';
+import { AppState, Musician, Role, Slot, SongItem, Couple, SongAttachment, DEFAULT_SONG_CATEGORIES } from './types';
 import {
   loadStoredState,
   saveCloudState,
@@ -339,7 +339,8 @@ export default function App() {
     updatedKey?: string,
     updatedBpm?: number,
     updatedYoutubeUrl?: string,
-    updatedAttachments?: SongAttachment[]
+    updatedAttachments?: SongAttachment[],
+    updatedCategories?: string[]
   ) => {
     updateStateAndSave(prev => {
       // 1. Update in songCatalog
@@ -352,6 +353,12 @@ export default function App() {
             ...(updatedBpm !== undefined ? { bpm: updatedBpm } : {}),
             ...(updatedYoutubeUrl !== undefined ? { youtubeUrl: updatedYoutubeUrl } : {}),
             ...(updatedAttachments !== undefined ? { attachments: updatedAttachments } : {}),
+            ...(updatedCategories !== undefined
+              ? {
+                  categories: updatedCategories,
+                  category: updatedCategories[0] || s.category,
+                }
+              : {}),
           };
         }
         return s;
@@ -370,6 +377,12 @@ export default function App() {
               ...(updatedBpm !== undefined ? { bpm: updatedBpm } : {}),
               ...(updatedYoutubeUrl !== undefined ? { youtubeUrl: updatedYoutubeUrl } : {}),
               ...(updatedAttachments !== undefined ? { attachments: updatedAttachments } : {}),
+              ...(updatedCategories !== undefined
+                ? {
+                    categories: updatedCategories,
+                    category: updatedCategories[0] || s.category,
+                  }
+                : {}),
             };
           }
           return s;
@@ -393,6 +406,12 @@ export default function App() {
             ...(updatedBpm !== undefined ? { bpm: updatedBpm } : {}),
             ...(updatedYoutubeUrl !== undefined ? { youtubeUrl: updatedYoutubeUrl } : {}),
             ...(updatedAttachments !== undefined ? { attachments: updatedAttachments } : {}),
+            ...(updatedCategories !== undefined
+              ? {
+                  categories: updatedCategories,
+                  category: updatedCategories[0] || curr.category,
+                }
+              : {}),
           }
         : curr
     );
@@ -409,6 +428,12 @@ export default function App() {
                   ...(updatedBpm !== undefined ? { bpm: updatedBpm } : {}),
                   ...(updatedYoutubeUrl !== undefined ? { youtubeUrl: updatedYoutubeUrl } : {}),
                   ...(updatedAttachments !== undefined ? { attachments: updatedAttachments } : {}),
+                  ...(updatedCategories !== undefined
+                    ? {
+                        categories: updatedCategories,
+                        category: updatedCategories[0] || s.category,
+                      }
+                    : {}),
                 }
               : s
           )
@@ -416,6 +441,118 @@ export default function App() {
     );
 
     showToast('¡Letra, tono y ajustes de la canción guardados!');
+  };
+
+  // Actualizar una canción completa del catálogo (metadata, categorías, etc.)
+  const handleUpdateSongInCatalog = (updatedSong: SongItem) => {
+    updateStateAndSave(prev => {
+      const updatedCatalog = (prev.songCatalog || []).map(s => (s.id === updatedSong.id ? updatedSong : s));
+      const updatedShiftSongs: Record<string, SongItem[]> = {};
+      Object.entries(prev.shiftSongs || {}).forEach(([k, songsList]) => {
+        const list = Array.isArray(songsList) ? songsList : [];
+        updatedShiftSongs[k] = list.map(s => (s.id === updatedSong.id ? { ...s, ...updatedSong } : s));
+      });
+      return {
+        ...prev,
+        songCatalog: updatedCatalog,
+        shiftSongs: updatedShiftSongs,
+      };
+    });
+    showToast(`Canción "${updatedSong.title}" actualizada.`);
+  };
+
+  // Eliminar canción del catálogo
+  const handleDeleteSongFromCatalog = (songId: string) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
+    updateStateAndSave(prev => {
+      const updatedCatalog = (prev.songCatalog || []).filter(s => s.id !== songId);
+      const updatedShiftSongs: Record<string, SongItem[]> = {};
+      Object.entries(prev.shiftSongs || {}).forEach(([k, songsList]) => {
+        const list = Array.isArray(songsList) ? songsList : [];
+        updatedShiftSongs[k] = list.filter(s => s.id !== songId);
+      });
+      return {
+        ...prev,
+        songCatalog: updatedCatalog,
+        shiftSongs: updatedShiftSongs,
+      };
+    });
+    showToast('Canción eliminada del catálogo.');
+  };
+
+  // Guardar lista completa de categorías de canciones desde Configuración
+  const handleSaveSongCategories = (newCategories: string[]) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
+    updateStateAndSave(prev => ({
+      ...prev,
+      songCategories: newCategories,
+    }));
+  };
+
+  // Renombrar una categoría existente propagando el cambio a todas las canciones
+  const handleRenameSongCategory = (oldName: string, newName: string) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
+    updateStateAndSave(prev => {
+      const currentCats = prev.songCategories || DEFAULT_SONG_CATEGORIES;
+      const nextCats = currentCats.map(c => (c === oldName ? newName : c));
+
+      // Actualizar en songCatalog
+      const updatedCatalog = (prev.songCatalog || []).map(song => {
+        const hasOldInList = (song.categories || []).includes(oldName);
+        const isOldPrimary = song.category === oldName;
+        if (!hasOldInList && !isOldPrimary) return song;
+
+        const rawList = song.categories && song.categories.length > 0
+          ? song.categories
+          : (song.category ? [song.category] : ['Adoración']);
+        const updatedCats = rawList.map(c => (c === oldName ? newName : c));
+
+        return {
+          ...song,
+          categories: updatedCats,
+          category: isOldPrimary ? newName : (song.category || updatedCats[0]),
+        };
+      });
+
+      // Actualizar en shiftSongs
+      const updatedShiftSongs: Record<string, SongItem[]> = {};
+      Object.entries(prev.shiftSongs || {}).forEach(([k, songsList]) => {
+        const list = Array.isArray(songsList) ? songsList : [];
+        updatedShiftSongs[k] = list.map(song => {
+          const hasOldInList = (song.categories || []).includes(oldName);
+          const isOldPrimary = song.category === oldName;
+          if (!hasOldInList && !isOldPrimary) return song;
+
+          const rawList = song.categories && song.categories.length > 0
+            ? song.categories
+            : (song.category ? [song.category] : ['Adoración']);
+          const updatedCats = rawList.map(c => (c === oldName ? newName : c));
+
+          return {
+            ...song,
+            categories: updatedCats,
+            category: isOldPrimary ? newName : (song.category || updatedCats[0]),
+          };
+        });
+      });
+
+      return {
+        ...prev,
+        songCategories: nextCats,
+        songCatalog: updatedCatalog,
+        shiftSongs: updatedShiftSongs,
+      };
+    });
+    showToast(`Categoría "${oldName}" renombrada a "${newName}".`);
   };
 
   // Navegar de mes a semana
@@ -733,8 +870,14 @@ export default function App() {
             <SongCatalogView
               songs={state.songCatalog || []}
               isAdmin={isAdmin}
+              categories={state.songCategories}
+              state={state}
               onAddSong={handleAddSongDirectToCatalog}
+              onUpdateSong={handleUpdateSongInCatalog}
+              onDeleteSong={handleDeleteSongFromCatalog}
               onSelectSong={(song, contextSongs, initialView) => handleOpenSongLyrics(song, contextSongs, initialView)}
+              onUpdateSongs={handleUpdateSongs}
+              showToast={showToast}
             />
           )}
 
@@ -818,6 +961,8 @@ export default function App() {
               onDeleteRole={handleDeleteRole}
               onSaveSlot={handleSaveSlot}
               onDeleteSlot={handleDeleteSlot}
+              onSaveSongCategories={handleSaveSongCategories}
+              onRenameSongCategory={handleRenameSongCategory}
               onUpdateAdminPassword={handleUpdateAdminPassword}
               onResetAllData={handleResetAllData}
               onImportState={handleImportState}
@@ -861,6 +1006,10 @@ export default function App() {
           song={selectedSongForLyrics}
           initialViewMode={initialLyricsViewMode}
           isAdmin={isAdmin}
+          state={state}
+          categories={state.songCategories}
+          onUpdateSongs={handleUpdateSongs}
+          onUpdateSong={handleUpdateSongInCatalog}
           onClose={() => {
             setSelectedSongForLyrics(null);
             setLyricsContextSongs(null);

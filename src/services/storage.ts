@@ -133,7 +133,7 @@ export function getInitialDefaultState(): AppState {
     chatMessages: defaultChatMessages,
     adminPassword: 'alabanza2026',
     seeded: true,
-    worshipPlaylistUrl: 'https://www.youtube.com/playlist?list=PL4fGSI1pDJn6O1E9vB1O4l2oGf5h8v8vX',
+    worshipPlaylistUrl: 'https://music.youtube.com/playlist?list=PLw-VjHDlEOgvQg_N9WXLPRBpFG2gj1xmy',
     lastUpdated: new Date().toISOString(),
   };
 }
@@ -384,7 +384,10 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
     chatMessages: Array.isArray(parsed.chatMessages) && parsed.chatMessages.length > 0 ? parsed.chatMessages : fallbackDefault.chatMessages,
     adminPassword: parsed.adminPassword || 'alabanza2026',
     seeded: !!parsed.seeded,
-    worshipPlaylistUrl: parsed.worshipPlaylistUrl || fallbackDefault.worshipPlaylistUrl,
+    worshipPlaylistUrl:
+      parsed.worshipPlaylistUrl && !parsed.worshipPlaylistUrl.includes('PL4fGSI1pDJn6O1E9vB1O4l2oGf5h8v8vX')
+        ? parsed.worshipPlaylistUrl
+        : fallbackDefault.worshipPlaylistUrl,
     lastUpdated: parsed.lastUpdated || new Date().toISOString(),
   };
 

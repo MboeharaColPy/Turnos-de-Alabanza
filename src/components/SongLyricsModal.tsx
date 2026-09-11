@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { SongItem, SongAttachment } from '../types';
+import { SongItem, SongAttachment, AppState, DEFAULT_SONG_CATEGORIES } from '../types';
 import {
   parseLyricsLineTokens,
   transposeSongText,
@@ -15,6 +15,7 @@ import {
 } from '../utils/chordDiagrams';
 import { GuitarChordDiagram } from './GuitarChordDiagram';
 import { PdfViewer } from './PdfViewer';
+import { AssignSongToEventModal } from './AssignSongToEventModal';
 import {
   X,
   Music,
@@ -55,6 +56,8 @@ import {
   Clock,
   Pin,
   HelpCircle,
+  Calendar,
+  Tag,
 } from 'lucide-react';
 
 interface SongLyricsModalProps {
@@ -67,13 +70,18 @@ interface SongLyricsModalProps {
     updatedKey?: string,
     updatedBpm?: number,
     updatedYoutubeUrl?: string,
-    updatedAttachments?: SongAttachment[]
+    updatedAttachments?: SongAttachment[],
+    updatedCategories?: string[]
   ) => void;
   onRequestAdmin?: () => void;
   showToast: (msg: string) => void;
   allSongs?: SongItem[];
   onNavigateToSong?: (song: SongItem) => void;
   initialViewMode?: 'view' | 'pdf';
+  state?: AppState;
+  categories?: string[];
+  onUpdateSongs?: (shiftKey: string, songs: SongItem[]) => void;
+  onUpdateSong?: (song: SongItem) => void;
 }
 
 type TextSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl';
@@ -132,10 +140,22 @@ export function getSectionBadgeCode(headerText: string): { code: string; colorCl
 function getYouTubeEmbedUrl(url?: string): string | null {
   if (!url) return null;
   try {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    if (match && match[2].length === 11) {
-      return `https://www.youtube-nocookie.com/embed/${match[2]}?autoplay=0&rel=0`;
+    const clean = url.trim();
+    // 1. Si es lista
+    const listMatch = clean.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+    // 2. Si es video
+    const videoMatch = clean.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([a-zA-Z0-9_-]{11})/);
+    const videoId = videoMatch && videoMatch[1] !== 'videoseries' ? videoMatch[1] : null;
+
+    if (listMatch && listMatch[1]) {
+      const listId = listMatch[1];
+      return videoId
+        ? `https://www.youtube.com/embed/${videoId}?list=${listId}&autoplay=0&rel=0&playsinline=1`
+        : `https://www.youtube.com/embed/videoseries?list=${listId}&autoplay=0&rel=0&playsinline=1`;
+    }
+
+    if (videoId) {
+      return `https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0&playsinline=1`;
     }
   } catch {
     return null;
@@ -153,6 +173,10 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
   allSongs = [],
   onNavigateToSong,
   initialViewMode,
+  state,
+  categories,
+  onUpdateSongs,
+  onUpdateSong,
 }) => {
   if (!song) return null;
 
@@ -179,6 +203,29 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
   const [textSize, setTextSize] = useState<TextSize>('md');
   const [columnsCount, setColumnsCount] = useState<1 | 2>(1);
   const [isFullScreen, setIsFullScreen] = useState(false);
+
+  // Asignar canción a evento existente
+  const [showAssignModal, setShowAssignModal] = useState(false);
+
+  // Categorías múltiples de la canción
+  const initialCategories = useMemo(() => {
+    if (song.categories && song.categories.length > 0) return song.categories;
+    return song.category ? [song.category] : ['Adoración'];
+  }, [song]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(initialCategories);
+
+  useEffect(() => {
+    const cats = song.categories && song.categories.length > 0
+      ? song.categories
+      : (song.category ? [song.category] : ['Adoración']);
+    setSelectedCategories(cats);
+  }, [song]);
+
+  const availableCategories = useMemo(() => {
+    if (categories && categories.length > 0) return categories;
+    if (state?.songCategories && state.songCategories.length > 0) return state.songCategories;
+    return DEFAULT_SONG_CATEGORIES;
+  }, [categories, state?.songCategories]);
 
   // YouTube separate panel & attachments
   const [showYouTubePanel, setShowYouTubePanel] = useState(false);
@@ -587,8 +634,20 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
     }
 
     if (onSaveSongLyrics) {
-      onSaveSongLyrics(song.id, editedText, currentKey, bpm, youtubeUrlInput, attachments);
+      onSaveSongLyrics(song.id, editedText, currentKey, bpm, youtubeUrlInput, attachments, selectedCategories);
       setRawText(editedText);
+      if (onUpdateSong) {
+        onUpdateSong({
+          ...song,
+          lyrics: editedText,
+          key: currentKey,
+          bpm,
+          youtubeUrl: youtubeUrlInput,
+          attachments,
+          categories: selectedCategories,
+          category: selectedCategories[0] || song.category,
+        });
+      }
       showToast(`¡Cambios guardados para "${song.title}"!`);
     }
   };
@@ -620,7 +679,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
           id="song-lyrics-modal-header"
           className="p-2 sm:p-2.5 bg-[#161619] border-b border-[#242429] flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 flex-shrink-0"
         >
-          {/* Título & Tono/BPM */}
+          {/* Título & Tono/BPM & Categorías */}
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-[#c5a059]/10 border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059] flex-shrink-0">
               <Music size={20} />
@@ -633,6 +692,42 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                 <span className="text-xs sm:text-sm text-[#8e8e99] italic truncate">
                   — {song.artist}
                 </span>
+              )}
+
+              {/* Botones Anterior / Siguiente junto al nombre a la derecha (sin span) */}
+              {allSongs.length > 1 && onNavigateToSong && (
+                <div className="inline-flex items-center gap-1 bg-[#0a0a0b] p-0.5 rounded-lg border border-[#26262b]">
+                  <button
+                    onClick={() => prevSong && onNavigateToSong(prevSong)}
+                    disabled={!prevSong}
+                    className="h-7 w-7 flex items-center justify-center text-[#888894] hover:text-[#c5a059] hover:bg-[#c5a059]/10 disabled:opacity-25 disabled:pointer-events-none transition-colors cursor-pointer rounded-md"
+                    title={prevSong ? `Anterior: ${prevSong.title}` : 'Primera alabanza'}
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+                  <button
+                    onClick={() => nextSong && onNavigateToSong(nextSong)}
+                    disabled={!nextSong}
+                    className="h-7 w-7 flex items-center justify-center text-[#888894] hover:text-[#c5a059] hover:bg-[#c5a059]/10 disabled:opacity-25 disabled:pointer-events-none transition-colors cursor-pointer rounded-md"
+                    title={nextSong ? `Siguiente: ${nextSong.title}` : 'Última alabanza'}
+                  >
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+              )}
+
+              {/* Categorías de la canción */}
+              {selectedCategories.length > 0 && (
+                <div className="flex items-center gap-1 flex-wrap">
+                  {selectedCategories.map((cat, idx) => (
+                    <span
+                      key={idx}
+                      className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#0a0a0b] text-[#c5a059] border border-[#c5a059]/30 font-medium"
+                    >
+                      {cat}
+                    </span>
+                  ))}
+                </div>
               )}
 
               {/* Tono Actual con indicador si está transportado */}
@@ -684,31 +779,6 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
 
           {/* Acciones Centrales & Derechas del Header (Mismo tamaño h-9 y estilo) */}
           <div className="flex items-center gap-2 flex-wrap justify-between lg:justify-end">
-            {/* Navegación Entre Canciones */}
-            {allSongs.length > 1 && onNavigateToSong && (
-              <div className="h-9 inline-flex items-center bg-[#0a0a0b] border border-[#26262b] rounded-xl px-1 shadow-sm">
-                <button
-                  onClick={() => prevSong && onNavigateToSong(prevSong)}
-                  disabled={!prevSong}
-                  className="h-7 w-7 flex items-center justify-center text-[#888894] hover:text-[#c5a059] hover:bg-[#c5a059]/10 disabled:opacity-30 disabled:hover:text-[#888894] disabled:hover:bg-transparent transition-colors cursor-pointer rounded-lg"
-                  title={prevSong ? `Anterior en la lista: ${prevSong.title}` : 'Primera de la lista'}
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="text-xs font-mono text-[#888894] px-2.5 font-medium whitespace-nowrap">
-                  {currentSongIndex >= 0 ? currentSongIndex + 1 : 1} de {allSongs.length}
-                </span>
-                <button
-                  onClick={() => nextSong && onNavigateToSong(nextSong)}
-                  disabled={!nextSong}
-                  className="h-7 w-7 flex items-center justify-center text-[#888894] hover:text-[#c5a059] hover:bg-[#c5a059]/10 disabled:opacity-30 disabled:hover:text-[#888894] disabled:hover:bg-transparent transition-colors cursor-pointer rounded-lg"
-                  title={nextSong ? `Siguiente en la lista: ${nextSong.title}` : 'Última de la lista'}
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            )}
-
             {/* BOTÓN YOUTUBE INDEPENDIENTE */}
             <button
               onClick={() => setShowYouTubePanel(!showYouTubePanel)}
@@ -821,6 +891,20 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                   <span>Editar</span>
                 </button>
               </div>
+            )}
+
+            {/* Botón Asignar a Evento Existente */}
+            {state && onUpdateSongs && (
+              <button
+                onClick={() => setShowAssignModal(true)}
+                className="h-9 px-3 rounded-xl text-xs font-mono uppercase tracking-wider inline-flex items-center gap-1.5 bg-[#c5a059]/15 hover:bg-[#c5a059]/25 text-[#c5a059] border border-[#c5a059]/40 transition-colors cursor-pointer"
+                title="Asignar o programar esta canción en un evento o culto existente"
+                id="song-modal-assign-event-btn"
+              >
+                <Calendar size={13} />
+                <span className="hidden sm:inline">Asignar a Evento</span>
+                <span className="sm:hidden">Asignar</span>
+              </button>
             )}
 
             {/* Partituras / Adjuntos */}
@@ -954,6 +1038,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                   className="w-full h-full"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
+                  referrerPolicy="strict-origin-when-cross-origin"
                 />
               </div>
             )}
@@ -1412,7 +1497,46 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
               )
             ) : (
               /* Modo Editor */
-              <div className="space-y-3 max-w-4xl mx-auto">
+              <div className="space-y-4 max-w-4xl mx-auto">
+                {/* Selector de Categorías Múltiples */}
+                <div className="bg-[#0e0e11] border border-[#26262b] rounded-xl p-3.5 space-y-2.5 shadow-sm">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-xs font-mono uppercase tracking-wider text-[#888894] flex items-center gap-1.5">
+                      <Tag size={13} className="text-[#c5a059]" />
+                      <span>Categorías Asignadas (puedes marcar más de una):</span>
+                    </span>
+                    <span className="text-xs font-mono text-[#c5a059] font-bold">
+                      {selectedCategories.length} seleccionada{selectedCategories.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {availableCategories.map(cat => {
+                      const isSelected = selectedCategories.includes(cat);
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCategories(prev =>
+                              isSelected
+                                ? (prev.length > 1 ? prev.filter(c => c !== cat) : prev)
+                                : [...prev, cat]
+                            );
+                          }}
+                          className={`text-xs font-mono px-3 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-[#c5a059]/20 text-[#c5a059] border-[#c5a059]/50 font-bold shadow-sm'
+                              : 'bg-[#141418] text-[#888894] border-[#26262b] hover:text-white hover:border-[#383840]'
+                          }`}
+                        >
+                          <span>{cat}</span>
+                          {isSelected && <Check size={12} className="text-[#c5a059]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <label className="text-xs font-mono uppercase tracking-wider text-[#6b6b75] block">
                     {isAdmin
@@ -1947,6 +2071,24 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Modal para Asignar Canción a Evento */}
+      {showAssignModal && state && onUpdateSongs && (
+        <AssignSongToEventModal
+          song={{
+            ...song,
+            lyrics: editedText,
+            key: currentKey,
+            bpm,
+            categories: selectedCategories,
+            category: selectedCategories[0] || song.category,
+          }}
+          state={state}
+          onClose={() => setShowAssignModal(false)}
+          onUpdateSongs={onUpdateSongs}
+          showToast={showToast}
+        />
+      )}
     </div>
   );
 };
