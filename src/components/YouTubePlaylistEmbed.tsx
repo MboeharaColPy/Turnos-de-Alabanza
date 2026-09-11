@@ -6,15 +6,11 @@ import {
   Edit3,
   Check,
   X,
-  ListMusic,
-  Headphones,
-  AlertCircle,
-  AlertTriangle,
-  RefreshCw,
   Lock,
+  Copy,
   Trash2,
-  HelpCircle,
-  ShieldAlert,
+  Headphones,
+  Link2,
 } from 'lucide-react';
 
 interface YouTubePlaylistEmbedProps {
@@ -25,7 +21,6 @@ interface YouTubePlaylistEmbedProps {
 }
 
 export interface ParsedMedia {
-  embedUrl: string;
   externalUrl: string;
   youtubeUrl: string;
   youtubeMusicUrl: string;
@@ -37,22 +32,12 @@ export interface ParsedMedia {
 }
 
 /**
- * Parsea y normaliza cualquier URL o código de YouTube / YouTube Music:
- * - https://music.youtube.com/playlist?list=PL...
- * - https://music.youtube.com/watch?v=...&list=PL...
- * - https://music.youtube.com/browse/VLPL...
- * - https://music.youtube.com/watch?v=...
- * - https://www.youtube.com/playlist?list=PL...
- * - https://www.youtube.com/watch?v=...&list=PL...
- * - https://youtu.be/...
- * - Código iframe embebido
- * - ID de lista directo (PL..., OLAK..., RD...)
+ * Parsea y normaliza cualquier URL o código de YouTube / YouTube Music
  */
 export function parseYouTubeMediaUrl(rawInput?: string | null): ParsedMedia | null {
   if (!rawInput || typeof rawInput !== 'string') return null;
 
   let input = rawInput.trim();
-  // Limpiar posibles comillas o corchetes que se copien al pegar
   input = input.replace(/^[<"'\(\[]+|[>"'\)\]]+$/g, '').trim();
   if (!input) return null;
 
@@ -67,7 +52,7 @@ export function parseYouTubeMediaUrl(rawInput?: string | null): ParsedMedia | nu
   // 1. Extraer ID de playlist
   let listId: string | undefined;
 
-  // A) Formato YouTube Music browse o channel (ej: /browse/VLPL... o /channel/VLPL...)
+  // A) Formato YouTube Music browse o channel (/browse/VLPL... o /channel/VLPL...)
   const browseMatch = input.match(/\/(?:browse|channel)\/VL([a-zA-Z0-9_-]+)/i);
   if (browseMatch && browseMatch[1]) {
     listId = browseMatch[1];
@@ -81,7 +66,7 @@ export function parseYouTubeMediaUrl(rawInput?: string | null): ParsedMedia | nu
     }
   }
 
-  // C) Si es un ID de lista directamente escrito (inicia con PL, OLAK, RD, etc.)
+  // C) Si es un ID de lista directamente escrito (PL..., OLAK..., RD..., etc.)
   if (!listId && /^(PL|OLAK|RD|FL)[a-zA-Z0-9_-]{8,}$/i.test(input)) {
     listId = input;
   }
@@ -109,12 +94,6 @@ export function parseYouTubeMediaUrl(rawInput?: string | null): ParsedMedia | nu
 
   // Construir URLs de destino
   if (listId) {
-    // Si tiene lista de reproducción, SIEMPRE usamos videoseries?list=... para el reproductor incrustado.
-    // Esto previene que si el usuario copió un enlace mientras reproducía una canción (ej: watch?v=XXXX&list=YYYY),
-    // el iframe intente forzar ese video inicial bloqueado por LatinAutor/UMPG. Al usar videoseries, YouTube
-    // carga la lista completa con navegación automática entre temas disponibles.
-    const embedUrl = `https://www.youtube.com/embed/videoseries?list=${listId}&rel=0&playsinline=1&enablejsapi=1`;
-
     const youtubeMusicUrl = videoId
       ? `https://music.youtube.com/watch?v=${videoId}&list=${listId}`
       : `https://music.youtube.com/playlist?list=${listId}`;
@@ -124,7 +103,6 @@ export function parseYouTubeMediaUrl(rawInput?: string | null): ParsedMedia | nu
       : `https://www.youtube.com/playlist?list=${listId}`;
 
     return {
-      embedUrl,
       externalUrl: isMusic ? youtubeMusicUrl : youtubeUrl,
       youtubeMusicUrl,
       youtubeUrl,
@@ -138,12 +116,10 @@ export function parseYouTubeMediaUrl(rawInput?: string | null): ParsedMedia | nu
 
   // Si solo tiene video individual
   if (videoId) {
-    const embedUrl = `https://www.youtube.com/embed/${videoId}?rel=0&playsinline=1`;
     const youtubeMusicUrl = `https://music.youtube.com/watch?v=${videoId}`;
     const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
     return {
-      embedUrl,
       externalUrl: isMusic ? youtubeMusicUrl : youtubeUrl,
       youtubeMusicUrl,
       youtubeUrl,
@@ -154,15 +130,13 @@ export function parseYouTubeMediaUrl(rawInput?: string | null): ParsedMedia | nu
     };
   }
 
-  // Fallback si ya es una URL de embed directa
-  if (input.includes('/embed/')) {
-    const cleanEmbed = input.replace('youtube-nocookie.com', 'youtube.com');
+  // Fallback para URLs generales válidas de YouTube
+  if (input.startsWith('http://') || input.startsWith('https://')) {
     return {
-      embedUrl: cleanEmbed,
-      externalUrl: cleanEmbed,
-      youtubeMusicUrl: cleanEmbed,
-      youtubeUrl: cleanEmbed,
-      isPlaylist: input.includes('videoseries') || input.includes('list='),
+      externalUrl: input,
+      youtubeMusicUrl: input,
+      youtubeUrl: input,
+      isPlaylist: input.includes('list='),
       platform: isMusic ? 'youtube-music' : 'youtube',
       id: 'custom',
     };
@@ -180,12 +154,11 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
   const [currentUrl, setCurrentUrl] = useState<string>(initialUrl || '');
   const [isEditing, setIsEditing] = useState(false);
   const [inputVal, setInputVal] = useState<string>(initialUrl || '');
+  const [copied, setCopied] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [playerKey, setPlayerKey] = useState(0);
-  const [showExplainModal, setShowExplainModal] = useState(false);
-  const [shouldOpenEditAfterAdmin, setShouldOpenEditAfterAdmin] = useState(false);
+  const [pendingEditAfterAdmin, setPendingEditAfterAdmin] = useState(false);
 
-  // Sincronizar de forma reactiva con la URL oficial que viene del estado global
+  // Sincronizar reactivamente con el estado global
   useEffect(() => {
     const clean = initialUrl || '';
     setCurrentUrl(clean);
@@ -199,16 +172,16 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
     }
   }, [isAdmin, isEditing]);
 
-  // Abrir automáticamente el panel de edición cuando el usuario acaba de autenticarse tras pulsar el botón de la playlist
+  // Si el usuario solicitó ser admin desde el botón de la playlist, abrir el editor automáticamente tras el login
   useEffect(() => {
-    if (isAdmin && shouldOpenEditAfterAdmin) {
+    if (isAdmin && pendingEditAfterAdmin) {
       setIsEditing(true);
-      setShouldOpenEditAfterAdmin(false);
+      setPendingEditAfterAdmin(false);
     }
-  }, [isAdmin, shouldOpenEditAfterAdmin]);
+  }, [isAdmin, pendingEditAfterAdmin]);
 
   const handleAdminClick = () => {
-    setShouldOpenEditAfterAdmin(true);
+    setPendingEditAfterAdmin(true);
     if (onRequestAdmin) {
       onRequestAdmin();
     }
@@ -226,50 +199,52 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
     }
 
     const finalUrl = inputVal.trim();
-    if (finalUrl && !previewParsed) {
-      return;
-    }
-
     setCurrentUrl(finalUrl);
     if (onUpdateUrl) {
       onUpdateUrl(finalUrl);
     }
 
     setSaveSuccess(true);
-    setPlayerKey(prev => prev + 1);
     setTimeout(() => {
       setSaveSuccess(false);
       setIsEditing(false);
-    }, 500);
+    }, 400);
   };
 
-  const handleRemovePlaylist = () => {
+  const handleRemove = () => {
     if (!isAdmin) {
       handleAdminClick();
       return;
     }
 
-    if (window.confirm('¿Deseas quitar la playlist actual del reproductor?')) {
+    if (window.confirm('¿Deseas quitar el enlace de la playlist oficial?')) {
       setCurrentUrl('');
       setInputVal('');
       if (onUpdateUrl) {
         onUpdateUrl('');
       }
       setIsEditing(false);
-      setPlayerKey(prev => prev + 1);
     }
   };
 
-  const handleReloadPlayer = () => {
-    setPlayerKey(prev => prev + 1);
+  const handleCopyLink = () => {
+    const urlToCopy = parsed?.externalUrl || currentUrl;
+    if (!urlToCopy) return;
+
+    navigator.clipboard.writeText(urlToCopy).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
+
+  const targetUrl = parsed?.externalUrl || currentUrl;
 
   return (
     <div
       className="bg-[#141418] border border-[#232328] rounded-2xl p-4 sm:p-5 shadow-lg space-y-4 relative overflow-hidden"
-      id="youtube-playlist-embed-container"
+      id="youtube-playlist-section"
     >
-      {/* Barra Superior del Reproductor */}
+      {/* Cabecera del apartado */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#1f1f23]">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-red-600/15 border border-red-500/30 flex items-center justify-center text-red-400 flex-shrink-0">
@@ -282,7 +257,7 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
                 {parsed?.platform === 'youtube-music' ? 'YouTube Music' : 'YouTube'}
               </span>
               <span className="text-[10px] font-mono text-[#8e8e99] hidden sm:inline">
-                {parsed?.isPlaylist ? 'Lista de Reproducción' : 'Video / Audio'}
+                {parsed?.isPlaylist ? 'Lista Oficial de Alabanza' : 'Canción / Video'}
               </span>
             </div>
             <h3 className="text-base sm:text-lg font-serif text-white font-medium truncate mt-0.5">
@@ -291,429 +266,216 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
           </div>
         </div>
 
-        {/* Acciones de la Cabecera */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Botón Abrir en YouTube Music */}
-          {parsed?.youtubeMusicUrl && (
-            <a
-              href={parsed.youtubeMusicUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="h-9 px-3 rounded-xl bg-red-600/15 hover:bg-red-600/25 border border-red-500/35 text-red-300 hover:text-white text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Abrir en la aplicación o web de YouTube Music"
-              id="open-youtube-music-btn"
-            >
-              <Headphones size={13} className="text-red-400" />
-              <span className="hidden sm:inline">YouTube Music</span>
-              <span className="sm:hidden">Music</span>
-              <ExternalLink size={11} className="opacity-70" />
-            </a>
-          )}
-
-          {/* Botón Abrir en YouTube estándar */}
-          {parsed?.youtubeUrl && (
-            <a
-              href={parsed.youtubeUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="h-9 px-3 rounded-xl bg-[#0a0a0b] hover:bg-[#1a1a1e] border border-[#232328] hover:border-[#c5a059]/40 text-[#a0a0ab] hover:text-white text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Abrir en YouTube clásico"
-              id="open-youtube-external-btn"
-            >
-              <Youtube size={13} className="text-red-400" />
-              <span className="hidden sm:inline">YouTube</span>
-              <ExternalLink size={11} className="opacity-70" />
-            </a>
-          )}
-
-          {/* Botón Recargar */}
-          {parsed?.embedUrl && (
-            <button
-              onClick={handleReloadPlayer}
-              className="h-9 w-9 rounded-xl bg-[#0a0a0b] hover:bg-[#1a1a1e] border border-[#232328] text-[#8e8e99] hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-              title="Recargar reproductor"
-              id="reload-youtube-player-btn"
-            >
-              <RefreshCw size={13} />
-            </button>
-          )}
-
-          {/* Botón de ayuda para bloqueo de derechos de autor */}
-          {parsed?.embedUrl && (
-            <button
-              onClick={() => setShowExplainModal(true)}
-              className="h-9 px-2.5 rounded-xl bg-[#0a0a0b] hover:bg-[#1a1a1e] border border-[#232328] hover:border-amber-500/40 text-[#8e8e99] hover:text-amber-300 text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="¿Aparece 'Video no disponible de LatinAutor'? Haz clic para ver la solución"
-              id="copyright-help-btn"
-            >
-              <HelpCircle size={13} className="text-amber-400" />
-              <span className="hidden md:inline">¿Error LatinAutor?</span>
-            </button>
-          )}
-
-          {/* Botón Cambiar Playlist (Solo Administrador) */}
+        {/* Acciones de administración */}
+        <div className="flex items-center gap-2 flex-shrink-0">
           {isAdmin ? (
             <button
               onClick={() => {
                 setInputVal(currentUrl);
                 setIsEditing(!isEditing);
               }}
-              className={`h-9 px-3.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer border ${
+              className={`h-9 px-3 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer border ${
                 isEditing
                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
                   : 'bg-[#1a1a1d] hover:bg-[#25252b] text-[#c5a059] border-[#2e2e36] hover:border-[#c5a059]/50'
               }`}
-              title="Cambiar la playlist oficial de YouTube / YouTube Music"
-              id="edit-youtube-playlist-btn"
+              title="Modificar enlace de la playlist oficial"
+              id="btn-edit-playlist-url"
             >
               {isEditing ? <X size={13} /> : <Edit3 size={13} />}
-              <span>{isEditing ? 'Cerrar' : parsed?.embedUrl ? 'Cambiar Playlist' : 'Configurar Playlist'}</span>
+              <span>{isEditing ? 'Cerrar' : targetUrl ? 'Editar Enlace' : 'Configurar Enlace'}</span>
             </button>
           ) : onRequestAdmin ? (
             <button
               onClick={handleAdminClick}
               className="h-9 px-3 rounded-xl bg-[#0a0a0b] hover:bg-[#1a1a20] border border-[#232328] hover:border-[#c5a059]/40 text-[#8e8e99] hover:text-[#c5a059] text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Solo el Administrador puede modificar la playlist (Haz clic para autenticarte)"
-              id="edit-youtube-playlist-btn"
+              title="Acceder como Administrador para cambiar el enlace"
+              id="btn-login-admin-playlist"
             >
               <Lock size={12} className="text-[#c5a059]" />
-              <span className="hidden sm:inline">Modificar (Admin)</span>
+              <span className="hidden sm:inline">Editar (Admin)</span>
               <span className="sm:hidden">Admin</span>
             </button>
           ) : null}
         </div>
       </div>
 
-      {/* Panel Exclusivo para Configurar / Modificar Playlist (Solo Administrador) */}
+      {/* Formulario de Edición (Solo Administrador) */}
       {isAdmin && isEditing && (
         <form
           onSubmit={handleSave}
           className="p-4 bg-[#0a0a0b] border border-[#26262e] rounded-xl space-y-3.5 animate-fadeIn"
-          id="admin-playlist-config-form"
+          id="admin-playlist-form"
         >
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <label
-              htmlFor="youtube-url-input"
-              className="text-xs font-mono font-bold uppercase tracking-wider text-[#c5a059] flex items-center gap-1.5"
-            >
-              <ListMusic size={14} />
-              <span>URL de la Playlist de YouTube / YouTube Music</span>
+            <label className="text-xs font-mono uppercase text-[#c5a059] tracking-wider flex items-center gap-1.5">
+              <Link2 size={14} />
+              <span>Enlace de la Playlist de YouTube o YouTube Music</span>
             </label>
-            <span className="text-[11px] text-[#8e8e99] font-mono">
-              Espacio exclusivo para la playlist elegida por el administrador
-            </span>
-          </div>
-
-          <p className="text-xs text-[#9494a0] leading-relaxed">
-            Pega directamente el enlace completo de la playlist creada o seleccionada en YouTube o YouTube Music
-            (ejemplo: <span className="text-zinc-300 font-mono">https://music.youtube.com/playlist?list=PL...</span> o{' '}
-            <span className="text-zinc-300 font-mono">https://www.youtube.com/playlist?list=PL...</span>).
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input
-              type="text"
-              id="youtube-url-input"
-              value={inputVal}
-              onChange={e => setInputVal(e.target.value)}
-              placeholder="https://music.youtube.com/playlist?list=PL..."
-              className="flex-1 bg-[#141418] border border-[#2e2e36] focus:border-[#c5a059] focus:outline-none rounded-xl px-3.5 py-2.5 text-xs font-mono text-white placeholder-[#555560]"
-              autoFocus
-            />
-            <button
-              type="submit"
-              disabled={inputVal.trim().length > 0 && !previewParsed}
-              className={`px-5 py-2.5 font-bold text-xs font-mono uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer flex-shrink-0 ${
-                inputVal.trim().length > 0 && !previewParsed
-                  ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700'
-                  : 'bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-slate-950 shadow-amber-500/10'
-              }`}
-              id="save-youtube-url-btn"
-            >
-              {saveSuccess ? <Check size={14} className="stroke-[3]" /> : <Check size={14} />}
-              <span>{saveSuccess ? '¡Guardado!' : 'Guardar Playlist'}</span>
-            </button>
-          </div>
-
-          {/* Detección y validación en tiempo real */}
-          <div className="text-xs font-mono">
-            {previewParsed ? (
-              <div className="inline-flex items-center gap-2 text-emerald-400 bg-emerald-950/40 border border-emerald-800/50 px-3 py-1.5 rounded-lg">
-                <Check size={13} />
-                <span>
-                  Enlace válido: {previewParsed.platform === 'youtube-music' ? 'YouTube Music' : 'YouTube'} (
-                  {previewParsed.isPlaylist ? `Lista: ${previewParsed.id}` : `Video: ${previewParsed.id}`})
-                </span>
-              </div>
-            ) : inputVal.trim() ? (
-              <div className="inline-flex items-center gap-2 text-amber-400 bg-amber-950/40 border border-amber-800/50 px-3 py-1.5 rounded-lg">
-                <AlertCircle size={13} />
-                <span>Enlace no reconocido. Asegúrate de que contenga el identificador de la playlist o video.</span>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Opciones adicionales: Quitar o Cancelar */}
-          <div className="flex items-center justify-between pt-2 border-t border-[#1f1f23] text-xs">
-            {currentUrl ? (
+            {currentUrl && (
               <button
                 type="button"
-                onClick={handleRemovePlaylist}
-                className="text-red-400 hover:text-red-300 flex items-center gap-1.5 cursor-pointer font-mono text-[11px] transition-colors"
-                id="remove-playlist-btn"
+                onClick={handleRemove}
+                className="text-xs text-red-400 hover:text-red-300 font-mono flex items-center gap-1 transition-colors cursor-pointer"
+                title="Quitar el enlace actual"
               >
                 <Trash2 size={12} />
-                <span>Quitar playlist actual</span>
+                <span>Quitar Enlace</span>
               </button>
-            ) : (
-              <span className="text-[11px] text-[#63636e] italic">No hay playlist activa en este momento</span>
             )}
+          </div>
 
+          <div className="space-y-1.5">
+            <input
+              type="text"
+              value={inputVal}
+              onChange={e => setInputVal(e.target.value)}
+              placeholder="Pega el enlace aquí: https://youtube.com/playlist?list=... o https://music.youtube.com/..."
+              className="w-full bg-[#141418] border border-[#2e2e36] focus:border-[#c5a059] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-[#52525b] focus:outline-none font-mono transition-colors"
+              autoFocus
+            />
+            <p className="text-[11px] text-[#8e8e99] leading-relaxed">
+              Puedes pegar cualquier enlace copiado desde la app de YouTube o YouTube Music (por ejemplo:{' '}
+              <span className="text-[#c5a059] font-mono">https://www.youtube.com/playlist?list=PL...</span>).
+            </p>
+          </div>
+
+          {/* Previsualización del enlace */}
+          {inputVal.trim() && (
+            <div className="p-2.5 rounded-lg bg-[#141418] border border-[#26262e] text-xs flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 truncate">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
+                <span className="text-[#a0a0ab] truncate font-mono text-[11px]">
+                  {previewParsed?.isPlaylist ? 'Lista de reproducción detectada' : 'Enlace válido'}
+                </span>
+              </div>
+              <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800/60 flex-shrink-0">
+                {previewParsed?.platform === 'youtube-music' ? 'YouTube Music' : 'YouTube'}
+              </span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-1 border-t border-[#1f1f23]">
             <button
               type="button"
               onClick={() => setIsEditing(false)}
-              className="text-[#8e8e99] hover:text-white font-mono text-[11px] transition-colors cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-[#141418] hover:bg-[#1a1a1f] text-[#8e8e99] hover:text-white font-mono text-xs transition-colors cursor-pointer"
             >
               Cancelar
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#c5a059] to-[#d4b068] hover:from-[#d4b068] hover:to-[#e3bf77] text-black font-extrabold font-mono text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md shadow-[#c5a059]/20 cursor-pointer active:scale-95"
+            >
+              <Check size={14} />
+              <span>{saveSuccess ? 'Guardado' : 'Guardar Enlace'}</span>
             </button>
           </div>
         </form>
       )}
 
-      {/* Espacio Embebido de YouTube / YouTube Music */}
-      <div className="relative w-full rounded-xl overflow-hidden bg-black border border-[#232328] shadow-inner">
-        {parsed?.embedUrl ? (
-          <div className="w-full relative aspect-video sm:h-[400px] lg:h-[460px] bg-black">
-            <iframe
-              key={playerKey}
-              src={parsed.embedUrl}
-              title="Playlist Oficial de Alabanza"
-              className="w-full h-full border-0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              referrerPolicy="strict-origin-when-cross-origin"
-            />
-          </div>
-        ) : (
-          <div className="p-8 sm:p-12 text-center space-y-3.5">
-            <div className="w-12 h-12 mx-auto rounded-2xl bg-red-600/10 border border-red-500/30 flex items-center justify-center text-red-400">
-              <Music size={24} />
-            </div>
-            <h4 className="text-base font-serif text-white font-medium">Sin Playlist Oficial Configurada</h4>
-            <p className="text-xs text-[#8e8e99] max-w-md mx-auto leading-relaxed">
-              Este espacio está reservado para la lista de reproducción oficial que elija el administrador. Aquí se
-              mostrarán las canciones y alabanzas seleccionadas para practicar.
-            </p>
-
-            {isAdmin ? (
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(true)}
-                  className="px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-slate-950 font-bold border border-amber-400 rounded-xl text-xs font-mono uppercase tracking-wider transition-all shadow-md cursor-pointer inline-flex items-center gap-2"
-                  id="configure-playlist-admin-btn"
-                >
-                  <Edit3 size={13} />
-                  <span>Poner Playlist del Administrador</span>
-                </button>
-              </div>
-            ) : onRequestAdmin ? (
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={handleAdminClick}
-                  className="px-4 py-2 bg-[#141418] hover:bg-[#1a1a20] text-[#8e8e99] hover:text-[#c5a059] border border-[#26262e] rounded-xl text-xs font-mono transition-colors cursor-pointer inline-flex items-center gap-1.5"
-                  id="login-admin-for-playlist-btn"
-                >
-                  <Lock size={13} className="text-[#c5a059]" />
-                  <span>Acceder como Administrador para Configurar</span>
-                </button>
-              </div>
-            ) : (
-              <p className="text-xs text-[#71717a] italic">
-                El administrador aún no ha configurado una lista de reproducción.
+      {/* Cuerpo principal: Botón directo o Estado Vacío */}
+      {targetUrl ? (
+        <div className="p-5 sm:p-6 rounded-xl bg-gradient-to-br from-[#0c0c0f] to-[#16161d] border border-[#23232a] space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <span className="text-xs font-mono uppercase text-[#c5a059] tracking-wider font-semibold">
+                Repertorio para Ensayo y Servicios
+              </span>
+              <p className="text-sm text-[#c0c0cb] leading-relaxed max-w-xl">
+                Haz clic en el botón a continuación para abrir la lista directamente en la aplicación o web de YouTube sin cortes ni restricciones.
               </p>
-            )}
-          </div>
-        )}
-      </div>
+            </div>
 
-      {/* Barra Informativa y Accesos Directos a YouTube Music */}
-      {parsed?.embedUrl && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl bg-[#0e0e12] border border-[#202026] text-xs">
-          <div className="flex items-center gap-2 text-[#9494a0]">
-            <Headphones size={15} className="text-red-400 flex-shrink-0" />
-            <span>
-              Para escuchar con pantalla bloqueada o ver letras oficiales, abre la lista en{' '}
-              <strong className="text-white font-medium">YouTube Music</strong>.
-            </span>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {parsed.youtubeMusicUrl && (
-              <a
-                href={parsed.youtubeMusicUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-2.5 py-1 rounded-lg bg-red-600/15 hover:bg-red-600/25 border border-red-500/30 text-red-300 hover:text-white font-mono text-[11px] flex items-center gap-1 transition-colors"
-              >
-                <span>Abrir en YouTube Music</span>
-                <ExternalLink size={11} />
-              </a>
-            )}
-            {parsed.youtubeUrl && (
-              <a
-                href={parsed.youtubeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-2.5 py-1 rounded-lg bg-[#18181d] hover:bg-[#222228] border border-[#2a2a32] text-[#8e8e99] hover:text-white font-mono text-[11px] flex items-center gap-1 transition-colors"
-              >
-                <span>YouTube</span>
-                <ExternalLink size={11} />
-              </a>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Banner Informativo sobre Restricciones de LatinAutor / UMPG */}
-      {parsed?.embedUrl && (
-        <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-amber-200">
-          <div className="flex items-start sm:items-center gap-2">
-            <AlertTriangle size={15} className="text-amber-400 flex-shrink-0 mt-0.5 sm:mt-0" />
-            <span>
-              ¿Aparece <strong className="text-white font-medium">"Video no disponible por LatinAutor - UMPG"</strong>?
-              Es una restricción de derechos de autor de las disqueras en reproductores externos.
-            </span>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
-            <button
-              onClick={() => setShowExplainModal(true)}
-              className="text-[#c5a059] hover:underline font-mono text-[11px] cursor-pointer"
+            {/* Botón Principal Destacado */}
+            <a
+              href={targetUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto px-5 py-3 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-red-600 hover:from-red-500 hover:to-red-400 text-white font-bold text-sm tracking-wide flex items-center justify-center gap-2.5 transition-all shadow-lg shadow-red-600/30 active:scale-95 cursor-pointer flex-shrink-0"
+              id="btn-open-youtube-main"
             >
-              Ver soluciones
-            </button>
-            {parsed.youtubeMusicUrl && (
-              <a
-                href={parsed.youtubeMusicUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg font-mono text-[11px] font-bold flex items-center gap-1 transition-colors"
+              <Youtube size={18} />
+              <span>Abrir Playlist en YouTube</span>
+              <ExternalLink size={15} className="opacity-80" />
+            </a>
+          </div>
+
+          {/* Accesos secundarios: YouTube Music y Copiar Enlace */}
+          <div className="pt-3 border-t border-[#1e1e24] flex flex-wrap items-center justify-between gap-2.5 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              {parsed?.youtubeMusicUrl && (
+                <a
+                  href={parsed.youtubeMusicUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-red-600/10 hover:bg-red-600/20 border border-red-500/25 text-red-300 hover:text-white font-mono text-xs flex items-center gap-1.5 transition-colors"
+                  title="Abrir en YouTube Music"
+                >
+                  <Headphones size={13} className="text-red-400" />
+                  <span>Abrir en YouTube Music</span>
+                  <ExternalLink size={11} className="opacity-70" />
+                </a>
+              )}
+
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="px-3 py-1.5 rounded-lg bg-[#141418] hover:bg-[#1a1a20] border border-[#26262e] text-[#a0a0ab] hover:text-white font-mono text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Copiar enlace directo de la lista"
               >
-                <span>Escuchar en YouTube Music</span>
-                <ExternalLink size={10} />
-              </a>
-            )}
+                {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                <span>{copied ? '¡Enlace Copiado!' : 'Copiar Enlace'}</span>
+              </button>
+            </div>
+
+            <span className="text-[11px] font-mono text-[#71717a]">
+              Se reproduce en la app oficial de YouTube
+            </span>
           </div>
         </div>
-      )}
-
-      {/* Modal Explicativo de Derechos de Autor LatinAutor - UMPG */}
-      {showExplainModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
-          onClick={() => setShowExplainModal(false)}
-        >
-          <div
-            className="bg-[#141418] border border-[#2e2e38] rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#232328]">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0">
-                  <ShieldAlert size={20} />
-                </div>
-                <div>
-                  <h3 className="text-base font-serif text-white font-semibold">
-                    Aviso de LatinAutor - UMPG
-                  </h3>
-                  <p className="text-xs text-[#8e8e99]">
-                    Por qué ocurre este bloqueo y cómo resolverlo
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowExplainModal(false)}
-                className="w-8 h-8 rounded-lg bg-[#1a1a20] hover:bg-[#25252e] text-[#8e8e99] hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="space-y-3.5 text-xs text-[#a0a0ab] leading-relaxed">
-              <div className="p-3 bg-[#0c0c0f] border border-[#232328] rounded-xl space-y-1.5">
-                <h4 className="text-white font-medium flex items-center gap-1.5 text-xs">
-                  <AlertCircle size={14} className="text-amber-400" />
-                  <span>¿Por qué YouTube muestra ese mensaje?</span>
-                </h4>
-                <p>
-                  <strong>LatinAutor</strong> y <strong>Universal Music Publishing Group (UMPG)</strong> gestionan los derechos de autor de casi toda la música cristiana (Miel San Marcos, Christine D'Clario, Marcos Witt, Barak, etc.).
-                </p>
-                <p>
-                  En el sistema Content ID de YouTube, estas discográficas activan la opción <span className="text-amber-300 italic">"Inhabilitar reproducción en sitios web externos"</span> para forzar que las visitas y la monetización ocurran en YouTube o YouTube Music.
-                </p>
-              </div>
-
-              <div className="p-3 bg-[#0c0c0f] border border-[#232328] rounded-xl space-y-1.5">
-                <h4 className="text-white font-medium flex items-center gap-1.5 text-xs">
-                  <span>¿Se puede quitar dentro de este reproductor web?</span>
-                </h4>
-                <p>
-                  Técnicamente <strong>ninguna página web ni aplicación en el mundo puede desbloquearlo dentro de un reproductor embebido</strong>, porque el bloqueo se ejecuta directamente en los servidores de Google/YouTube a solicitud legal de los dueños de la música.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="text-white font-medium text-xs font-mono uppercase tracking-wider text-[#c5a059]">
-                  Soluciones Prácticas:
-                </h4>
-
-                <div className="p-3 bg-red-950/20 border border-red-500/30 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-white flex items-center gap-1.5">
-                      <Headphones size={14} className="text-red-400" />
-                      1. Escuchar en YouTube Music (Recomendado)
-                    </span>
-                    <span className="text-[10px] font-mono uppercase text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
-                      100% Funcional
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#b4b4be]">
-                    En YouTube Music <strong>no existe este bloqueo</strong>. Todas las canciones suenan completas, con la mejor calidad de audio, sin cortes y con acceso a las letras oficiales.
-                  </p>
-                  {parsed?.youtubeMusicUrl && (
-                    <a
-                      href={parsed.youtubeMusicUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg font-mono text-xs font-bold transition-colors cursor-pointer"
-                    >
-                      <Headphones size={13} />
-                      <span>Abrir Playlist en YouTube Music</span>
-                      <ExternalLink size={11} />
-                    </a>
-                  )}
-                </div>
-
-                <div className="p-3 bg-[#0c0c0f] border border-[#232328] rounded-xl space-y-1.5">
-                  <span className="font-semibold text-white block">
-                    2. Para el Administrador: Cambiar la versión del tema
-                  </span>
-                  <p className="text-[11px] text-[#8e8e99]">
-                    Si creaste la lista en YouTube y deseas que suene directamente en la web sin este aviso, en tu lista puedes reemplazar el video oficial por una <strong>versión en vivo, acústica o subida por la congregación</strong> que sí tenga la inserción permitida.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-[#232328] flex justify-end">
-              <button
-                onClick={() => setShowExplainModal(false)}
-                className="px-4 py-2 bg-[#1a1a20] hover:bg-[#25252e] text-white text-xs font-mono uppercase tracking-wider rounded-xl transition-colors cursor-pointer"
-              >
-                Entendido
-              </button>
-            </div>
+      ) : (
+        /* Estado sin configurar */
+        <div className="p-6 sm:p-8 rounded-xl bg-[#0e0e12] border border-dashed border-[#23232a] text-center space-y-3">
+          <div className="w-12 h-12 mx-auto rounded-2xl bg-red-600/10 border border-red-500/25 flex items-center justify-center text-red-400">
+            <Music size={22} />
           </div>
+          <h4 className="text-sm sm:text-base font-serif text-white font-medium">
+            Sin Playlist Oficial Configurada
+          </h4>
+          <p className="text-xs text-[#8e8e99] max-w-md mx-auto leading-relaxed">
+            Aquí podrás acceder directamente a las alabanzas y pistas oficiales de YouTube que el administrador configure para los servicios.
+          </p>
+
+          {isAdmin ? (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                className="px-4 py-2 bg-gradient-to-r from-[#c5a059] to-[#d4b068] hover:from-[#d4b068] hover:to-[#e3bf77] text-black font-extrabold rounded-xl text-xs font-mono uppercase tracking-wider transition-all shadow-md shadow-[#c5a059]/20 cursor-pointer inline-flex items-center gap-2"
+                id="btn-setup-playlist-admin"
+              >
+                <Edit3 size={13} />
+                <span>Configurar Enlace de Playlist</span>
+              </button>
+            </div>
+          ) : onRequestAdmin ? (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleAdminClick}
+                className="px-4 py-2 bg-[#141418] hover:bg-[#1a1a20] text-[#8e8e99] hover:text-[#c5a059] border border-[#26262e] rounded-xl text-xs font-mono transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                id="btn-login-admin-empty"
+              >
+                <Lock size={13} className="text-[#c5a059]" />
+                <span>Acceder como Administrador para Configurar</span>
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-[#71717a] italic">
+              El administrador aún no ha configurado una lista de reproducción.
+            </p>
+          )}
         </div>
       )}
     </div>
