@@ -183,6 +183,7 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [playerKey, setPlayerKey] = useState(0);
   const [showExplainModal, setShowExplainModal] = useState(false);
+  const [shouldOpenEditAfterAdmin, setShouldOpenEditAfterAdmin] = useState(false);
 
   // Sincronizar de forma reactiva con la URL oficial que viene del estado global
   useEffect(() => {
@@ -198,6 +199,21 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
     }
   }, [isAdmin, isEditing]);
 
+  // Abrir automáticamente el panel de edición cuando el usuario acaba de autenticarse tras pulsar el botón de la playlist
+  useEffect(() => {
+    if (isAdmin && shouldOpenEditAfterAdmin) {
+      setIsEditing(true);
+      setShouldOpenEditAfterAdmin(false);
+    }
+  }, [isAdmin, shouldOpenEditAfterAdmin]);
+
+  const handleAdminClick = () => {
+    setShouldOpenEditAfterAdmin(true);
+    if (onRequestAdmin) {
+      onRequestAdmin();
+    }
+  };
+
   const parsed = useMemo(() => parseYouTubeMediaUrl(currentUrl), [currentUrl]);
   const previewParsed = useMemo(() => parseYouTubeMediaUrl(inputVal), [inputVal]);
 
@@ -205,7 +221,7 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
     if (e) e.preventDefault();
 
     if (!isAdmin) {
-      if (onRequestAdmin) onRequestAdmin();
+      handleAdminClick();
       return;
     }
 
@@ -229,7 +245,7 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
 
   const handleRemovePlaylist = () => {
     if (!isAdmin) {
-      if (onRequestAdmin) onRequestAdmin();
+      handleAdminClick();
       return;
     }
 
@@ -355,7 +371,7 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
             </button>
           ) : onRequestAdmin ? (
             <button
-              onClick={onRequestAdmin}
+              onClick={handleAdminClick}
               className="h-9 px-3 rounded-xl bg-[#0a0a0b] hover:bg-[#1a1a20] border border-[#232328] hover:border-[#c5a059]/40 text-[#8e8e99] hover:text-[#c5a059] text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Solo el Administrador puede modificar la playlist (Haz clic para autenticarte)"
               id="edit-youtube-playlist-btn"
@@ -505,7 +521,7 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
               <div className="pt-2">
                 <button
                   type="button"
-                  onClick={onRequestAdmin}
+                  onClick={handleAdminClick}
                   className="px-4 py-2 bg-[#141418] hover:bg-[#1a1a20] text-[#8e8e99] hover:text-[#c5a059] border border-[#26262e] rounded-xl text-xs font-mono transition-colors cursor-pointer inline-flex items-center gap-1.5"
                   id="login-admin-for-playlist-btn"
                 >

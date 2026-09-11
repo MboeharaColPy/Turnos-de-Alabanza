@@ -169,10 +169,22 @@ export default function App() {
       setAdminPasswordInput('');
       setAdminPasswordError(false);
       showToast('¡Acceso de Administrador concedido!');
-      if (pendingTab) {
+      const validTabs: ActiveTab[] = [
+        'inicio',
+        'canciones',
+        'calendario',
+        'eventos',
+        'musicos',
+        'estadisticas',
+        'config',
+        'mes',
+        'semana',
+        'cancionero',
+      ];
+      if (pendingTab && validTabs.includes(pendingTab)) {
         setActiveTab(pendingTab);
-        setPendingTab(null);
       }
+      setPendingTab(null);
     } else {
       setAdminPasswordError(true);
     }
@@ -187,9 +199,23 @@ export default function App() {
     }
   };
 
-  const handleRequestAdminModal = (targetTab?: ActiveTab) => {
-    if (targetTab) {
-      setPendingTab(targetTab);
+  const handleRequestAdminModal = (targetTab?: unknown) => {
+    const validTabs: ActiveTab[] = [
+      'inicio',
+      'canciones',
+      'calendario',
+      'eventos',
+      'musicos',
+      'estadisticas',
+      'config',
+      'mes',
+      'semana',
+      'cancionero',
+    ];
+    if (typeof targetTab === 'string' && (validTabs as string[]).includes(targetTab)) {
+      setPendingTab(targetTab as ActiveTab);
+    } else {
+      setPendingTab(null);
     }
     setShowAdminModal(true);
     setAdminPasswordError(false);
@@ -862,7 +888,7 @@ export default function App() {
               }}
               onSelectSong={(song, contextSongs, initialView) => handleOpenSongLyrics(song, contextSongs, initialView)}
               onUpdatePlaylist={handleUpdatePlaylist}
-              onRequestAdmin={handleRequestAdminModal}
+              onRequestAdmin={() => handleRequestAdminModal()}
             />
           )}
 
