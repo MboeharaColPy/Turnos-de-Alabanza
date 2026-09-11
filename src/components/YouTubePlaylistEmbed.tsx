@@ -14,12 +14,14 @@ import {
   Headphones,
   AlertCircle,
   RefreshCw,
+  Lock,
 } from 'lucide-react';
 
 interface YouTubePlaylistEmbedProps {
   initialUrl?: string;
   isAdmin: boolean;
   onUpdateUrl?: (url: string) => void;
+  onRequestAdmin?: () => void;
 }
 
 export interface ParsedMedia {
@@ -191,6 +193,7 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
   initialUrl,
   isAdmin,
   onUpdateUrl,
+  onRequestAdmin,
 }) => {
   // Migrar en localStorage si contiene la URL rota vieja
   useEffect(() => {
@@ -224,6 +227,13 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [playerKey, setPlayerKey] = useState(0);
 
+  // Si no es admin, no permitir estado de edición abierto
+  useEffect(() => {
+    if (!isAdmin && isEditing) {
+      setIsEditing(false);
+    }
+  }, [isAdmin, isEditing]);
+
   // Sincronizar si cambia initialUrl desde el padre
   useEffect(() => {
     if (initialUrl && initialUrl !== currentUrl) {
@@ -237,6 +247,13 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
   const previewParsed = useMemo(() => parseYouTubeMediaUrl(inputVal), [inputVal]);
 
   const handleSave = (urlToSave?: string) => {
+    if (!isAdmin) {
+      if (onRequestAdmin) {
+        onRequestAdmin();
+      }
+      return;
+    }
+
     const finalUrl = (urlToSave !== undefined ? urlToSave : inputVal).trim();
     if (!finalUrl) return;
 
@@ -261,6 +278,12 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
   };
 
   const handleResetDefault = () => {
+    if (!isAdmin) {
+      if (onRequestAdmin) {
+        onRequestAdmin();
+      }
+      return;
+    }
     setInputVal(DEFAULT_PLAYLIST_URL);
     handleSave(DEFAULT_PLAYLIST_URL);
   };
@@ -341,28 +364,41 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
             <RefreshCw size={13} />
           </button>
 
-          {/* Botón Cambiar Playlist */}
-          <button
-            onClick={() => {
-              setInputVal(currentUrl);
-              setIsEditing(!isEditing);
-            }}
-            className={`h-9 px-3.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer border ${
-              isEditing
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
-                : 'bg-[#1a1a1d] hover:bg-[#25252b] text-[#c5a059] border-[#2e2e36] hover:border-[#c5a059]/50'
-            }`}
-            title="Cambiar el enlace de la playlist o video de YouTube"
-            id="edit-youtube-playlist-btn"
-          >
-            {isEditing ? <X size={13} /> : <Edit3 size={13} />}
-            <span>{isEditing ? 'Cerrar' : 'Cambiar Playlist'}</span>
-          </button>
+          {/* Botón Cambiar Playlist (Solo Administrador) */}
+          {isAdmin ? (
+            <button
+              onClick={() => {
+                setInputVal(currentUrl);
+                setIsEditing(!isEditing);
+              }}
+              className={`h-9 px-3.5 rounded-xl text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer border ${
+                isEditing
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
+                  : 'bg-[#1a1a1d] hover:bg-[#25252b] text-[#c5a059] border-[#2e2e36] hover:border-[#c5a059]/50'
+              }`}
+              title="Cambiar el enlace de la playlist o video de YouTube (Solo Admin)"
+              id="edit-youtube-playlist-btn"
+            >
+              {isEditing ? <X size={13} /> : <Edit3 size={13} />}
+              <span>{isEditing ? 'Cerrar' : 'Cambiar Playlist'}</span>
+            </button>
+          ) : onRequestAdmin ? (
+            <button
+              onClick={onRequestAdmin}
+              className="h-9 px-3 rounded-xl bg-[#0a0a0b] hover:bg-[#1a1a20] border border-[#232328] hover:border-[#c5a059]/40 text-[#8e8e99] hover:text-[#c5a059] text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Solo el Administrador puede modificar la playlist (Haz clic para autenticarte)"
+              id="edit-youtube-playlist-btn"
+            >
+              <Lock size={12} className="text-[#c5a059]" />
+              <span className="hidden sm:inline">Modificar (Admin)</span>
+              <span className="sm:hidden">Admin</span>
+            </button>
+          ) : null}
         </div>
       </div>
 
-      {/* Panel Desplegable para Configurar / Cambiar Playlist */}
-      {isEditing && (
+      {/* Panel Desplegable para Configurar / Cambiar Playlist (Solo Administrador) */}
+      {isAdmin && isEditing && (
         <div className="p-4 bg-[#0a0a0b] border border-[#26262e] rounded-xl space-y-4 animate-fadeIn">
           <div>
             <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
@@ -476,13 +512,29 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
               Ingresa el enlace de una lista de reproducción de YouTube o YouTube Music para
               que todos los integrantes puedan escuchar y practicar las canciones aquí.
             </p>
-            <button
-              onClick={() => setIsEditing(true)}
-              className="mt-2 px-4 py-2 bg-[#1a1a1d] hover:bg-[#25252b] text-[#c5a059] border border-[#2e2e36] hover:border-[#c5a059]/50 rounded-xl text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer inline-flex items-center gap-1.5"
-            >
-              <Edit3 size={13} />
-              <span>Configurar Playlist Ahora</span>
-            </button>
+            {isAdmin ? (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="mt-2 px-4 py-2 bg-[#1a1a1d] hover:bg-[#25252b] text-[#c5a059] border border-[#2e2e36] hover:border-[#c5a059]/50 rounded-xl text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                id="configure-playlist-admin-btn"
+              >
+                <Edit3 size={13} />
+                <span>Configurar Playlist Ahora</span>
+              </button>
+            ) : onRequestAdmin ? (
+              <button
+                onClick={onRequestAdmin}
+                className="mt-2 px-4 py-2 bg-[#141418] hover:bg-[#1a1a20] text-[#8e8e99] hover:text-[#c5a059] border border-[#26262e] rounded-xl text-xs font-mono transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                id="login-admin-for-playlist-btn"
+              >
+                <Lock size={13} className="text-[#c5a059]" />
+                <span>Acceder como Administrador para Configurar</span>
+              </button>
+            ) : (
+              <p className="text-xs text-[#71717a] italic mt-2">
+                Solo el administrador puede configurar la lista de reproducción.
+              </p>
+            )}
           </div>
         )}
       </div>

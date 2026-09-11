@@ -785,6 +785,11 @@ export default function App() {
   };
 
   const handleUpdatePlaylist = async (url: string) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      showToast('Solo el administrador puede modificar la playlist.');
+      return;
+    }
     setState(prev => {
       const next = {
         ...prev,
@@ -862,6 +867,7 @@ export default function App() {
               }}
               onSelectSong={(song, contextSongs, initialView) => handleOpenSongLyrics(song, contextSongs, initialView)}
               onUpdatePlaylist={handleUpdatePlaylist}
+              onRequestAdmin={handleRequestAdminModal}
             />
           )}
 

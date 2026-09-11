@@ -23,6 +23,7 @@ interface DashboardHomeViewProps {
   onSelectSong: (song: SongItem, contextSongs?: SongItem[], initialView?: 'view' | 'pdf') => void;
   onSelectDateEvent?: (isoDate: string) => void;
   onUpdatePlaylist?: (url: string) => void;
+  onRequestAdmin?: () => void;
 }
 
 export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
@@ -32,6 +33,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
   onSelectSong,
   onSelectDateEvent,
   onUpdatePlaylist,
+  onRequestAdmin,
 }) => {
   // 1. Encontrar el próximo servicio o ensayo programado
   const now = new Date();
@@ -468,6 +470,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
         initialUrl={state.worshipPlaylistUrl}
         isAdmin={isAdmin}
         onUpdateUrl={onUpdatePlaylist}
+        onRequestAdmin={onRequestAdmin}
       />
     </div>
   );
