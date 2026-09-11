@@ -647,6 +647,20 @@ export default function App() {
     showToast('Copia importada y sincronizada en la nube.');
   };
 
+  const handleUpdatePlaylist = async (url: string) => {
+    setState(prev => {
+      const next = {
+        ...prev,
+        worshipPlaylistUrl: url,
+        lastUpdated: new Date().toISOString(),
+      };
+      saveStoredState(next);
+      saveCloudState(next).catch(err => console.error('Error saving playlist to cloud:', err));
+      return next;
+    });
+    showToast('Enlace de playlist actualizado correctamente.');
+  };
+
   return (
     <div
       className={`min-h-screen font-sans selection:bg-[#c5a059] selection:text-black pb-24 transition-colors duration-200 ${
@@ -710,6 +724,7 @@ export default function App() {
                 }
               }}
               onSelectSong={(song, contextSongs, initialView) => handleOpenSongLyrics(song, contextSongs, initialView)}
+              onUpdatePlaylist={handleUpdatePlaylist}
             />
           )}
 

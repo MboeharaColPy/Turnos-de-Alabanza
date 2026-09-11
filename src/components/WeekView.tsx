@@ -20,7 +20,6 @@ import {
   RotateCcw,
   Lock,
   CheckCircle2,
-  Music,
   Heart,
   HelpCircle,
   UserPlus,
@@ -169,67 +168,71 @@ export const WeekView: React.FC<WeekViewProps> = ({
       />
 
       {/* Barra de navegación de semana y acciones principales */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-[#141418] p-4 sm:p-5 rounded-2xl border border-[#1f1f23] shadow-xl">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 bg-[#141418] p-4 sm:p-5 rounded-2xl border border-[#1f1f23] shadow-xl">
         {/* Selector de semana */}
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={prevWeek}
-            className="w-10 h-10 rounded-xl bg-[#1a1a1d] hover:bg-[#25252b] text-[#e0e0e0] border border-[#2a2a2e] hover:border-[#c5a059]/50 flex items-center justify-center transition-all cursor-pointer min-h-[44px]"
+            className="w-9 h-9 rounded-xl bg-[#1a1a1d] hover:bg-[#25252b] text-[#e0e0e0] border border-[#2a2a2e] hover:border-[#c5a059]/50 flex items-center justify-center transition-all cursor-pointer"
             title="Semana anterior"
             id="prev-week-btn"
           >
-            <ChevronLeft size={18} />
+            <ChevronLeft size={16} />
           </button>
 
-          <div className="px-4 py-2 bg-[#0a0a0b] border border-[#1f1f23] rounded-xl text-center min-w-[200px]">
-            <span className="font-mono text-[9px] text-[#888894] block uppercase tracking-[0.25em]">
-              Ciclo Semanal
+          <div className="h-9 px-3.5 bg-[#0a0a0b] border border-[#1f1f23] rounded-xl flex items-center gap-2 text-center">
+            <span className="font-mono text-[9px] text-[#888894] uppercase tracking-[0.2em] hidden sm:inline">
+              Ciclo Semanal:
             </span>
-            <span className="font-mono text-xs sm:text-sm font-bold text-[#c5a059] tracking-wider">
+            <span className="font-mono text-xs font-bold text-[#c5a059] tracking-wider whitespace-nowrap">
               {formatWeekRange(currentWeekStart)}
             </span>
           </div>
 
           <button
             onClick={nextWeek}
-            className="w-10 h-10 rounded-xl bg-[#1a1a1d] hover:bg-[#25252b] text-[#e0e0e0] border border-[#2a2a2e] hover:border-[#c5a059]/50 flex items-center justify-center transition-all cursor-pointer min-h-[44px]"
+            className="w-9 h-9 rounded-xl bg-[#1a1a1d] hover:bg-[#25252b] text-[#e0e0e0] border border-[#2a2a2e] hover:border-[#c5a059]/50 flex items-center justify-center transition-all cursor-pointer"
             title="Semana siguiente"
             id="next-week-btn"
           >
-            <ChevronRight size={18} />
+            <ChevronRight size={16} />
           </button>
 
           <button
             onClick={setThisWeek}
-            className="px-3.5 py-2 bg-[#1a1a1d] hover:bg-[#25252b] text-xs font-mono uppercase tracking-wider rounded-xl border border-[#2a2a2e] text-[#a0a0ab] hover:text-white transition-colors cursor-pointer min-h-[44px]"
+            className="h-9 px-3 bg-[#1a1a1d] hover:bg-[#25252b] text-xs font-mono uppercase tracking-wider rounded-xl border border-[#2a2a2e] text-[#a0a0ab] hover:text-white transition-colors cursor-pointer"
             id="current-week-btn"
           >
             Esta Semana
           </button>
 
-          {/* Botón Guía Rápida de Alertas */}
-          <button
-            onClick={() => setShowExplainerModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-medium transition-colors cursor-pointer min-h-[44px]"
-            title="Ver qué significan los conflictos y reglas de descanso"
-          >
-            <HelpCircle size={14} />
-            <span className="hidden sm:inline">¿Dudas de Alertas?</span>
-          </button>
+          {/* Botón Guía Rápida de Alertas (Solo Admin) */}
+          {isAdmin && (
+            <button
+              onClick={() => setShowExplainerModal(true)}
+              className="h-9 flex items-center gap-1.5 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer"
+              title="Ver qué significan los conflictos y reglas de descanso"
+              id="week-alert-guide-btn"
+            >
+              <HelpCircle size={13} />
+              <span className="hidden sm:inline">Guía Alertas</span>
+            </button>
+          )}
         </div>
 
         {/* Barra de Botones de Acción Destacados (Fácil Visualización) */}
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap" id="week-view-toolbar">
           {/* Selector de Vista Principal: [Vista Mes | Vista Semana] */}
           {onAgendaViewModeChange && (
-            <div className="flex bg-[#0a0a0b] p-1 rounded-xl border border-[#232328]">
+            <div className="flex items-center h-9 bg-[#0a0a0b] p-1 rounded-xl border border-[#232328]">
               <button
                 onClick={() => onAgendaViewModeChange('mes')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-mono uppercase tracking-wider transition-all cursor-pointer ${
                   agendaViewMode === 'mes'
                     ? 'bg-[#1e1e24] text-white border border-[#c5a059]/40 font-bold shadow-sm'
                     : 'text-[#8e8e99] hover:text-white'
                 }`}
+                id="week-nav-view-mode-mes-btn"
               >
                 <Calendar size={13} className={agendaViewMode === 'mes' ? 'text-[#c5a059]' : ''} />
                 <span>Vista Mes</span>
@@ -237,11 +240,12 @@ export const WeekView: React.FC<WeekViewProps> = ({
 
               <button
                 onClick={() => onAgendaViewModeChange('semana')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 h-7 rounded-lg text-xs font-mono uppercase tracking-wider transition-all cursor-pointer ${
                   agendaViewMode === 'semana'
                     ? 'bg-[#1e1e24] text-white border border-[#c5a059]/40 font-bold shadow-sm'
                     : 'text-[#8e8e99] hover:text-white'
                 }`}
+                id="week-nav-view-mode-semana-btn"
               >
                 <Layers size={13} className={agendaViewMode === 'semana' ? 'text-[#c5a059]' : ''} />
                 <span>Vista Semana</span>
@@ -249,25 +253,13 @@ export const WeekView: React.FC<WeekViewProps> = ({
             </div>
           )}
 
-          {onOpenCatalog && (
-            <button
-              onClick={onOpenCatalog}
-              className="flex items-center gap-2 px-4 py-2.5 bg-[#18181c] hover:bg-[#222228] text-white hover:text-amber-300 border border-[#2e2e36] hover:border-amber-500/50 font-bold rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md min-h-[44px]"
-              title="Abrir el repertorio de 220 alabanzas con letras y notas"
-              id="open-catalog-btn"
-            >
-              <Music size={15} className="text-amber-400" />
-              <span className="hidden sm:inline">Repertorio</span>
-              <span className="sm:hidden">Canciones</span>
-            </button>
-          )}
-
           {undoSnapshot && (
             <button
               onClick={handleUndoClear}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer min-h-[44px]"
+              className="h-9 flex items-center gap-1.5 px-3 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 rounded-xl text-xs font-mono uppercase tracking-wider font-bold transition-all cursor-pointer"
+              id="week-undo-btn"
             >
-              <RotateCcw size={14} />
+              <RotateCcw size={13} />
               <span>Deshacer</span>
             </button>
           )}
@@ -277,31 +269,32 @@ export const WeekView: React.FC<WeekViewProps> = ({
             <button
               onClick={handleAutoFillWeek}
               disabled={isGenerating || sortedSlots.length === 0}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-slate-950 font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 shadow-md min-h-[44px] active:scale-95"
+              className="h-9 flex items-center gap-2 px-3.5 bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-slate-950 font-extrabold rounded-xl text-xs font-mono uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 shadow-md active:scale-95"
               title="Genera asignaciones rotativas respetando descansos, parejas y balance vocal"
               id="btn-auto-suggest-week"
             >
-              <Sparkles size={15} className={`text-slate-950 ${isGenerating ? 'animate-spin' : ''}`} />
+              <Sparkles size={14} className={`text-slate-950 ${isGenerating ? 'animate-spin' : ''}`} />
               <span>{isGenerating ? 'Generando...' : 'Sugerir Turnos'}</span>
             </button>
           ) : (
             <button
               onClick={onRequestAdmin}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-[#18181c] hover:bg-[#222228] text-[#a0a0ab] hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider border border-[#2e2e36] cursor-pointer transition-all min-h-[44px]"
+              className="h-9 flex items-center gap-1.5 px-3 bg-[#18181c] hover:bg-[#222228] text-[#a0a0ab] hover:text-white rounded-xl text-xs font-bold font-mono uppercase tracking-wider border border-[#2e2e36] cursor-pointer transition-all"
+              id="week-request-admin-btn"
             >
-              <Lock size={13} className="text-amber-400" />
-              <span>Desbloquear Edición</span>
+              <Lock size={12} className="text-amber-400" />
+              <span>Modo Admin</span>
             </button>
           )}
 
           {/* Botón Copiar WhatsApp (Verde Esmeralda Destacado) */}
           <button
             onClick={handleCopySummary}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-950/30 cursor-pointer min-h-[44px] active:scale-95"
+            className="h-9 flex items-center gap-2 px-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl text-xs font-mono uppercase tracking-wider transition-all shadow-md cursor-pointer active:scale-95"
             id="copy-summary-btn"
             title="Copiar lista formateada para pegar directamente en el grupo de WhatsApp"
           >
-            {copied ? <Check size={16} className="text-white stroke-[3]" /> : <Copy size={15} />}
+            {copied ? <Check size={14} className="text-white stroke-[3]" /> : <Copy size={14} />}
             <span>{copied ? '¡Copiado!' : 'Copiar WhatsApp'}</span>
           </button>
 
@@ -311,10 +304,11 @@ export const WeekView: React.FC<WeekViewProps> = ({
             ) && (
               <button
                 onClick={() => setShowClearConfirm(true)}
-                className="flex items-center gap-1.5 px-3 py-2.5 bg-[#1a1a1d] hover:bg-red-950/40 text-[#888894] hover:text-red-300 border border-[#2a2a2e] hover:border-red-900/50 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer min-h-[44px]"
+                className="h-9 flex items-center gap-1.5 px-3 bg-[#1a1a1d] hover:bg-red-950/40 text-[#888894] hover:text-red-300 border border-[#2a2a2e] hover:border-red-900/50 rounded-xl text-xs font-mono uppercase tracking-wider transition-all cursor-pointer"
                 title="Vaciar asignaciones de esta semana"
+                id="week-clear-assignments-btn"
               >
-                <UserX size={14} />
+                <UserX size={13} />
                 <span>Vaciar</span>
               </button>
             )}

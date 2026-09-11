@@ -16,11 +16,21 @@ export interface Musician {
   notes?: string;
 }
 
+export interface SlotRehearsal {
+  enabled: boolean;
+  day: number; // 0 = Lunes, ..., 6 = Domingo
+  time: string; // ej: "18:00"
+  durationMinutes: number; // ej: 90
+  label?: string; // ej: "Ensayo previo"
+}
+
 export interface Slot {
   id: string;
   label: string;
   day: number; // 0 = Lunes, ..., 6 = Domingo
   time: string; // "10:00"
+  durationMinutes?: number; // Duración en minutos del evento (ej: 90 min)
+  rehearsal?: SlotRehearsal; // Ensayo asociado programado con día, hora y duración
   roleIds: string[];
 }
 
@@ -46,7 +56,8 @@ export interface SongItem {
   tempo?: string;
   bpm?: number;
   timeSignature?: string; // ej: "4/4", "6/8", "3/4"
-  category?: string; // ej: "Adoración", "Alabanza", "Júbilo", "Comunión", "Especial", "Apertura"
+  category?: string; // Legacy singular string
+  categories?: string[]; // Multiple categories support (ej: ["Adoración", "Comunión"])
   sequence?: string[]; // ej: ["IN", "V1", "C", "V2", "C", "PTE", "C", "OUT"]
   notes?: string;
   lyrics?: string; // Letra y acordes (en cifrado americano, sin necesidad de corchetes)
@@ -84,13 +95,27 @@ export interface AppState {
   assignments: AssignmentsMap;
   shiftSongs: Record<string, SongItem[]>;
   songCatalog: SongItem[];
+  songCategories?: string[]; // Categorías editables por el administrador
   couples: Couple[];
   chatMessages?: ChatMessage[];
   notices?: Notice[];
   adminPassword?: string;
   seeded: boolean;
+  worshipPlaylistUrl?: string;
   lastUpdated?: string;
 }
+
+export const DEFAULT_SONG_CATEGORIES: string[] = [
+  'Adoración',
+  'Alabanza',
+  'Júbilo',
+  'Comunión',
+  'Especial',
+  'Apertura',
+  'Ofrenda',
+  'Reflexión',
+  'Congregacional',
+];
 
 export const DAYS_OF_WEEK = [
   'Lunes',

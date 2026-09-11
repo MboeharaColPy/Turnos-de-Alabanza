@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { getNextUpcomingDateForSlot, formatDateDisplay, isoLocal } from '../utils/dateUtils';
 import { ActiveTab } from './Header';
+import { YouTubePlaylistEmbed } from './YouTubePlaylistEmbed';
 
 interface DashboardHomeViewProps {
   state: AppState;
@@ -21,6 +22,7 @@ interface DashboardHomeViewProps {
   onNavigateTab: (tab: ActiveTab) => void;
   onSelectSong: (song: SongItem, contextSongs?: SongItem[], initialView?: 'view' | 'pdf') => void;
   onSelectDateEvent?: (isoDate: string) => void;
+  onUpdatePlaylist?: (url: string) => void;
 }
 
 export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
@@ -29,6 +31,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
   onNavigateTab,
   onSelectSong,
   onSelectDateEvent,
+  onUpdatePlaylist,
 }) => {
   // 1. Encontrar el próximo servicio o ensayo programado
   const now = new Date();
@@ -460,56 +463,12 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
         </div>
       )}
 
-      {/* Accesos Rápidos */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div
-          onClick={() => onNavigateTab('canciones')}
-          className="p-4 bg-[#141418] hover:bg-[#18181d] border border-[#232328] hover:border-[#c5a059]/40 rounded-2xl cursor-pointer transition-all flex items-center gap-3 group"
-        >
-          <div className="w-10 h-10 rounded-xl bg-[#c5a059]/10 border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059] group-hover:scale-110 transition-transform">
-            <Music size={18} />
-          </div>
-          <div className="flex-1">
-            <h4 className="text-sm font-medium text-white group-hover:text-[#c5a059] transition-colors">
-              Cancionero & Acordes
-            </h4>
-            <p className="text-[10px] text-[#8e8e99] mt-0.5">Letras, tonos, capo e instrumentos</p>
-          </div>
-          <ChevronRight size={16} className="text-[#8e8e99] group-hover:text-white" />
-        </div>
-
-        <div
-          onClick={() => onNavigateTab('calendario')}
-          className="p-4 bg-[#141418] hover:bg-[#18181d] border border-[#232328] hover:border-[#c5a059]/40 rounded-2xl cursor-pointer transition-all flex items-center gap-3 group"
-        >
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
-            <CalendarDays size={18} />
-          </div>
-          <div className="flex-1">
-            <h4 className="text-sm font-medium text-white group-hover:text-amber-300 transition-colors">
-              Calendario de Turnos
-            </h4>
-            <p className="text-[10px] text-[#8e8e99] mt-0.5">Asignaciones, fechas y horarios</p>
-          </div>
-          <ChevronRight size={16} className="text-[#8e8e99] group-hover:text-white" />
-        </div>
-
-        <div
-          onClick={() => onNavigateTab('musicos')}
-          className="p-4 bg-[#141418] hover:bg-[#18181d] border border-[#232328] hover:border-[#c5a059]/40 rounded-2xl cursor-pointer transition-all flex items-center gap-3 group"
-        >
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
-            <Users size={18} />
-          </div>
-          <div className="flex-1">
-            <h4 className="text-sm font-medium text-white group-hover:text-emerald-300 transition-colors">
-              Directorio de Integrantes
-            </h4>
-            <p className="text-[10px] text-[#8e8e99] mt-0.5">Roles, voces y parejas</p>
-          </div>
-          <ChevronRight size={16} className="text-[#8e8e99] group-hover:text-white" />
-        </div>
-      </div>
+      {/* Espacio para embeber Playlist de YouTube / YouTube Music */}
+      <YouTubePlaylistEmbed
+        initialUrl={state.worshipPlaylistUrl}
+        isAdmin={isAdmin}
+        onUpdateUrl={onUpdatePlaylist}
+      />
     </div>
   );
 };

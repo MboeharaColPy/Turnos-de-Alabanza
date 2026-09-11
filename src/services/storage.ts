@@ -3,6 +3,7 @@ import { db } from '../firebase';
 import { INITIAL_FULL_SONG_CATALOG } from '../data/songCatalogData';
 import {
   AppState,
+  DEFAULT_SONG_CATEGORIES,
   Gender,
   INITIAL_PRELOADED_MUSICIANS_DATA,
   INITIAL_PRELOADED_ROLES,
@@ -73,12 +74,13 @@ export function getInitialDefaultState(): AppState {
   ];
 
   // Turnos recurrentes por defecto (Ensayo del Sábado y Culto Dominical como predeterminado)
-  const defaultSlots = [
+  const defaultSlots: Slot[] = [
     {
       id: 'slt_sabado_ensayo',
       label: 'Ensayo del Sábado',
       day: 5, // Sábado
       time: '18:00',
+      durationMinutes: 90,
       roleIds: roles.map(r => r.id),
     },
     {
@@ -86,6 +88,14 @@ export function getInitialDefaultState(): AppState {
       label: 'Culto Dominical',
       day: 6, // Domingo
       time: '10:00',
+      durationMinutes: 90,
+      rehearsal: {
+        enabled: true,
+        day: 5, // Sábado
+        time: '18:00',
+        durationMinutes: 90,
+        label: 'Ensayo previo del Sábado',
+      },
       roleIds: roles.map(r => r.id),
     },
   ];
@@ -117,11 +127,13 @@ export function getInitialDefaultState(): AppState {
     assignments: {},
     shiftSongs: {},
     songCatalog: INITIAL_FULL_SONG_CATALOG,
+    songCategories: DEFAULT_SONG_CATEGORIES,
     couples,
     notices: defaultNotices,
     chatMessages: defaultChatMessages,
     adminPassword: 'alabanza2026',
     seeded: true,
+    worshipPlaylistUrl: 'https://www.youtube.com/playlist?list=PL4fGSI1pDJn6O1E9vB1O4l2oGf5h8v8vX',
     lastUpdated: new Date().toISOString(),
   };
 }
@@ -302,6 +314,8 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
     const sanitizedRoleIds = rawIds.filter(rid => validRoleIdsSet.has(rid));
     return {
       ...s,
+      durationMinutes: s.durationMinutes ? Number(s.durationMinutes) : 90,
+      rehearsal: s.rehearsal && typeof s.rehearsal === 'object' ? s.rehearsal : undefined,
       roleIds: sanitizedRoleIds.length > 0 ? sanitizedRoleIds : allRoleIds,
     };
   });
@@ -338,6 +352,18 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
     }
   }
 
+  // Normalizar soporte de categorías múltiples en cada canción del catálogo
+  songCatalog = songCatalog.map((s: SongItem) => {
+    const cats = Array.isArray(s.categories) && s.categories.length > 0
+      ? s.categories
+      : (s.category ? [s.category] : ['Adoración']);
+    return {
+      ...s,
+      categories: cats,
+      category: s.category || cats[0] || 'Adoración',
+    };
+  });
+
   // Ordenar catálogo alfabéticamente por título de la A a la Z
   songCatalog = [...songCatalog].sort((a, b) =>
     a.title.localeCompare(b.title, 'es', { numeric: true, sensitivity: 'base' })
@@ -350,11 +376,15 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
     assignments: sanitizedAssignments,
     shiftSongs: parsed.shiftSongs && typeof parsed.shiftSongs === 'object' ? parsed.shiftSongs : {},
     songCatalog,
+    songCategories: Array.isArray(parsed.songCategories) && parsed.songCategories.length > 0
+      ? parsed.songCategories
+      : DEFAULT_SONG_CATEGORIES,
     couples: Array.isArray(parsed.couples) ? parsed.couples : fallbackDefault.couples,
     notices: Array.isArray(parsed.notices) ? parsed.notices : [],
     chatMessages: Array.isArray(parsed.chatMessages) && parsed.chatMessages.length > 0 ? parsed.chatMessages : fallbackDefault.chatMessages,
     adminPassword: parsed.adminPassword || 'alabanza2026',
     seeded: !!parsed.seeded,
+    worshipPlaylistUrl: parsed.worshipPlaylistUrl || fallbackDefault.worshipPlaylistUrl,
     lastUpdated: parsed.lastUpdated || new Date().toISOString(),
   };
 

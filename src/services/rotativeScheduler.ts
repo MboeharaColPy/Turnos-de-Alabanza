@@ -40,6 +40,39 @@ export function getRoleCategory(
 }
 
 /**
+ * Checks whether a musician is marked as Director (in roleIds or primaryRoleId)
+ */
+export function isMusicianDirector(m: Musician, roleMap: Map<string, Role>): boolean {
+  const roles = (m.roleIds || []).map(id => roleMap.get(id)).filter((r): r is Role => Boolean(r));
+  const primary = m.primaryRoleId ? roleMap.get(m.primaryRoleId) : null;
+  const isDir = (r: Role) => getRoleCategory(r.name) === 'director' || r.name.toLowerCase().includes('director');
+  return roles.some(isDir) || (primary ? isDir(primary) : false);
+}
+
+/**
+ * Checks whether a musician is marked in voices (Voz H, Voz M, Voces, etc.)
+ */
+export function isMusicianInVoices(m: Musician, roleMap: Map<string, Role>): boolean {
+  const roles = (m.roleIds || []).map(id => roleMap.get(id)).filter((r): r is Role => Boolean(r));
+  const primary = m.primaryRoleId ? roleMap.get(m.primaryRoleId) : null;
+  const isVoice = (r: Role) => {
+    const cat = getRoleCategory(r.name);
+    if (cat === 'voz_h' || cat === 'voz_m') return true;
+    const n = r.name.toLowerCase().trim();
+    return (
+      n.startsWith('voz') ||
+      n.includes('voces') ||
+      n.includes('tenor') ||
+      n.includes('soprano') ||
+      n.includes('contralto') ||
+      n.includes('baritono') ||
+      n.includes('coro')
+    );
+  };
+  return roles.some(isVoice) || (primary ? isVoice(primary) : false);
+}
+
+/**
  * Finds all slots ordered chronologically within a date range
  */
 export function getChronologicalShiftInstances(
@@ -253,8 +286,19 @@ export function generateRotativeSchedule(
       const role = roleMap.get(roleId);
       if (!role) return [];
       const cat = getRoleCategory(role.name);
+      const isVoiceSlot = cat === 'voz_h' || cat === 'voz_m';
 
       return state.musicians.filter(m => {
+        // Regla: Los que están marcados como director, pero no están marcados en voces,
+        // no deben ser tenidos en cuenta para ocupar un rol de voces semanal.
+        if (isVoiceSlot) {
+          const isDir = isMusicianDirector(m, roleMap);
+          const inVoices = isMusicianInVoices(m, roleMap);
+          if (isDir && !inVoices) {
+            return false;
+          }
+        }
+
         // Direct role ID match
         if ((m.roleIds || []).includes(roleId)) return true;
         // Category fallback for voice slots: all male musicians can sing in voz_h, all female in voz_m
@@ -293,12 +337,14 @@ export function generateRotativeSchedule(
         // Voice slots: The assigned Director is already leading voice, so exclude assignedDirector.
         // Cannot be assigned to another voice slot in this shift, and cannot be in Tech.
         // BUT they CAN already be on an Instrument! (Permitted dual role)
+        // Regla: Los directores no marcados en voces nunca son asignados a roles de voz
         const directorId = assignedDirector?.id;
         filtered = filtered.filter(
           m =>
             m.id !== directorId &&
             !musiciansInVoiceSlots.has(m.id) &&
-            !musiciansInTechRoles.has(m.id)
+            !musiciansInTechRoles.has(m.id) &&
+            !(isMusicianDirector(m, roleMap) && !isMusicianInVoices(m, roleMap))
         );
       }
 
@@ -317,9 +363,10 @@ export function generateRotativeSchedule(
           if (musiciansInTechRoles.has(m.id)) return false;
           if (targetCategory === 'tech' && assignedMusiciansInShift.has(m.id)) return false;
           if (targetCategory === 'instrument' && musiciansInInstruments.has(m.id)) return false;
-          if ((targetCategory === 'voz_h' || targetCategory === 'voz_m')) {
+          if (targetCategory === 'voz_h' || targetCategory === 'voz_m') {
             if (m.id === directorId) return false;
             if (musiciansInVoiceSlots.has(m.id)) return false;
+            if (isMusicianDirector(m, roleMap) && !isMusicianInVoices(m, roleMap)) return false;
           }
           return true;
         });

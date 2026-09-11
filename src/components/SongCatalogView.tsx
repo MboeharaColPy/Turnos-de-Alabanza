@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { SongItem } from '../types';
+import { SongItem, AppState } from '../types';
 import {
   Search,
   Music,
@@ -17,16 +17,22 @@ import {
   ExternalLink,
   Video,
   FileText,
+  Calendar,
 } from 'lucide-react';
 import { ALL_STANDARD_KEYS } from '../utils/chordUtils';
+import { AssignSongToEventModal } from './AssignSongToEventModal';
 
 interface SongCatalogViewProps {
   songs: SongItem[];
   isAdmin: boolean;
+  categories?: string[];
+  state?: AppState;
   onAddSong?: (song: Omit<SongItem, 'id'>) => void;
   onUpdateSong?: (song: SongItem) => void;
   onDeleteSong?: (id: string) => void;
   onSelectSong?: (song: SongItem, contextSongs?: SongItem[], initialView?: 'view' | 'pdf') => void;
+  onUpdateSongs?: (shiftKey: string, songs: SongItem[]) => void;
+  showToast?: (msg: string) => void;
 }
 
 export const CATEGORIES = [
@@ -46,8 +52,12 @@ export type ViewMode = 'table' | 'compact';
 export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
   songs,
   isAdmin,
+  categories,
+  state,
   onAddSong,
   onSelectSong,
+  onUpdateSongs,
+  showToast,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedArtist, setSelectedArtist] = useState<string>('all');
@@ -55,11 +65,21 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
   const [selectedSpeed, setSelectedSpeed] = useState<SpeedFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
 
+  // Modal Asignar Canción a Evento
+  const [songToAssign, setSongToAssign] = useState<SongItem | null>(null);
+
+  // Lista de categorías disponibles (desde props, state o predeterminadas)
+  const activeCategories = useMemo(() => {
+    if (categories && categories.length > 0) return categories;
+    if (state?.songCategories && state.songCategories.length > 0) return state.songCategories;
+    return CATEGORIES.filter(c => c !== 'Todas');
+  }, [categories, state?.songCategories]);
+
   // Modal Agregar Alabanza
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [artistInput, setArtistInput] = useState('');
-  const [newCategory, setNewCategory] = useState('Adoración');
+  const [newSelectedCategories, setNewSelectedCategories] = useState<string[]>(['Adoración']);
   const [newKey, setNewKey] = useState('G');
   const [newBpm, setNewBpm] = useState<number | ''>(80);
   const [newLyrics, setNewLyrics] = useState('');
@@ -96,9 +116,12 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
         (s.artist && s.artist.trim() === selectedArtist) ||
         (s.artists && s.artists.includes(selectedArtist));
 
-      // Category filter
+      // Multi-category filter: matching either in `categories` array or legacy `category`
       const matchCategory =
-        selectedCategory === 'Todas' || (s.category || 'General') === selectedCategory;
+        selectedCategory === 'Todas' ||
+        (s.categories && s.categories.length > 0
+          ? s.categories.includes(selectedCategory)
+          : (s.category || 'General') === selectedCategory);
 
       // Speed / BPM Group filter
       let matchSpeed = true;
@@ -115,18 +138,31 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
     }).sort((a, b) => a.title.localeCompare(b.title, 'es', { numeric: true, sensitivity: 'base' }));
   }, [songs, searchQuery, selectedArtist, selectedCategory, selectedSpeed]);
 
+  const toggleNewCategory = (cat: string) => {
+    setNewSelectedCategories(prev => {
+      if (prev.includes(cat)) {
+        if (prev.length === 1) return prev; // Mantener al menos una
+        return prev.filter(c => c !== cat);
+      } else {
+        return [...prev, cat];
+      }
+    });
+  };
+
   const handleCreateSong = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
     const finalArtist = artistInput.trim() || 'Desconocido';
+    const finalCategories = newSelectedCategories.length > 0 ? newSelectedCategories : ['General'];
 
     if (onAddSong) {
       onAddSong({
         title: newTitle.trim(),
         artist: finalArtist,
         artists: [finalArtist],
-        category: newCategory,
+        category: finalCategories[0],
+        categories: finalCategories,
         key: newKey.trim() || 'G',
         bpm: newBpm ? Number(newBpm) : 0,
         lyrics: newLyrics.trim() || '',
@@ -140,7 +176,7 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
     // Reset form
     setNewTitle('');
     setArtistInput('');
-    setNewCategory('Adoración');
+    setNewSelectedCategories(['Adoración']);
     setNewKey('G');
     setNewBpm(80);
     setNewLyrics('');
@@ -175,7 +211,7 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
             )}
           </div>
 
-          {/* Desplegable de Categorías (Agrupadas en desplegable) */}
+          {/* Desplegable de Categorías */}
           <div className="relative min-w-[135px]">
             <Tag className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6b6b75] pointer-events-none" size={13} />
             <select
@@ -184,7 +220,7 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
               className="w-full pl-8 pr-7 py-1.5 bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-lg text-xs text-white focus:outline-none transition-all cursor-pointer appearance-none font-mono"
             >
               <option value="Todas">Todas las categorías</option>
-              {CATEGORIES.filter(c => c !== 'Todas').map(cat => (
+              {activeCategories.map(cat => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>
@@ -224,7 +260,7 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
             </select>
           </div>
 
-          {/* Limpiar filtros rápidos si hay filtros activos */}
+          {/* Limpiar filtros rápidos */}
           {(searchQuery || selectedCategory !== 'Todas' || selectedArtist !== 'all' || selectedSpeed !== 'all') && (
             <button
               type="button"
@@ -302,7 +338,8 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
                   <th className="py-2.5 px-4">Artista / Autor</th>
                   <th className="py-2.5 px-4">Tono</th>
                   <th className="py-2.5 px-4">BPM</th>
-                  <th className="py-2.5 px-4">Categoría</th>
+                  <th className="py-2.5 px-4">Categorías</th>
+                  <th className="py-2.5 px-4 text-right">Acción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1f1f23]">
@@ -317,6 +354,10 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
                       a.type === 'pdf'
                     );
                   });
+
+                  const songCats = song.categories && song.categories.length > 0
+                    ? song.categories
+                    : [song.category || 'General'];
 
                   return (
                     <tr
@@ -354,7 +395,34 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
                         )}
                       </td>
                       <td className="py-2.5 px-4 text-[#888894]">{song.bpm ? `${song.bpm}` : '-'}</td>
-                      <td className="py-2.5 px-4 text-[#888894]">{song.category || 'General'}</td>
+                      <td className="py-2.5 px-4">
+                        <div className="flex flex-wrap gap-1">
+                          {songCats.map((cat, ci) => (
+                            <span
+                              key={ci}
+                              className="text-[10px] font-mono bg-[#141418] text-[#a0a0ab] px-2 py-0.5 rounded border border-[#232328]"
+                            >
+                              {cat}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-4 text-right">
+                        {state && onUpdateSongs && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSongToAssign(song);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-[#c5a059]/15 hover:bg-[#c5a059]/30 text-[#c5a059] border border-[#c5a059]/35 text-[11px] font-mono font-medium inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap"
+                            title="Asignar esta canción a un culto o evento"
+                          >
+                            <Calendar size={12} />
+                            <span>Asignar</span>
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -379,20 +447,52 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
               );
             });
 
+            const songCats = song.categories && song.categories.length > 0
+              ? song.categories
+              : [song.category || 'General'];
+
             return (
               <div
                 key={song.id || idx}
                 onClick={() => onSelectSong && onSelectSong(song, filteredSongs)}
-                className="p-3 sm:px-5 flex items-center justify-between hover:bg-[#252530] cursor-pointer transition-colors"
+                className="p-3 sm:px-5 flex items-center justify-between hover:bg-[#252530] cursor-pointer transition-colors gap-3"
               >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="font-medium text-sm text-white truncate hover:text-[#c5a059]">
-                    {song.title}
-                  </span>
-                  <span className="text-xs text-[#888894] hidden sm:inline">· {song.artist}</span>
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm text-white truncate hover:text-[#c5a059]">
+                        {song.title}
+                      </span>
+                      <span className="text-xs text-[#888894] hidden sm:inline">· {song.artist}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {songCats.map((cat, ci) => (
+                        <span
+                          key={ci}
+                          className="text-[9px] font-mono bg-[#0c0c0e] text-[#8e8e99] px-1.5 py-0.5 rounded border border-[#232328]"
+                        >
+                          {cat}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2.5 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {state && onUpdateSongs && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSongToAssign(song);
+                      }}
+                      className="px-2 py-1 rounded-lg bg-[#c5a059]/15 hover:bg-[#c5a059]/30 text-[#c5a059] border border-[#c5a059]/35 text-[10px] font-mono font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Asignar a evento"
+                    >
+                      <Calendar size={11} />
+                      <span className="hidden sm:inline">Asignar</span>
+                    </button>
+                  )}
                   {hasPdf && (
                     <button
                       type="button"
@@ -426,6 +526,19 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
           <h3 className="font-serif text-xl text-white font-light">No se encontraron alabanzas</h3>
           <p className="text-xs text-[#888894] mt-1">Intenta con otro término de búsqueda o filtro.</p>
         </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: ASIGNAR CANCIÓN A EVENTO EXISTENTE */}
+      {/* ======================================================== */}
+      {songToAssign && state && onUpdateSongs && (
+        <AssignSongToEventModal
+          song={songToAssign}
+          state={state}
+          onClose={() => setSongToAssign(null)}
+          onUpdateSongs={onUpdateSongs}
+          showToast={showToast || (() => {})}
+        />
       )}
 
       {/* ======================================================== */}
@@ -499,8 +612,8 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
                 )}
               </div>
 
-              {/* Tono, BPM & Categoría */}
-              <div className="grid grid-cols-3 gap-2.5">
+              {/* Tono & BPM */}
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-xs font-mono uppercase text-[#888894] mb-1">Tono</label>
                   <select
@@ -526,21 +639,36 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
                     className="w-full bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-xl px-2 py-2 text-xs text-white font-mono focus:outline-none text-center"
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-mono uppercase text-[#888894] mb-1">Categoría</label>
-                  <select
-                    value={newCategory}
-                    onChange={e => setNewCategory(e.target.value)}
-                    className="w-full bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-xl px-2 py-2 text-xs text-white focus:outline-none cursor-pointer"
-                  >
-                    {CATEGORIES.filter(c => c !== 'Todas').map(c => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+              {/* Categorías (Multi-selección) */}
+              <div>
+                <label className="block text-xs font-mono uppercase text-[#888894] mb-1.5">
+                  Categorías ({newSelectedCategories.length} seleccionadas)
+                </label>
+                <div className="flex flex-wrap gap-1.5 p-2 bg-[#0a0a0b] rounded-xl border border-[#232328] max-h-32 overflow-y-auto">
+                  {activeCategories.map(cat => {
+                    const isSelected = newSelectedCategories.includes(cat);
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => toggleNewCategory(cat)}
+                        className={`text-xs font-mono px-2.5 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
+                          isSelected
+                            ? 'bg-[#c5a059]/20 text-[#c5a059] border-[#c5a059]/50 font-bold'
+                            : 'bg-[#141418] text-[#888894] border-[#242429] hover:text-white'
+                        }`}
+                      >
+                        <span>{cat}</span>
+                        {isSelected && <span className="text-[10px]">✓</span>}
+                      </button>
+                    );
+                  })}
                 </div>
+                <p className="text-[10px] text-[#6b6b75] mt-1">
+                  Puedes seleccionar más de una categoría para clasificar esta canción.
+                </p>
               </div>
 
               {/* Video YouTube URL */}

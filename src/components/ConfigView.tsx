@@ -1,5 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { AppState, DAYS_OF_WEEK, INITIAL_PRELOADED_ROLES, Role, Slot } from '../types';
+import {
+  AppState,
+  DAYS_OF_WEEK,
+  DEFAULT_SONG_CATEGORIES,
+  INITIAL_PRELOADED_ROLES,
+  Role,
+  Slot,
+} from '../types';
 import { generateId, getInitialDefaultState } from '../services/storage';
 import {
   Settings,
@@ -24,6 +31,11 @@ import {
   EyeOff,
   Lock,
   ShieldCheck,
+  Calendar,
+  Tag,
+  Plus,
+  Layers,
+  Music,
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -36,6 +48,8 @@ interface ConfigViewProps {
   onUpdateAdminPassword: (newPassword: string) => void;
   onResetAllData: (freshState: AppState) => void;
   onImportState: (importedState: AppState) => void;
+  onSaveSongCategories?: (categories: string[]) => void;
+  onRenameSongCategory?: (oldCat: string, newCat: string) => void;
   showToast: (msg: string) => void;
   onCheckForUpdates?: () => Promise<boolean>;
   isCheckingUpdate?: boolean;
@@ -54,6 +68,8 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
   onUpdateAdminPassword,
   onResetAllData,
   onImportState,
+  onSaveSongCategories,
+  onRenameSongCategory,
   showToast,
   onCheckForUpdates,
   isCheckingUpdate = false,
@@ -66,12 +82,23 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const [roleName, setRoleName] = useState('');
 
-  // Slots state
+  // Slots (Eventos y Turnos) state
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [slotLabel, setSlotLabel] = useState('');
   const [slotDay, setSlotDay] = useState<number>(6);
   const [slotTime, setSlotTime] = useState('10:00');
+  const [slotDuration, setSlotDuration] = useState<number>(90);
+  const [hasRehearsal, setHasRehearsal] = useState<boolean>(false);
+  const [rehearsalDay, setRehearsalDay] = useState<number>(5);
+  const [rehearsalTime, setRehearsalTime] = useState<string>('18:00');
+  const [rehearsalDuration, setRehearsalDuration] = useState<number>(90);
+  const [rehearsalLabel, setRehearsalLabel] = useState<string>('Ensayo previo');
   const [slotRoleIds, setSlotRoleIds] = useState<string[]>([]);
+
+  // Categorías de Alabanzas state
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [editingCategory, setEditingCategory] = useState<{ oldName: string; newName: string } | null>(null);
+  const [deleteConfirmCategory, setDeleteConfirmCategory] = useState<string | null>(null);
 
   // Admin password change state
   const [currentPasswordInput, setCurrentPasswordInput] = useState('');
@@ -138,12 +165,12 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
     showToast('Roles pre-cargados restaurados con éxito.');
   };
 
-  // --- Handlers for Slots ---
+  // --- Handlers for Slots (Eventos y Turnos) ---
   const handleSlotSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const label = slotLabel.trim();
     if (!label || !slotTime) {
-      showToast('Por favor completa el nombre y la hora del turno.');
+      showToast('Por favor completa el nombre y la hora del evento.');
       return;
     }
 
@@ -152,11 +179,21 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
       label,
       day: slotDay,
       time: slotTime,
+      durationMinutes: Number(slotDuration) || 90,
+      rehearsal: hasRehearsal
+        ? {
+            enabled: true,
+            day: rehearsalDay,
+            time: rehearsalTime,
+            durationMinutes: Number(rehearsalDuration) || 90,
+            label: rehearsalLabel.trim() || 'Ensayo previo',
+          }
+        : undefined,
       roleIds: slotRoleIds,
     };
 
     onSaveSlot(slotToSave);
-    showToast(editingSlotId ? `Turno "${label}" actualizado.` : `Turno "${label}" creado.`);
+    showToast(editingSlotId ? `Evento "${label}" actualizado.` : `Evento "${label}" creado.`);
     cancelEditSlot();
   };
 
@@ -165,6 +202,20 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
     setSlotLabel(slot.label);
     setSlotDay(slot.day);
     setSlotTime(slot.time);
+    setSlotDuration(slot.durationMinutes || 90);
+    if (slot.rehearsal && slot.rehearsal.enabled) {
+      setHasRehearsal(true);
+      setRehearsalDay(slot.rehearsal.day);
+      setRehearsalTime(slot.rehearsal.time);
+      setRehearsalDuration(slot.rehearsal.durationMinutes || 90);
+      setRehearsalLabel(slot.rehearsal.label || 'Ensayo previo');
+    } else {
+      setHasRehearsal(false);
+      setRehearsalDay(5);
+      setRehearsalTime('18:00');
+      setRehearsalDuration(90);
+      setRehearsalLabel('Ensayo previo');
+    }
     setSlotRoleIds(slot.roleIds || []);
   };
 
@@ -173,6 +224,12 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
     setSlotLabel('');
     setSlotDay(6);
     setSlotTime('10:00');
+    setSlotDuration(90);
+    setHasRehearsal(false);
+    setRehearsalDay(5);
+    setRehearsalTime('18:00');
+    setRehearsalDuration(90);
+    setRehearsalLabel('Ensayo previo');
     setSlotRoleIds(state.roles.map(r => r.id));
   };
 
@@ -180,6 +237,98 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
     setSlotRoleIds(prev =>
       prev.includes(roleId) ? prev.filter(id => id !== roleId) : [...prev, roleId]
     );
+  };
+
+  // --- Handlers for Song Categories ---
+  const currentCategories = state.songCategories && state.songCategories.length > 0
+    ? state.songCategories
+    : DEFAULT_SONG_CATEGORIES;
+
+  // Conteo de canciones por categoría
+  const songCountByCategory = useMemo(() => {
+    const counts: Record<string, number> = {};
+    currentCategories.forEach(cat => { counts[cat] = 0; });
+
+    (state.songCatalog || []).forEach(song => {
+      const cats = song.categories && song.categories.length > 0
+        ? song.categories
+        : (song.category ? [song.category] : []);
+      cats.forEach(c => {
+        counts[c] = (counts[c] || 0) + 1;
+      });
+    });
+
+    return counts;
+  }, [state.songCatalog, currentCategories]);
+
+  const handleAddCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = newCategoryName.trim();
+    if (!clean) return;
+
+    if (currentCategories.some(c => c.toLowerCase() === clean.toLowerCase())) {
+      showToast(`La categoría "${clean}" ya existe.`);
+      return;
+    }
+
+    const updated = [...currentCategories, clean];
+    if (onSaveSongCategories) {
+      onSaveSongCategories(updated);
+    }
+    setNewCategoryName('');
+    showToast(`Categoría "${clean}" agregada con éxito.`);
+  };
+
+  const handleRenameCategorySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory) return;
+    const oldName = editingCategory.oldName;
+    const newName = editingCategory.newName.trim();
+
+    if (!newName) {
+      showToast('El nombre de la categoría no puede estar vacío.');
+      return;
+    }
+
+    if (oldName === newName) {
+      setEditingCategory(null);
+      return;
+    }
+
+    if (currentCategories.some(c => c.toLowerCase() === newName.toLowerCase() && c.toLowerCase() !== oldName.toLowerCase())) {
+      showToast(`Ya existe una categoría llamada "${newName}".`);
+      return;
+    }
+
+    if (onRenameSongCategory) {
+      onRenameSongCategory(oldName, newName);
+    } else if (onSaveSongCategories) {
+      onSaveSongCategories(currentCategories.map(c => c === oldName ? newName : c));
+    }
+    setEditingCategory(null);
+    showToast(`Categoría "${oldName}" actualizada a "${newName}".`);
+  };
+
+  const handleDeleteCategory = (catToDelete: string) => {
+    if (currentCategories.length <= 1) {
+      showToast('Debe haber al menos una categoría en el sistema.');
+      setDeleteConfirmCategory(null);
+      return;
+    }
+
+    const updated = currentCategories.filter(c => c !== catToDelete);
+    if (onSaveSongCategories) {
+      onSaveSongCategories(updated);
+    }
+    setDeleteConfirmCategory(null);
+    showToast(`Categoría "${catToDelete}" eliminada.`);
+  };
+
+  const handleRestoreDefaultCategories = () => {
+    if (onSaveSongCategories) {
+      onSaveSongCategories(DEFAULT_SONG_CATEGORIES);
+      showToast('Categorías predeterminadas restauradas.');
+    }
   };
 
   // --- Password Handler ---
@@ -397,40 +546,41 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
         </form>
       </div>
 
-      {/* SECCIÓN 2: TURNOS RECURRENTES (SÁBADO Y DOMINGO PREDEFINIDOS) */}
+      {/* SECCIÓN 2: EVENTOS Y TURNOS CONFIGURADOS (DÍA, HORA, DURACIÓN Y ENSAYO) */}
       <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-6 shadow-xl space-y-6">
         <div className="border-b border-[#1f1f23] pb-4">
           <h2 className="font-serif text-2xl font-light tracking-tight text-white flex items-center gap-2">
             <Clock size={18} className="text-[#c5a059]" />
-            <span>Turnos Recurrentes <span className="italic text-[#c5a059]">Semanales</span></span>
+            <span>Eventos y Turnos <span className="italic text-[#c5a059]">Configurados</span></span>
           </h2>
           <p className="text-xs text-[#6b6b75] mt-0.5">
-            Configura la hora y los roles requeridos para el Ensayo del Sábado y el Culto Dominical (u horarios adicionales).
+            Configura el día, horario y duración de cada evento recurrente (cultos, turnos), y define si incluye un ensayo previo programado.
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Formulario de Turno */}
+          {/* Formulario de Turno / Evento */}
           <form onSubmit={handleSlotSubmit} className="lg:col-span-5 space-y-4">
             <h3 className="font-mono text-[10px] text-[#6b6b75] uppercase tracking-[0.2em]">
-              {editingSlotId ? 'Editar Turno Recurrente' : 'Agregar Turno Recurrente'}
+              {editingSlotId ? 'Editar Evento / Turno' : 'Agregar Evento / Turno'}
             </h3>
 
             <div>
               <label className="block font-mono text-[10px] text-[#6b6b75] mb-1 uppercase tracking-[0.2em]">
-                Nombre / Descripción
+                Nombre del Evento *
               </label>
               <input
                 type="text"
                 value={slotLabel}
                 onChange={e => setSlotLabel(e.target.value)}
-                placeholder="Ej: Ensayo General o Culto Dominical"
+                placeholder="Ej: Culto Dominical Matutino, Culto de Jóvenes"
                 required
                 className="w-full bg-[#0a0a0b] text-white text-sm rounded-lg px-3.5 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* Día, Hora y Duración del Evento */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div>
                 <label className="block font-mono text-[10px] text-[#6b6b75] mb-1 uppercase tracking-[0.2em]">
                   Día
@@ -438,11 +588,11 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
                 <select
                   value={slotDay}
                   onChange={e => setSlotDay(parseInt(e.target.value, 10))}
-                  className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-3 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none cursor-pointer"
+                  className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-2.5 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none cursor-pointer"
                 >
                   {DAYS_OF_WEEK.map((d, idx) => (
                     <option key={idx} value={idx}>
-                      {d} {idx === 5 ? '(Ensayo)' : idx === 6 ? '(Culto)' : ''}
+                      {d}
                     </option>
                   ))}
                 </select>
@@ -450,18 +600,132 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 
               <div>
                 <label className="block font-mono text-[10px] text-[#6b6b75] mb-1 uppercase tracking-[0.2em]">
-                  Hora
+                  Hora Inicio
                 </label>
                 <input
                   type="time"
                   value={slotTime}
                   onChange={e => setSlotTime(e.target.value)}
                   required
-                  className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-3 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none"
+                  className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-2.5 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-mono text-[10px] text-[#6b6b75] mb-1 uppercase tracking-[0.2em]">
+                  Duración (min)
+                </label>
+                <input
+                  type="number"
+                  min={15}
+                  max={360}
+                  step={15}
+                  value={slotDuration}
+                  onChange={e => setSlotDuration(Math.max(15, parseInt(e.target.value, 10) || 90))}
+                  className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-2.5 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none font-mono"
                 />
               </div>
             </div>
 
+            {/* Presets de duración */}
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <span className="text-[10px] font-mono text-[#6b6b75]">Presets:</span>
+              {[60, 90, 120, 150].map(mins => (
+                <button
+                  key={mins}
+                  type="button"
+                  onClick={() => setSlotDuration(mins)}
+                  className={`px-2 py-0.5 text-[10px] font-mono rounded cursor-pointer transition-colors border ${
+                    slotDuration === mins
+                      ? 'bg-[#c5a059]/20 text-[#c5a059] border-[#c5a059]/40 font-bold'
+                      : 'bg-[#0a0a0b] text-[#6b6b75] border-[#2a2a2e] hover:text-white'
+                  }`}
+                >
+                  {mins} min
+                </button>
+              ))}
+            </div>
+
+            {/* CAJA DE ENSAYO ASOCIADO */}
+            <div className="bg-[#0e0e11] border border-[#232328] rounded-xl p-3.5 space-y-3">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={hasRehearsal}
+                  onChange={e => setHasRehearsal(e.target.checked)}
+                  className="w-4 h-4 rounded text-[#c5a059] focus:ring-0 focus:ring-offset-0 bg-[#0a0a0b] border-[#2a2a2e] cursor-pointer"
+                />
+                <span className="text-xs font-medium text-white flex items-center gap-1.5">
+                  <Music size={13} className="text-[#c5a059]" />
+                  <span>Programar Ensayo para este Evento</span>
+                </span>
+              </label>
+
+              {hasRehearsal && (
+                <div className="space-y-3 pt-2 border-t border-[#1f1f23]">
+                  <div>
+                    <label className="block font-mono text-[10px] text-[#888894] mb-1 uppercase tracking-[0.2em]">
+                      Nombre / Etiqueta del Ensayo
+                    </label>
+                    <input
+                      type="text"
+                      value={rehearsalLabel}
+                      onChange={e => setRehearsalLabel(e.target.value)}
+                      placeholder="Ej: Ensayo General de Alabanza"
+                      className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-3 py-2 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div>
+                      <label className="block font-mono text-[10px] text-[#888894] mb-1 uppercase tracking-[0.2em]">
+                        Día Ensayo
+                      </label>
+                      <select
+                        value={rehearsalDay}
+                        onChange={e => setRehearsalDay(parseInt(e.target.value, 10))}
+                        className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-2 py-2 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none cursor-pointer"
+                      >
+                        {DAYS_OF_WEEK.map((d, idx) => (
+                          <option key={idx} value={idx}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-mono text-[10px] text-[#888894] mb-1 uppercase tracking-[0.2em]">
+                        Hora Ensayo
+                      </label>
+                      <input
+                        type="time"
+                        value={rehearsalTime}
+                        onChange={e => setRehearsalTime(e.target.value)}
+                        className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-2 py-2 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-mono text-[10px] text-[#888894] mb-1 uppercase tracking-[0.2em]">
+                        Duración (min)
+                      </label>
+                      <input
+                        type="number"
+                        min={15}
+                        max={300}
+                        step={15}
+                        value={rehearsalDuration}
+                        onChange={e => setRehearsalDuration(Math.max(15, parseInt(e.target.value, 10) || 90))}
+                        className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-2 py-2 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Roles Requeridos */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="font-mono text-[10px] text-[#6b6b75] uppercase tracking-[0.2em]">
@@ -513,7 +777,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
                 type="submit"
                 className="flex-1 bg-[#c5a059] hover:bg-[#d4b068] text-black font-semibold text-xs uppercase tracking-widest py-2.5 px-3 rounded-lg transition-all cursor-pointer shadow-lg shadow-[#c5a059]/10"
               >
-                {editingSlotId ? 'Guardar Cambios' : 'Agregar Turno'}
+                {editingSlotId ? 'Guardar Cambios' : 'Agregar Evento'}
               </button>
               {editingSlotId && (
                 <button
@@ -527,30 +791,41 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
             </div>
           </form>
 
-          {/* Lista de Turnos */}
+          {/* Lista de Turnos / Eventos */}
           <div className="lg:col-span-7 space-y-3">
             <h3 className="font-mono text-[10px] text-[#6b6b75] uppercase tracking-[0.2em]">
-              Turnos Configurados ({sortedSlots.length})
+              Eventos Configurados ({sortedSlots.length})
             </h3>
             {sortedSlots.length === 0 ? (
               <p className="text-xs text-[#6b6b75] italic p-4 bg-[#0a0a0b] rounded-xl border border-[#1f1f23]">
-                No hay turnos recurrentes configurados.
+                No hay turnos ni eventos configurados.
               </p>
             ) : (
-              <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+              <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-1">
                 {sortedSlots.map(s => {
                   return (
                     <div
                       key={s.id}
                       className="bg-[#0a0a0b] border border-[#1f1f23] hover:border-[#2a2a2e] p-3.5 rounded-xl flex items-start justify-between gap-3"
                     >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-xs text-white">{s.label}</span>
                           <span className="font-mono text-[10px] text-[#c5a059] bg-[#c5a059]/10 px-2 py-0.5 rounded border border-[#c5a059]/20 uppercase tracking-wider">
-                            {DAYS_OF_WEEK[s.day]} · {s.time} HS
+                            {DAYS_OF_WEEK[s.day]} · {s.time} HS · {s.durationMinutes || 90} min
                           </span>
                         </div>
+
+                        {/* Rehearsal badge si está configurado */}
+                        {s.rehearsal && s.rehearsal.enabled && (
+                          <div className="flex items-center gap-1.5 text-[11px] font-mono text-amber-300/90 bg-amber-950/20 px-2.5 py-1 rounded-lg border border-amber-800/30">
+                            <Music size={11} className="text-amber-400" />
+                            <span>
+                              {s.rehearsal.label || 'Ensayo'}: {DAYS_OF_WEEK[s.rehearsal.day]} a las {s.rehearsal.time} HS ({s.rehearsal.durationMinutes || 90} min)
+                            </span>
+                          </div>
+                        )}
+
                         <div className="flex flex-wrap gap-1">
                           {(s.roleIds || []).map(rid => {
                             const r = state.roles.find(x => x.id === rid);
@@ -570,14 +845,14 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
                         <button
                           onClick={() => startEditSlot(s)}
                           className="w-8 h-8 rounded-lg bg-[#1a1a1d] hover:bg-[#232328] text-[#6b6b75] hover:text-white border border-[#2a2a2e] flex items-center justify-center cursor-pointer"
-                          title="Editar turno"
+                          title="Editar evento"
                         >
                           <Pencil size={12} />
                         </button>
                         <button
                           onClick={() => setDeleteConfirmSlot({ id: s.id, label: s.label })}
                           className="w-8 h-8 rounded-lg bg-[#1a1a1d] hover:bg-red-950/40 text-[#6b6b75] hover:text-red-400 border border-[#2a2a2e] flex items-center justify-center cursor-pointer"
-                          title="Eliminar turno"
+                          title="Eliminar evento"
                         >
                           <Trash2 size={12} />
                         </button>
@@ -587,6 +862,138 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
                 })}
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* SECCIÓN NUEVA: CATEGORÍAS DE CANCIONES Y ALABANZAS */}
+      <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-6 shadow-xl space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#1f1f23] pb-4">
+          <div>
+            <h2 className="font-serif text-2xl font-light tracking-tight text-white flex items-center gap-2">
+              <Layers size={18} className="text-[#c5a059]" />
+              <span>Categorías de <span className="italic text-[#c5a059]">Canciones & Alabanzas</span></span>
+            </h2>
+            <p className="text-xs text-[#6b6b75] mt-0.5">
+              Administra las etiquetas del cancionero. Cada canción puede ser asignada a múltiples categorías (ej. Adoración, Júbilo, Comunión).
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleRestoreDefaultCategories}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1a1a1d] hover:bg-[#232328] text-[#c5a059] text-[11px] font-mono uppercase tracking-wider rounded-lg border border-[#c5a059]/30 hover:border-[#c5a059] transition-all cursor-pointer"
+            title="Restaurar las 7 categorías estándar predefinidas"
+          >
+            <Sparkles size={12} />
+            <span>Restaurar Categorías Predeterminadas</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Formulario Agregar Categoría */}
+          <form onSubmit={handleAddCategory} className="lg:col-span-4 space-y-3">
+            <h3 className="font-mono text-[10px] text-[#6b6b75] uppercase tracking-[0.2em]">
+              Nueva Categoría
+            </h3>
+            <div>
+              <label className="block font-mono text-[10px] text-[#6b6b75] mb-1 uppercase tracking-[0.2em]">
+                Nombre de la Categoría
+              </label>
+              <input
+                type="text"
+                value={newCategoryName}
+                onChange={e => setNewCategoryName(e.target.value)}
+                placeholder="Ej: Apertura, Especial, Reflexión"
+                required
+                className="w-full bg-[#0a0a0b] text-white text-sm rounded-lg px-3.5 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-[#c5a059] hover:bg-[#d4b068] text-black font-semibold text-xs uppercase tracking-widest py-2.5 px-3 rounded-lg transition-all cursor-pointer shadow-lg shadow-[#c5a059]/10 flex items-center justify-center gap-1.5"
+            >
+              <Plus size={14} />
+              <span>Agregar Categoría</span>
+            </button>
+          </form>
+
+          {/* Lista de Categorías Existentes */}
+          <div className="lg:col-span-8 space-y-3">
+            <h3 className="font-mono text-[10px] text-[#6b6b75] uppercase tracking-[0.2em]">
+              Categorías Activas ({currentCategories.length})
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[360px] overflow-y-auto pr-1">
+              {currentCategories.map(cat => {
+                const count = songCountByCategory[cat] || 0;
+                const isEditing = editingCategory?.oldName === cat;
+
+                return (
+                  <div
+                    key={cat}
+                    className="bg-[#0a0a0b] border border-[#1f1f23] hover:border-[#2a2a2e] p-3 rounded-xl flex items-center justify-between gap-2"
+                  >
+                    {isEditing ? (
+                      <form
+                        onSubmit={handleRenameCategorySubmit}
+                        className="flex-1 flex items-center gap-1.5"
+                      >
+                        <input
+                          type="text"
+                          value={editingCategory.newName}
+                          onChange={e =>
+                            setEditingCategory({ ...editingCategory, newName: e.target.value })
+                          }
+                          autoFocus
+                          className="flex-1 bg-[#141418] text-white text-xs px-2.5 py-1 rounded border border-[#c5a059] focus:outline-none"
+                        />
+                        <button
+                          type="submit"
+                          className="px-2 py-1 bg-[#c5a059] text-black text-xs font-bold rounded cursor-pointer"
+                        >
+                          OK
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingCategory(null)}
+                          className="px-2 py-1 bg-[#1a1a1d] text-[#888894] text-xs rounded cursor-pointer hover:text-white"
+                        >
+                          ✕
+                        </button>
+                      </form>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Tag size={13} className="text-[#c5a059] flex-shrink-0" />
+                          <span className="text-xs font-medium text-white truncate">{cat}</span>
+                          <span className="text-[10px] font-mono text-[#888894] bg-[#141418] px-1.5 py-0.5 rounded border border-[#232328] whitespace-nowrap">
+                            {count} {count === 1 ? 'canción' : 'canciones'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setEditingCategory({ oldName: cat, newName: cat })}
+                            className="w-7 h-7 rounded-lg bg-[#1a1a1d] hover:bg-[#232328] text-[#6b6b75] hover:text-white border border-[#2a2a2e] flex items-center justify-center cursor-pointer"
+                            title={`Renombrar categoría "${cat}"`}
+                          >
+                            <Pencil size={11} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirmCategory(cat)}
+                            className="w-7 h-7 rounded-lg bg-[#1a1a1d] hover:bg-red-950/40 text-[#6b6b75] hover:text-red-400 border border-[#2a2a2e] flex items-center justify-center cursor-pointer"
+                            title={`Eliminar categoría "${cat}"`}
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -896,6 +1303,38 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
                   showToast(`Rol "${deleteConfirmRole.name}" eliminado.`);
                   setDeleteConfirmRole(null);
                 }}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg text-xs uppercase tracking-wider cursor-pointer shadow-lg"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmación Eliminar Categoría */}
+      {deleteConfirmCategory && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#141418] border border-red-900/40 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-400">
+              <AlertCircle size={24} />
+              <h3 className="font-serif text-lg text-white font-medium">¿Eliminar Categoría?</h3>
+            </div>
+            <p className="text-xs text-[#a0a0ab]">
+              ¿Estás seguro de que deseas eliminar la categoría <strong className="text-white">"{deleteConfirmCategory}"</strong>?
+              Las canciones que la tenían asignada conservarán sus otras categorías.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmCategory(null)}
+                className="px-4 py-2 bg-[#1a1a1d] hover:bg-[#252529] text-[#6b6b75] hover:text-white rounded-lg text-xs uppercase tracking-wider cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteCategory(deleteConfirmCategory)}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg text-xs uppercase tracking-wider cursor-pointer shadow-lg"
               >
                 Eliminar
