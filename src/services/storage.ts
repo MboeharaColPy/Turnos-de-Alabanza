@@ -133,7 +133,7 @@ export function getInitialDefaultState(): AppState {
     chatMessages: defaultChatMessages,
     adminPassword: 'alabanza2026',
     seeded: true,
-    worshipPlaylistUrl: 'https://music.youtube.com/playlist?list=PLw-VjHDlEOgvQg_N9WXLPRBpFG2gj1xmy',
+    worshipPlaylistUrl: '',
     lastUpdated: new Date().toISOString(),
   };
 }
@@ -385,9 +385,9 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
     adminPassword: parsed.adminPassword || 'alabanza2026',
     seeded: !!parsed.seeded,
     worshipPlaylistUrl:
-      parsed.worshipPlaylistUrl && !parsed.worshipPlaylistUrl.includes('PL4fGSI1pDJn6O1E9vB1O4l2oGf5h8v8vX')
-        ? parsed.worshipPlaylistUrl
-        : fallbackDefault.worshipPlaylistUrl,
+      typeof parsed.worshipPlaylistUrl === 'string'
+        ? (parsed.worshipPlaylistUrl.includes('PL4fGSI1pDJn6O1E9vB1O4l2oGf5h8v8vX') ? '' : parsed.worshipPlaylistUrl)
+        : '',
     lastUpdated: parsed.lastUpdated || new Date().toISOString(),
   };
 
@@ -451,11 +451,13 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
       assignments: state.assignments || {},
       shiftSongs: state.shiftSongs || {},
       songCatalog: state.songCatalog || INITIAL_FULL_SONG_CATALOG,
+      songCategories: state.songCategories || DEFAULT_SONG_CATEGORIES,
       couples: state.couples || [],
       notices: state.notices || [],
       chatMessages: state.chatMessages || [],
       adminPassword: state.adminPassword || 'alabanza2026',
       seeded: !!state.seeded,
+      worshipPlaylistUrl: state.worshipPlaylistUrl || '',
       lastUpdated: new Date().toISOString(),
     };
     // Sanitizar profundamente para evitar cualquier valor undefined que rechace Firestore

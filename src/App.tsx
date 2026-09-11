@@ -790,17 +790,12 @@ export default function App() {
       showToast('Solo el administrador puede modificar la playlist.');
       return;
     }
-    setState(prev => {
-      const next = {
-        ...prev,
-        worshipPlaylistUrl: url,
-        lastUpdated: new Date().toISOString(),
-      };
-      saveStoredState(next);
-      saveCloudState(next).catch(err => console.error('Error saving playlist to cloud:', err));
-      return next;
-    });
-    showToast('Enlace de playlist actualizado correctamente.');
+    await updateStateAndSave(prev => ({
+      ...prev,
+      worshipPlaylistUrl: url,
+      lastUpdated: new Date().toISOString(),
+    }));
+    showToast(url ? 'Playlist de alabanza guardada con éxito.' : 'Playlist eliminada.');
   };
 
   return (
