@@ -9,10 +9,12 @@ import {
   ListMusic,
   Headphones,
   AlertCircle,
+  AlertTriangle,
   RefreshCw,
   Lock,
   Trash2,
-  Share2,
+  HelpCircle,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface YouTubePlaylistEmbedProps {
@@ -107,10 +109,11 @@ export function parseYouTubeMediaUrl(rawInput?: string | null): ParsedMedia | nu
 
   // Construir URLs de destino
   if (listId) {
-    // Si tiene video y playlist
-    const embedUrl = videoId
-      ? `https://www.youtube.com/embed/${videoId}?list=${listId}&rel=0&playsinline=1`
-      : `https://www.youtube.com/embed/videoseries?list=${listId}&rel=0&playsinline=1`;
+    // Si tiene lista de reproducción, SIEMPRE usamos videoseries?list=... para el reproductor incrustado.
+    // Esto previene que si el usuario copió un enlace mientras reproducía una canción (ej: watch?v=XXXX&list=YYYY),
+    // el iframe intente forzar ese video inicial bloqueado por LatinAutor/UMPG. Al usar videoseries, YouTube
+    // carga la lista completa con navegación automática entre temas disponibles.
+    const embedUrl = `https://www.youtube.com/embed/videoseries?list=${listId}&rel=0&playsinline=1&enablejsapi=1`;
 
     const youtubeMusicUrl = videoId
       ? `https://music.youtube.com/watch?v=${videoId}&list=${listId}`
@@ -179,6 +182,7 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
   const [inputVal, setInputVal] = useState<string>(initialUrl || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [playerKey, setPlayerKey] = useState(0);
+  const [showExplainModal, setShowExplainModal] = useState(false);
 
   // Sincronizar de forma reactiva con la URL oficial que viene del estado global
   useEffect(() => {
@@ -315,6 +319,19 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
               id="reload-youtube-player-btn"
             >
               <RefreshCw size={13} />
+            </button>
+          )}
+
+          {/* Botón de ayuda para bloqueo de derechos de autor */}
+          {parsed?.embedUrl && (
+            <button
+              onClick={() => setShowExplainModal(true)}
+              className="h-9 px-2.5 rounded-xl bg-[#0a0a0b] hover:bg-[#1a1a1e] border border-[#232328] hover:border-amber-500/40 text-[#8e8e99] hover:text-amber-300 text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="¿Aparece 'Video no disponible de LatinAutor'? Haz clic para ver la solución"
+              id="copyright-help-btn"
+            >
+              <HelpCircle size={13} className="text-amber-400" />
+              <span className="hidden md:inline">¿Error LatinAutor?</span>
             </button>
           )}
 
@@ -538,6 +555,148 @@ export const YouTubePlaylistEmbed: React.FC<YouTubePlaylistEmbedProps> = ({
                 <ExternalLink size={11} />
               </a>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Banner Informativo sobre Restricciones de LatinAutor / UMPG */}
+      {parsed?.embedUrl && (
+        <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-amber-200">
+          <div className="flex items-start sm:items-center gap-2">
+            <AlertTriangle size={15} className="text-amber-400 flex-shrink-0 mt-0.5 sm:mt-0" />
+            <span>
+              ¿Aparece <strong className="text-white font-medium">"Video no disponible por LatinAutor - UMPG"</strong>?
+              Es una restricción de derechos de autor de las disqueras en reproductores externos.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
+            <button
+              onClick={() => setShowExplainModal(true)}
+              className="text-[#c5a059] hover:underline font-mono text-[11px] cursor-pointer"
+            >
+              Ver soluciones
+            </button>
+            {parsed.youtubeMusicUrl && (
+              <a
+                href={parsed.youtubeMusicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg font-mono text-[11px] font-bold flex items-center gap-1 transition-colors"
+              >
+                <span>Escuchar en YouTube Music</span>
+                <ExternalLink size={10} />
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Explicativo de Derechos de Autor LatinAutor - UMPG */}
+      {showExplainModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setShowExplainModal(false)}
+        >
+          <div
+            className="bg-[#141418] border border-[#2e2e38] rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#232328]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0">
+                  <ShieldAlert size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-serif text-white font-semibold">
+                    Aviso de LatinAutor - UMPG
+                  </h3>
+                  <p className="text-xs text-[#8e8e99]">
+                    Por qué ocurre este bloqueo y cómo resolverlo
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowExplainModal(false)}
+                className="w-8 h-8 rounded-lg bg-[#1a1a20] hover:bg-[#25252e] text-[#8e8e99] hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs text-[#a0a0ab] leading-relaxed">
+              <div className="p-3 bg-[#0c0c0f] border border-[#232328] rounded-xl space-y-1.5">
+                <h4 className="text-white font-medium flex items-center gap-1.5 text-xs">
+                  <AlertCircle size={14} className="text-amber-400" />
+                  <span>¿Por qué YouTube muestra ese mensaje?</span>
+                </h4>
+                <p>
+                  <strong>LatinAutor</strong> y <strong>Universal Music Publishing Group (UMPG)</strong> gestionan los derechos de autor de casi toda la música cristiana (Miel San Marcos, Christine D'Clario, Marcos Witt, Barak, etc.).
+                </p>
+                <p>
+                  En el sistema Content ID de YouTube, estas discográficas activan la opción <span className="text-amber-300 italic">"Inhabilitar reproducción en sitios web externos"</span> para forzar que las visitas y la monetización ocurran en YouTube o YouTube Music.
+                </p>
+              </div>
+
+              <div className="p-3 bg-[#0c0c0f] border border-[#232328] rounded-xl space-y-1.5">
+                <h4 className="text-white font-medium flex items-center gap-1.5 text-xs">
+                  <span>¿Se puede quitar dentro de este reproductor web?</span>
+                </h4>
+                <p>
+                  Técnicamente <strong>ninguna página web ni aplicación en el mundo puede desbloquearlo dentro de un reproductor embebido</strong>, porque el bloqueo se ejecuta directamente en los servidores de Google/YouTube a solicitud legal de los dueños de la música.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-white font-medium text-xs font-mono uppercase tracking-wider text-[#c5a059]">
+                  Soluciones Prácticas:
+                </h4>
+
+                <div className="p-3 bg-red-950/20 border border-red-500/30 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-white flex items-center gap-1.5">
+                      <Headphones size={14} className="text-red-400" />
+                      1. Escuchar en YouTube Music (Recomendado)
+                    </span>
+                    <span className="text-[10px] font-mono uppercase text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
+                      100% Funcional
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#b4b4be]">
+                    En YouTube Music <strong>no existe este bloqueo</strong>. Todas las canciones suenan completas, con la mejor calidad de audio, sin cortes y con acceso a las letras oficiales.
+                  </p>
+                  {parsed?.youtubeMusicUrl && (
+                    <a
+                      href={parsed.youtubeMusicUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg font-mono text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      <Headphones size={13} />
+                      <span>Abrir Playlist en YouTube Music</span>
+                      <ExternalLink size={11} />
+                    </a>
+                  )}
+                </div>
+
+                <div className="p-3 bg-[#0c0c0f] border border-[#232328] rounded-xl space-y-1.5">
+                  <span className="font-semibold text-white block">
+                    2. Para el Administrador: Cambiar la versión del tema
+                  </span>
+                  <p className="text-[11px] text-[#8e8e99]">
+                    Si creaste la lista en YouTube y deseas que suene directamente en la web sin este aviso, en tu lista puedes reemplazar el video oficial por una <strong>versión en vivo, acústica o subida por la congregación</strong> que sí tenga la inserción permitida.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-[#232328] flex justify-end">
+              <button
+                onClick={() => setShowExplainModal(false)}
+                className="px-4 py-2 bg-[#1a1a20] hover:bg-[#25252e] text-white text-xs font-mono uppercase tracking-wider rounded-xl transition-colors cursor-pointer"
+              >
+                Entendido
+              </button>
+            </div>
           </div>
         </div>
       )}
