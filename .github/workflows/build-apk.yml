@@ -7,6 +7,9 @@ on:
       - master
   workflow_dispatch: # Permite presionar un botón manual en GitHub para generar el APK
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Compilar APK de Android
