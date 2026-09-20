@@ -162,7 +162,10 @@ export default function App() {
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const correctPassword = (state.adminPassword || 'alabanza2026').trim();
-    if (adminPasswordInput.trim() === correctPassword) {
+    const entered = adminPasswordInput.trim();
+
+    // Verificación estricta y exacta: sensible a mayúsculas y minúsculas (sin variaciones)
+    if (entered === correctPassword) {
       setIsAdmin(true);
       sessionStorage.setItem('alabanza_admin_auth', 'true');
       setShowAdminModal(false);
@@ -188,6 +191,13 @@ export default function App() {
     } else {
       setAdminPasswordError(true);
     }
+  };
+
+  const handleResetToDefaultPassword = () => {
+    handleUpdateAdminPassword('alabanza2026');
+    setAdminPasswordInput('alabanza2026');
+    setAdminPasswordError(false);
+    showToast('Contraseña restablecida a: alabanza2026');
   };
 
   const handleLogoutAdmin = () => {
@@ -1073,14 +1083,22 @@ export default function App() {
 
             <form onSubmit={handleAdminLogin} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#6b6b75] mb-1">
-                  Contraseña de Administrador
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-mono uppercase text-[#6b6b75]">
+                    Contraseña de Administrador
+                  </label>
+                  <span className="text-[10px] text-[#8e8e98] font-mono">
+                    (exacta / minúsculas: alabanza2026)
+                  </span>
+                </div>
                 <div className="relative">
                   <input
                     type={showPasswordText ? 'text' : 'password'}
                     autoFocus
                     required
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={adminPasswordInput}
                     onChange={e => {
                       setAdminPasswordInput(e.target.value);
@@ -1099,10 +1117,22 @@ export default function App() {
                 </div>
 
                 {adminPasswordError && (
-                  <p className="text-xs text-red-400 mt-1.5 flex items-center gap-1 font-mono">
-                    <ShieldAlert size={12} />
-                    <span>Contraseña incorrecta. Por favor reintenta.</span>
-                  </p>
+                  <div className="mt-2 space-y-1.5 bg-red-950/20 border border-red-900/40 p-2.5 rounded-xl">
+                    <p className="text-xs text-red-400 flex items-center gap-1 font-mono">
+                      <ShieldAlert size={12} />
+                      <span>Contraseña incorrecta. Por favor reintenta.</span>
+                    </p>
+                    <p className="text-[11px] text-[#a0a0ab]">
+                      La contraseña configurada es: <span className="font-mono text-[#c5a059] font-bold">alabanza2026</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleResetToDefaultPassword}
+                      className="text-[11px] text-[#c5a059] hover:underline font-mono font-medium cursor-pointer"
+                    >
+                      Restablecer clave a alabanza2026
+                    </button>
+                  </div>
                 )}
               </div>
 
