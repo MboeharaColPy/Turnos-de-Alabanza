@@ -49,6 +49,7 @@ interface HeaderProps {
   isSaving: boolean;
   isCloudConnected?: boolean;
   onSync: () => void;
+  onAdminSave?: () => void;
   onOpenExplainer?: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
@@ -65,6 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
   isSaving,
   isCloudConnected = true,
   onSync,
+  onAdminSave,
   onOpenExplainer,
   theme = 'dark',
   onToggleTheme,
@@ -205,7 +207,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {/* Botón Sincronizar / Guardar: En modo Admin se muestra claro y destacado */}
                 {isAdmin ? (
                   <button
-                    onClick={onSync}
+                    onClick={onAdminSave || onSync}
                     disabled={isSaving}
                     className="h-8 sm:h-9 px-2.5 sm:px-3 rounded-xl bg-gradient-to-r from-[#c5a059] to-[#d4b068] hover:from-[#d4b068] hover:to-[#e3bf77] text-black font-extrabold text-[11px] sm:text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-[#c5a059]/20 active:scale-95 flex-shrink-0 disabled:opacity-75"
                     title="Guardar todos los cambios en la nube de Firebase"

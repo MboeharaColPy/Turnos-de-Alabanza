@@ -10,6 +10,9 @@ import {
   saveCloudState,
   saveStoredState,
   subscribeToCloudState,
+  fetchCloudState,
+  scanAvailableLocalBackups,
+  DetectedBackup,
 } from './services/storage';
 import { Header, ActiveTab } from './components/Header';
 import { BottomNavigation } from './components/BottomNavigation';
@@ -26,7 +29,7 @@ import { ConflictExplainerModal } from './components/ConflictExplainerModal';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { usePWA } from './hooks/usePWA';
 import { getMonday } from './utils/dateUtils';
-import { KeyRound, ShieldAlert, X, Eye, EyeOff, Check, ShieldCheck } from 'lucide-react';
+import { KeyRound, ShieldAlert, X, Eye, EyeOff, Check, ShieldCheck, RotateCcw } from 'lucide-react';
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadStoredState());
@@ -94,6 +97,23 @@ export default function App() {
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [pendingTab, setPendingTab] = useState<ActiveTab | null>(null);
 
+  // Detección y recuperación proactiva de respaldos previos en este navegador
+  const [detectedBackups, setDetectedBackups] = useState<DetectedBackup[]>([]);
+  const [showRestorePrompt, setShowRestorePrompt] = useState(false);
+
+  useEffect(() => {
+    const currentAssignmentsCount = Object.keys(state.assignments || {}).reduce(
+      (acc, key) => acc + Object.keys(state.assignments[key] || {}).length,
+      0
+    );
+    const found = scanAvailableLocalBackups();
+    const candidate = found.find(b => b.assignmentsCount > currentAssignmentsCount);
+    if (candidate && currentAssignmentsCount === 0) {
+      setDetectedBackups(found);
+      setShowRestorePrompt(true);
+    }
+  }, [state.assignments]);
+
   // Selected Song for Lyrics & Chords Modal with Contextual Navigation (Setlist)
   const [selectedSongForLyrics, setSelectedSongForLyrics] = useState<SongItem | null>(null);
   const [lyricsContextSongs, setLyricsContextSongs] = useState<SongItem[] | null>(null);
@@ -146,16 +166,44 @@ export default function App() {
     setTimeout(() => setIsSaving(false), 200);
   }, []);
 
-  // Recargar manual / forzar sincronización
+  // Recargar manual / forzar sincronización desde la nube (sin sobreescribir)
   const handleRefresh = async () => {
     setIsSaving(true);
-    const local = loadStoredState();
-    setState(local);
-    await saveCloudState(local);
-    setTimeout(() => {
+    try {
+      const cloud = await fetchCloudState();
+      if (cloud) {
+        setState(cloud);
+        setIsCloudConnected(true);
+        showToast('Datos actualizados desde la nube en tiempo real.');
+      } else {
+        const local = loadStoredState();
+        setState(local);
+        showToast('Modo sin conexión: cargados datos locales.');
+      }
+    } catch (err) {
+      console.warn('Error al sincronizar con la nube:', err);
+      showToast('No se pudo conectar con Firestore.');
+    } finally {
       setIsSaving(false);
-      showToast('Sincronizado con la nube en tiempo real.');
-    }, 300);
+    }
+  };
+
+  // Guardado manual explícito del Administrador a Firestore
+  const handleAdminManualSave = async () => {
+    setIsSaving(true);
+    try {
+      const success = await saveCloudState(state);
+      if (success) {
+        showToast('¡Todos los cambios guardados exitosamente en la nube de Firebase!');
+      } else {
+        showToast('Guardado localmente (sin conexión a Firebase).');
+      }
+    } catch (err) {
+      console.error('Error guardando en la nube:', err);
+      showToast('Error al conectar con la base de datos.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // --- Admin Authentication Handlers ---
@@ -850,6 +898,49 @@ export default function App() {
           onDismiss={dismissUpdate}
         />
 
+        {/* Banner Proactivo de Recuperación de Respaldos de Navegador */}
+        {showRestorePrompt && detectedBackups.length > 0 && (
+          <div
+            className="mb-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg"
+            id="banner-browser-recovery"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0">
+                <RotateCcw size={18} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">
+                  Se detectaron datos previos guardados en este dispositivo ({detectedBackups[0].assignmentsCount} asignaciones, {detectedBackups[0].dateStr})
+                </p>
+                <p className="text-xs text-[#a0a0ab] mt-0.5">
+                  ¿Deseas restaurar esta versión y sincronizarla de inmediato con la nube de Firebase?
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-shrink-0">
+              <button
+                onClick={() => {
+                  const target = detectedBackups[0];
+                  updateStateAndSave(() => target.state);
+                  setShowRestorePrompt(false);
+                  showToast(`¡Datos restaurados con éxito (${target.assignmentsCount} asignaciones)!`);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs font-mono uppercase tracking-wider transition-all cursor-pointer shadow-md active:scale-95"
+                id="btn-confirm-restore-backup"
+              >
+                Restaurar ahora
+              </button>
+              <button
+                onClick={() => setShowRestorePrompt(false)}
+                className="px-3 py-2 rounded-xl bg-[#141418] hover:bg-[#1a1a1d] text-[#888894] hover:text-white border border-[#222226] text-xs font-mono transition-all cursor-pointer"
+                id="btn-dismiss-restore-backup"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Header Principal */}
         <Header
           activeTab={activeTab}
@@ -865,16 +956,8 @@ export default function App() {
           onLogoutAdmin={handleLogoutAdmin}
           isSaving={isSaving}
           isCloudConnected={isCloudConnected}
-          onSync={async () => {
-            if (isAdmin) {
-              setIsSaving(true);
-              await saveCloudState(state);
-              setIsSaving(false);
-              showToast('Datos guardados en la nube.');
-            } else {
-              await handleRefresh();
-            }
-          }}
+          onSync={handleRefresh}
+          onAdminSave={handleAdminManualSave}
           onOpenExplainer={isAdmin ? () => setShowGlobalExplainerModal(true) : undefined}
           theme={theme}
           onToggleTheme={handleToggleTheme}

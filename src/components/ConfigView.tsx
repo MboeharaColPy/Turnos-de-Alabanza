@@ -7,7 +7,7 @@ import {
   Role,
   Slot,
 } from '../types';
-import { generateId, getInitialDefaultState } from '../services/storage';
+import { generateId, getInitialDefaultState, scanAvailableLocalBackups, fetchCloudBackup, DetectedBackup } from '../services/storage';
 import {
   Settings,
   Clock,
@@ -36,6 +36,8 @@ import {
   Plus,
   Layers,
   Music,
+  History,
+  Database,
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -420,6 +422,40 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
     onResetAllData(fresh);
     setShowResetConfirm(false);
     showToast('Datos restablecidos al estado inicial.');
+  };
+
+  // --- Recuperación de Respaldos de Navegador y Firestore ---
+  const [localBackups, setLocalBackups] = useState<DetectedBackup[]>([]);
+  const [isScanningBackups, setIsScanningBackups] = useState(false);
+
+  const handleRefreshBackups = () => {
+    setIsScanningBackups(true);
+    const found = scanAvailableLocalBackups();
+    setLocalBackups(found);
+    setTimeout(() => setIsScanningBackups(false), 300);
+  };
+
+  useEffect(() => {
+    handleRefreshBackups();
+  }, []);
+
+  const handleCheckCloudBackup = async () => {
+    showToast('Consultando respaldo en Firestore...');
+    const cloudBkp = await fetchCloudBackup();
+    if (cloudBkp) {
+      const assignCount = Object.keys(cloudBkp.assignments || {}).reduce(
+        (acc, k) => acc + Object.keys(cloudBkp.assignments[k] || {}).length,
+        0
+      );
+      if (assignCount > 0) {
+        onImportState(cloudBkp);
+        showToast(`¡Respaldo en la nube recuperado con éxito (${assignCount} asignaciones)!`);
+      } else {
+        showToast('El respaldo en la nube no contiene asignaciones adicionales.');
+      }
+    } else {
+      showToast('No se encontró copia en el respaldo de Firestore.');
+    }
   };
 
   const sortedSlots = useMemo(() => {
@@ -1108,14 +1144,41 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
         </div>
       </div>
 
-      {/* SECCIÓN 4: RESPALDO Y RESTABLECIMIENTO */}
-      <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-6 shadow-xl space-y-4">
-        <h2 className="font-serif text-xl font-light text-white flex items-center gap-2">
-          <Download size={16} className="text-[#c5a059]" />
-          <span>Respaldo & <span className="italic text-[#c5a059]">Persistencia</span></span>
-        </h2>
+      {/* SECCIÓN 4: RESPALDO Y RECUPERACIÓN DE DATOS */}
+      <div className="bg-[#141418] border border-[#1f1f23] rounded-2xl p-6 shadow-xl space-y-5" id="config-backups-section">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1f1f23] pb-4">
+          <div>
+            <h2 className="font-serif text-xl font-light text-white flex items-center gap-2">
+              <Download size={16} className="text-[#c5a059]" />
+              <span>Respaldo & <span className="italic text-[#c5a059]">Recuperación de Datos</span></span>
+            </h2>
+            <p className="text-xs text-[#6b6b75] mt-0.5">
+              Gestiona copias locales, exporta en JSON o restaura versiones previas guardadas en este navegador o en Firestore.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefreshBackups}
+              disabled={isScanningBackups}
+              className="px-3 py-1.5 rounded-lg bg-[#0a0a0b] hover:bg-[#1a1a1d] border border-[#2a2a2e] text-xs text-[#a0a0ab] hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Volver a escanear memoria de este navegador"
+            >
+              <RefreshCw size={12} className={isScanningBackups ? 'animate-spin text-[#c5a059]' : ''} />
+              <span>Escanear navegador</span>
+            </button>
+            <button
+              onClick={handleCheckCloudBackup}
+              className="px-3 py-1.5 rounded-lg bg-[#c5a059]/15 hover:bg-[#c5a059]/25 border border-[#c5a059]/40 text-xs text-[#c5a059] flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Buscar copia de seguridad secundaria en Firestore"
+            >
+              <Database size={12} />
+              <span>Buscar en Firestore</span>
+            </button>
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+        {/* Acciones principales: Exportar, Importar, Restablecer */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <button
             onClick={handleExportJSON}
             className="flex items-center justify-center gap-2 p-3.5 bg-[#0a0a0b] hover:bg-[#1a1a1d] border border-[#2a2a2e] hover:border-[#c5a059]/40 rounded-xl text-xs font-mono uppercase tracking-wider text-white transition-all cursor-pointer shadow-sm"
@@ -1148,6 +1211,62 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
             <RotateCcw size={14} className="text-red-400" />
             <span>Restablecer Fábrica</span>
           </button>
+        </div>
+
+        {/* Lista de Versiones Previas Detectadas en el Navegador */}
+        <div className="pt-2 space-y-2.5">
+          <div className="flex items-center gap-2">
+            <History size={14} className="text-[#c5a059]" />
+            <h3 className="text-xs font-mono uppercase tracking-wider text-[#a0a0ab]">
+              Copias de Seguridad Detectadas en este Dispositivo ({localBackups.length})
+            </h3>
+          </div>
+
+          {localBackups.length === 0 ? (
+            <div className="p-3.5 rounded-xl bg-[#0a0a0b] border border-[#1f1f23] text-center text-xs text-[#6b6b75]">
+              No se detectaron copias previas adicionales en la memoria de este navegador.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {localBackups.map(bkp => (
+                <div
+                  key={bkp.key}
+                  className="p-3 rounded-xl bg-[#0a0a0b] border border-[#1f1f23] hover:border-[#2a2a2e] flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-[#141418] border border-[#222226] text-[11px] font-mono text-[#c5a059]">
+                        {bkp.key}
+                      </span>
+                      <span className="text-xs text-[#8e8e99]">{bkp.dateStr}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#6b6b75]">
+                      <span className="font-semibold text-emerald-400">
+                        {bkp.assignmentsCount} asignaciones
+                      </span>
+                      <span>•</span>
+                      <span>{bkp.musiciansCount} músicos</span>
+                      <span>•</span>
+                      <span>{bkp.slotsCount} turnos</span>
+                      <span>•</span>
+                      <span>{bkp.songsCount} canciones</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      onImportState(bkp.state);
+                      showToast(`¡Versión "${bkp.key}" restaurada y guardada en la nube!`);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-[#c5a059] hover:bg-[#d4b068] text-black font-semibold text-xs font-mono uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 flex-shrink-0"
+                  >
+                    <RotateCcw size={12} />
+                    <span>Restaurar esta versión</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

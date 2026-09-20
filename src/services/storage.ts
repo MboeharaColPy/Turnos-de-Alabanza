@@ -1,4 +1,4 @@
-import { doc, onSnapshot, setDoc, Unsubscribe } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, setDoc, Unsubscribe } from 'firebase/firestore';
 import { db } from '../firebase';
 import { INITIAL_FULL_SONG_CATALOG } from '../data/songCatalogData';
 import {
@@ -16,6 +16,18 @@ import {
 
 export const STORAGE_KEY = 'turnos_musicos_data_v4';
 const CLOUD_DOC_PATH = { collection: 'shared_data', id: 'main' };
+
+export interface DetectedBackup {
+  key: string;
+  source: 'localStorage' | 'cloudBackup';
+  dateStr: string;
+  timestamp: number;
+  assignmentsCount: number;
+  musiciansCount: number;
+  slotsCount: number;
+  songsCount: number;
+  state: AppState;
+}
 
 export function generateId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).substring(2, 9)}_${Date.now().toString(36)}`;
@@ -394,25 +406,117 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
   return state;
 }
 
+/**
+ * Escanea todas las llaves en localStorage del navegador buscando cualquier respaldo
+ * o versión previa de datos (v4, v3, v2, v1, sin versión, backups automáticos, etc.)
+ */
+export function scanAvailableLocalBackups(): DetectedBackup[] {
+  const backups: DetectedBackup[] = [];
+  try {
+    const knownKeys = [
+      'turnos_musicos_data_v4',
+      'turnos_musicos_data_v3',
+      'turnos_musicos_data_v2',
+      'turnos_musicos_data_v1',
+      'turnos_musicos_data',
+      'turnos_state',
+      'alabanza_state',
+    ];
+
+    const allKeys = new Set<string>([...knownKeys]);
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('turnos_') || k.startsWith('alabanza_') || k.includes('backup') || k.includes('musico'))) {
+        allKeys.add(k);
+      }
+    }
+
+    allKeys.forEach(key => {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          const hasRolesOrMusicians = Array.isArray(parsed.roles) || Array.isArray(parsed.musicians);
+          const hasAssignments = parsed.assignments && typeof parsed.assignments === 'object';
+          if (hasRolesOrMusicians || hasAssignments) {
+            const sanitized = sanitizeLoadedState(parsed);
+            const assignKeys = Object.keys(sanitized.assignments || {});
+            let totalAssignedRoles = 0;
+            assignKeys.forEach(k => {
+              totalAssignedRoles += Object.keys(sanitized.assignments[k] || {}).length;
+            });
+
+            const dateStr = sanitized.lastUpdated || '';
+            const timestamp = dateStr ? new Date(dateStr).getTime() : 0;
+
+            backups.push({
+              key,
+              source: 'localStorage',
+              dateStr: dateStr ? new Date(dateStr).toLocaleString('es-ES') : 'Fecha no registrada',
+              timestamp: isNaN(timestamp) ? 0 : timestamp,
+              assignmentsCount: totalAssignedRoles,
+              musiciansCount: sanitized.musicians.length,
+              slotsCount: sanitized.slots.length,
+              songsCount: sanitized.songCatalog.length,
+              state: sanitized,
+            });
+          }
+        }
+      } catch {
+        // Ignorar entradas no serializadas en JSON
+      }
+    });
+  } catch (err) {
+    console.warn('Error escaneando respaldos locales:', err);
+  }
+
+  // Ordenar priorizando los que tengan asignaciones y luego los más recientes
+  return backups.sort((a, b) => {
+    if (b.assignmentsCount !== a.assignmentsCount) {
+      return b.assignmentsCount - a.assignmentsCount;
+    }
+    return b.timestamp - a.timestamp;
+  });
+}
+
 export function loadStoredState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      // Intentar migrar de v2 si existe
-      const rawV2 = localStorage.getItem('turnos_musicos_data_v2');
-      if (rawV2) {
-        const parsed = JSON.parse(rawV2);
-        const sanitized = sanitizeLoadedState(parsed);
-        saveStoredState(sanitized);
-        return sanitized;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const sanitized = sanitizeLoadedState(parsed);
+
+      // Si la versión en v4 está vacía (0 asignaciones), verificar si alguna versión previa del navegador tenía datos reales
+      const assignCountInV4 = Object.keys(sanitized.assignments || {}).reduce(
+        (acc, k) => acc + Object.keys(sanitized.assignments[k] || {}).length,
+        0
+      );
+
+      if (assignCountInV4 === 0) {
+        const backups = scanAvailableLocalBackups();
+        const candidate = backups.find(b => b.key !== STORAGE_KEY && b.assignmentsCount > 0);
+        if (candidate) {
+          console.log(`[Storage] Recuperando automáticamente ${candidate.assignmentsCount} asignaciones desde ${candidate.key}`);
+          saveStoredState(candidate.state);
+          return candidate.state;
+        }
       }
-      const fresh = getInitialDefaultState();
-      saveStoredState(fresh);
-      return fresh;
+
+      return sanitized;
     }
-    const parsed = JSON.parse(raw);
-    const sanitized = sanitizeLoadedState(parsed);
-    return sanitized;
+
+    // Si no existe v4 aún, buscar en respaldos anteriores del navegador
+    const backups = scanAvailableLocalBackups();
+    if (backups.length > 0) {
+      const best = backups[0];
+      saveStoredState(best.state);
+      return best.state;
+    }
+
+    const fresh = getInitialDefaultState();
+    saveStoredState(fresh);
+    return fresh;
   } catch (error) {
     console.error('Error cargando estado de localStorage:', error);
     const fresh = getInitialDefaultState();
@@ -428,10 +532,63 @@ export function saveStoredState(state: AppState): boolean {
       lastUpdated: new Date().toISOString(),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+
+    // Guardar copia histórica de seguridad en localStorage si contiene asignaciones
+    const assignCount = Object.keys(updated.assignments || {}).reduce(
+      (acc, k) => acc + Object.keys(updated.assignments[k] || {}).length,
+      0
+    );
+    if (assignCount > 0) {
+      try {
+        const todayTag = new Date().toISOString().slice(0, 10);
+        localStorage.setItem(`turnos_backup_auto_${todayTag}`, JSON.stringify(updated));
+      } catch {
+        // Ignorar si el storage está lleno
+      }
+    }
+
     return true;
   } catch (error) {
     console.error('Error guardando estado en localStorage:', error);
     return false;
+  }
+}
+
+/**
+ * Obtiene el estado actual directamente de Firestore
+ */
+export async function fetchCloudState(): Promise<AppState | null> {
+  try {
+    const docRef = doc(db, CLOUD_DOC_PATH.collection, CLOUD_DOC_PATH.id);
+    const snapshot = await getDoc(docRef);
+    if (snapshot.exists()) {
+      const cloudData = snapshot.data();
+      const sanitized = sanitizeLoadedState(cloudData);
+      saveStoredState(sanitized);
+      return sanitized;
+    }
+    return null;
+  } catch (error) {
+    console.warn('Error al obtener estado desde la nube:', error);
+    return null;
+  }
+}
+
+/**
+ * Obtiene el respaldo secundario de Firestore si existe
+ */
+export async function fetchCloudBackup(): Promise<AppState | null> {
+  try {
+    const docRef = doc(db, CLOUD_DOC_PATH.collection, 'backup_latest');
+    const snapshot = await getDoc(docRef);
+    if (snapshot.exists()) {
+      const cloudData = snapshot.data();
+      return sanitizeLoadedState(cloudData);
+    }
+    return null;
+  } catch (error) {
+    console.warn('Error al consultar backup en Firestore:', error);
+    return null;
   }
 }
 
@@ -463,6 +620,21 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
     // Sanitizar profundamente para evitar cualquier valor undefined que rechace Firestore
     const cleanPayload = JSON.parse(JSON.stringify(payload));
     await setDoc(docRef, cleanPayload, { merge: true });
+
+    // Guardar respaldo adicional en 'backup_latest' si contiene asignaciones o avisos
+    const assignCount = Object.keys(cleanPayload.assignments || {}).reduce(
+      (acc: number, k: string) => acc + Object.keys(cleanPayload.assignments[k] || {}).length,
+      0
+    );
+    if (assignCount > 0 || (cleanPayload.notices && cleanPayload.notices.length > 0)) {
+      try {
+        const backupDocRef = doc(db, CLOUD_DOC_PATH.collection, 'backup_latest');
+        await setDoc(backupDocRef, cleanPayload, { merge: true });
+      } catch (errBackup) {
+        console.warn('No se pudo guardar backup secundario en la nube:', errBackup);
+      }
+    }
+
     return true;
   } catch (error) {
     console.warn('Almacenamiento en la nube en modo diferido/offline:', error);
@@ -474,7 +646,7 @@ let hasAttemptedInitialCloudSeed = false;
 
 /**
  * Escucha cambios en tiempo real desde Firestore.
- * Si el documento en la nube aún no existe, lo inicializa con los datos locales/por defecto.
+ * Incluye protección para no borrar asignaciones locales si la nube llega vacía.
  */
 export function subscribeToCloudState(
   onUpdate: (state: AppState) => void,
@@ -487,13 +659,42 @@ export function subscribeToCloudState(
     async snapshot => {
       if (snapshot.exists()) {
         const cloudData = snapshot.data();
-        const sanitized = sanitizeLoadedState(cloudData);
-        // Actualizar cache local
-        saveStoredState(sanitized);
-        onUpdate(sanitized);
+        const sanitizedCloud = sanitizeLoadedState(cloudData);
+
+        // Protección anti-sobreescritura: verificar si localmente hay asignaciones y la nube vino vacía
+        const currentLocal = loadStoredState();
+        const localAssignCount = Object.keys(currentLocal.assignments || {}).reduce(
+          (acc, k) => acc + Object.keys(currentLocal.assignments[k] || {}).length,
+          0
+        );
+        const cloudAssignCount = Object.keys(sanitizedCloud.assignments || {}).reduce(
+          (acc, k) => acc + Object.keys(sanitizedCloud.assignments[k] || {}).length,
+          0
+        );
+
+        // Si la nube está vacía pero este dispositivo tenía asignaciones guardadas:
+        // Preservamos las asignaciones del usuario y las re-sincronizamos hacia la nube para recuperarlas
+        if (cloudAssignCount === 0 && localAssignCount > 0) {
+          console.warn(`[Storage] Nube vacía detectada; restaurando ${localAssignCount} asignaciones locales hacia la nube`);
+          const restoredState: AppState = {
+            ...sanitizedCloud,
+            assignments: currentLocal.assignments,
+            shiftSongs: (currentLocal.shiftSongs && Object.keys(currentLocal.shiftSongs).length > 0)
+              ? currentLocal.shiftSongs
+              : sanitizedCloud.shiftSongs,
+            lastUpdated: new Date().toISOString(),
+          };
+          saveStoredState(restoredState);
+          onUpdate(restoredState);
+          saveCloudState(restoredState);
+          return;
+        }
+
+        // Actualizar cache local normalmente
+        saveStoredState(sanitizedCloud);
+        onUpdate(sanitizedCloud);
       } else if (!hasAttemptedInitialCloudSeed && navigator.onLine) {
         hasAttemptedInitialCloudSeed = true;
-        // Inicializar documento en Firestore con el estado actual o default
         const local = loadStoredState();
         try {
           await setDoc(docRef, local, { merge: true });
@@ -504,7 +705,6 @@ export function subscribeToCloudState(
       }
     },
     error => {
-      // Registrar advertencia amigable sin romper la aplicación
       console.warn('Conexión con Firestore operando en modo local/offline:', error.message);
       if (onError) onError(error);
     }

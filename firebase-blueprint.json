@@ -44,6 +44,10 @@
     "shared_data/main": {
       "schema": "SharedState",
       "description": "Documento central de sincronización en tiempo real"
+    },
+    "shared_data/backup_latest": {
+      "schema": "SharedState",
+      "description": "Copia de respaldo del estado con datos significativos"
     }
   }
 }
