@@ -209,7 +209,7 @@ export default function App() {
   // --- Admin Authentication Handlers ---
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const correctPassword = (state.adminPassword || 'alabanza2026').trim();
+    const correctPassword = String(state.adminPassword ?? '1019052271').trim();
     const entered = adminPasswordInput.trim();
 
     // Verificación estricta y exacta: sensible a mayúsculas y minúsculas (sin variaciones)
@@ -239,13 +239,6 @@ export default function App() {
     } else {
       setAdminPasswordError(true);
     }
-  };
-
-  const handleResetToDefaultPassword = () => {
-    handleUpdateAdminPassword('alabanza2026');
-    setAdminPasswordInput('alabanza2026');
-    setAdminPasswordError(false);
-    showToast('Contraseña restablecida a: alabanza2026');
   };
 
   const handleLogoutAdmin = () => {
@@ -1019,6 +1012,7 @@ export default function App() {
               onRestoreWeek={handleRestoreWeek}
               showToast={showToast}
               onRequestAdmin={() => handleRequestAdminModal()}
+              onSaveSlot={handleSaveSlot}
             />
           )}
 
@@ -1032,6 +1026,7 @@ export default function App() {
               onSelectSong={(song, contextSongs) => handleOpenSongLyrics(song, contextSongs)}
               showToast={showToast}
               onRequestAdmin={() => handleRequestAdminModal()}
+              onSaveSlot={handleSaveSlot}
             />
           )}
 
@@ -1051,6 +1046,7 @@ export default function App() {
               onApplySchedule={handleApplySchedule}
               showToast={showToast}
               onRequestAdmin={() => handleRequestAdminModal()}
+              onSaveSlot={handleSaveSlot}
             />
           )}
 
@@ -1200,21 +1196,11 @@ export default function App() {
                 </div>
 
                 {adminPasswordError && (
-                  <div className="mt-2 space-y-1.5 bg-red-950/20 border border-red-900/40 p-2.5 rounded-xl">
-                    <p className="text-xs text-red-400 flex items-center gap-1 font-mono">
-                      <ShieldAlert size={12} />
-                      <span>Contraseña incorrecta. Por favor reintenta.</span>
+                  <div className="mt-2 space-y-1 bg-red-950/20 border border-red-900/40 p-2.5 rounded-xl">
+                    <p className="text-xs text-red-400 flex items-center gap-1.5 font-mono">
+                      <ShieldAlert size={13} className="flex-shrink-0" />
+                      <span>Contraseña incorrecta. Debe ser la contraseña exacta (sensible a mayúsculas y minúsculas).</span>
                     </p>
-                    <p className="text-[11px] text-[#a0a0ab]">
-                      La contraseña configurada es: <span className="font-mono text-[#c5a059] font-bold">alabanza2026</span>
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleResetToDefaultPassword}
-                      className="text-[11px] text-[#c5a059] hover:underline font-mono font-medium cursor-pointer"
-                    >
-                      Restablecer clave a alabanza2026
-                    </button>
                   </div>
                 )}
               </div>

@@ -27,10 +27,16 @@ import {
   ArrowRight,
   Info,
   Layers,
+  Clock,
+  Pencil,
+  Music,
 } from 'lucide-react';
 import { ShiftSongsManager } from './ShiftSongsManager';
 import { generateRotativeSchedule, getRoleCategory } from '../services/rotativeScheduler';
 import { ConflictExplainerModal } from './ConflictExplainerModal';
+import { isRehearsalSlot } from '../services/storage';
+import { EditEventScheduleModal } from './EditEventScheduleModal';
+import { Slot } from '../types';
 
 interface WeekViewProps {
   state: AppState;
@@ -47,6 +53,7 @@ interface WeekViewProps {
   onApplySchedule: (newAssignments: Record<string, Record<string, string>>) => void;
   showToast: (msg: string) => void;
   onRequestAdmin?: () => void;
+  onSaveSlot?: (slot: Slot) => void;
   agendaViewMode?: 'mes' | 'semana';
   onAgendaViewModeChange?: (mode: 'mes' | 'semana') => void;
 }
@@ -66,6 +73,7 @@ export const WeekView: React.FC<WeekViewProps> = ({
   onApplySchedule,
   showToast,
   onRequestAdmin,
+  onSaveSlot,
   agendaViewMode,
   onAgendaViewModeChange,
 }) => {
@@ -76,6 +84,7 @@ export const WeekView: React.FC<WeekViewProps> = ({
   const [undoSnapshot, setUndoSnapshot] = useState<Record<string, Record<string, string>> | null>(
     null
   );
+  const [slotToEdit, setSlotToEdit] = useState<Slot | null>(null);
 
   const nextWeek = () => {
     const next = new Date(currentWeekStart);
@@ -101,9 +110,11 @@ export const WeekView: React.FC<WeekViewProps> = ({
     setTimeout(() => setCopied(false), 2500);
   };
 
-  // Turnos ordenados por día y hora
+  // Turnos ordenados por día y hora (filtrando ensayos por evento para que no se muestren como evento adicional)
   const sortedSlots = useMemo(() => {
-    return [...state.slots].sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
+    return [...state.slots]
+      .filter(s => !isRehearsalSlot(s, state.slots))
+      .sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
   }, [state.slots]);
 
   const currentWeekKeys = useMemo(() => {
@@ -783,9 +794,22 @@ export const WeekView: React.FC<WeekViewProps> = ({
                     <span className="font-mono text-xs text-[#d4d4dc] bg-[#0a0a0b] px-2.5 py-1 rounded-lg border border-[#242429] font-medium">
                       {dateStr}
                     </span>
-                    <span className="font-mono text-xs text-[#c5a059] font-extrabold tracking-wider bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/30">
-                      {slot.time} HS
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isAdmin) {
+                          if (onRequestAdmin) onRequestAdmin();
+                        } else {
+                          setSlotToEdit(slot);
+                        }
+                      }}
+                      className="font-mono text-xs text-[#c5a059] font-extrabold tracking-wider bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-1 rounded-lg border border-amber-500/30 hover:border-amber-500/60 flex items-center gap-1.5 cursor-pointer transition-all"
+                      title="Modificar hora del evento o del ensayo"
+                    >
+                      <Clock size={12} />
+                      <span>{slot.time} HS</span>
+                      {isAdmin && <Pencil size={11} className="text-amber-400/80" />}
+                    </button>
                     <span className="text-xs text-[#a0a0ab] font-medium">
                       • {slot.label}
                     </span>
@@ -825,6 +849,59 @@ export const WeekView: React.FC<WeekViewProps> = ({
                     )}
                   </div>
                 </div>
+
+                {/* APARTADO DE ENSAYO DENTRO DEL EVENTO */}
+                {slot.rehearsal && slot.rehearsal.enabled ? (
+                  <div className="mx-3.5 sm:mx-4 mt-3 bg-gradient-to-r from-amber-950/20 via-[#18181d] to-[#141418] border border-amber-500/35 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2.5 shadow-sm">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 flex-shrink-0">
+                        <Music size={15} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs uppercase tracking-wider text-amber-300 font-bold">
+                            Apartado de Ensayo Previo
+                          </span>
+                          <span className="font-mono text-[11px] font-bold text-amber-400 bg-amber-400/15 px-2 py-0.5 rounded border border-amber-400/30">
+                            {DAYS_OF_WEEK[slot.rehearsal.day]} a las {slot.rehearsal.time} HS
+                          </span>
+                          <span className="text-[11px] font-mono text-[#888894]">
+                            ({slot.rehearsal.durationMinutes || 90} min)
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#a0a0ab] mt-0.5">
+                          <span className="text-white font-medium">{slot.rehearsal.label || 'Ensayo general'}</span> • Mismo equipo convocado para este evento
+                        </p>
+                      </div>
+                    </div>
+
+                    {isAdmin && onSaveSlot && (
+                      <button
+                        type="button"
+                        onClick={() => setSlotToEdit(slot)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1a1d] hover:bg-[#25252a] text-[#c5a059] hover:text-white rounded-lg text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer border border-[#35353d]"
+                        title="Modificar fecha u hora del ensayo"
+                      >
+                        <Pencil size={11} />
+                        <span>Modificar Horario</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  isAdmin && onSaveSlot && (
+                    <div className="mx-3.5 sm:mx-4 mt-3 flex items-center justify-between bg-[#111114] border border-[#1f1f23] rounded-xl px-3.5 py-2 text-xs">
+                      <span className="text-[#6b6b75] font-mono text-[11px]">Sin apartado de ensayo configurado para este evento</span>
+                      <button
+                        type="button"
+                        onClick={() => setSlotToEdit(slot)}
+                        className="text-[11px] font-mono text-[#c5a059] hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        <Music size={11} />
+                        <span>+ Programar Ensayo</span>
+                      </button>
+                    </div>
+                  )
+                )}
 
                 {/* Banner de balance y directivas vocales */}
                 <div className="px-3.5 py-2 bg-[#0e0e11] border-b border-[#1a1a1d] flex items-center justify-between text-xs text-[#a0a0ab] flex-wrap gap-2">
@@ -1066,6 +1143,23 @@ export const WeekView: React.FC<WeekViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+      {/* Modal para Modificar Horario del Evento y del Ensayo */}
+      {slotToEdit && (
+        <EditEventScheduleModal
+          slot={slotToEdit}
+          isOpen={!!slotToEdit}
+          isAdmin={isAdmin}
+          onClose={() => setSlotToEdit(null)}
+          onSaveSlot={updated => {
+            if (onSaveSlot) onSaveSlot(updated);
+            setSlotToEdit(null);
+          }}
+          onRequestAdmin={() => {
+            if (onRequestAdmin) onRequestAdmin();
+          }}
+          showToast={showToast}
+        />
       )}
     </div>
   );

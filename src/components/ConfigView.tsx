@@ -7,7 +7,7 @@ import {
   Role,
   Slot,
 } from '../types';
-import { generateId, getInitialDefaultState, scanAvailableLocalBackups, fetchCloudBackup, DetectedBackup } from '../services/storage';
+import { generateId, getInitialDefaultState, scanAvailableLocalBackups, fetchCloudBackup, DetectedBackup, isRehearsalSlot } from '../services/storage';
 import {
   Settings,
   Clock,
@@ -459,7 +459,9 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
   };
 
   const sortedSlots = useMemo(() => {
-    return [...state.slots].sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
+    return [...state.slots]
+      .filter(s => !isRehearsalSlot(s, state.slots))
+      .sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
   }, [state.slots]);
 
   return (
@@ -643,8 +645,24 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
                   value={slotTime}
                   onChange={e => setSlotTime(e.target.value)}
                   required
-                  className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-2.5 py-2.5 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none"
+                  className="w-full bg-[#0a0a0b] text-[#c5a059] font-mono text-sm font-bold rounded-lg px-2.5 py-2 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none"
                 />
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {['08:30', '09:00', '10:00', '11:00', '17:00', '18:00', '19:00', '20:00'].map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setSlotTime(t)}
+                      className={`px-1.5 py-0.5 text-[9px] font-mono rounded cursor-pointer border ${
+                        slotTime === t
+                          ? 'bg-[#c5a059] text-black font-bold border-[#c5a059]'
+                          : 'bg-[#141418] text-[#888894] border-[#25252a] hover:text-white'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>
@@ -738,8 +756,24 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
                         type="time"
                         value={rehearsalTime}
                         onChange={e => setRehearsalTime(e.target.value)}
-                        className="w-full bg-[#0a0a0b] text-white text-xs rounded-lg px-2 py-2 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none"
+                        className="w-full bg-[#0a0a0b] text-amber-400 font-mono text-sm font-bold rounded-lg px-2 py-2 border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none"
                       />
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {['17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'].map(t => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => setRehearsalTime(t)}
+                            className={`px-1.5 py-0.5 text-[9px] font-mono rounded cursor-pointer border ${
+                              rehearsalTime === t
+                                ? 'bg-amber-400 text-black font-bold border-amber-400'
+                                : 'bg-[#141418] text-[#888894] border-[#25252a] hover:text-white'
+                            }`}
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     <div>

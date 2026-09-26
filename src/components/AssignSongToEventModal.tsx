@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { AppState, DAYS_OF_WEEK, Slot, SongItem } from '../types';
+import { isRehearsalSlot } from '../services/storage';
 import { dateForDay, formatCardDate, getMonday, isoLocal } from '../utils/dateUtils';
 
 interface AssignSongToEventModalProps {
@@ -54,7 +55,9 @@ export const AssignSongToEventModal: React.FC<AssignSongToEventModalProps> = ({
   // 1. Generar ocurrencias a partir de los slots configurados para 8 semanas
   for (let w = 0; w < 8; w++) {
     const weekStart = new Date(startMonday.getTime() + w * 7 * 24 * 60 * 60 * 1000);
-    (state.slots || []).forEach(slot => {
+    (state.slots || [])
+      .filter(slot => !isRehearsalSlot(slot, state.slots))
+      .forEach(slot => {
       const date = dateForDay(weekStart, slot.day);
       const isoDate = isoLocal(date);
       const shiftKey = `${isoDate}__${slot.id}`;

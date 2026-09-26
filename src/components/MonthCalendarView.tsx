@@ -34,9 +34,13 @@ import {
   Info,
   Layers,
   CalendarDays,
+  Pencil,
 } from 'lucide-react';
 import { generateRotativeSchedule, getRoleCategory } from '../services/rotativeScheduler';
 import { ConflictExplainerModal } from './ConflictExplainerModal';
+import { isRehearsalSlot } from '../services/storage';
+import { EditEventScheduleModal } from './EditEventScheduleModal';
+import { Slot } from '../types';
 
 interface MonthCalendarViewProps {
   state: AppState;
@@ -46,6 +50,7 @@ interface MonthCalendarViewProps {
   onSelectSong?: (song: SongItem, contextSongs?: SongItem[]) => void;
   showToast: (msg: string) => void;
   onRequestAdmin?: () => void;
+  onSaveSlot?: (slot: Slot) => void;
   agendaViewMode?: 'mes' | 'semana';
   onAgendaViewModeChange?: (mode: 'mes' | 'semana') => void;
 }
@@ -58,6 +63,7 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
   onSelectSong,
   showToast,
   onRequestAdmin,
+  onSaveSlot,
   agendaViewMode,
   onAgendaViewModeChange,
 }) => {
@@ -68,6 +74,7 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
   const [hidePastDates, setHidePastDates] = useState(false);
   const [expandedPastKeys, setExpandedPastKeys] = useState<Record<string, boolean>>({});
   const [showExplainerModal, setShowExplainerModal] = useState(false);
+  const [slotToEdit, setSlotToEdit] = useState<Slot | null>(null);
 
   const todayStart = useMemo(() => {
     const d = new Date();
@@ -110,9 +117,11 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
     return targetIsNext && isPastLastSundayOfMonth(actualCurrentYear, actualCurrentMonth, now);
   }, [year, month]);
 
-  // Turnos ordenados por día y hora
+  // Turnos ordenados por día y hora (filtrando ensayos por evento para que no se muestren como eventos adicionales)
   const sortedSlots = useMemo(() => {
-    return [...state.slots].sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
+    return [...state.slots]
+      .filter(s => !isRehearsalSlot(s, state.slots))
+      .sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
   }, [state.slots]);
 
   // Helper map for fast musician lookup
@@ -638,13 +647,26 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                           <h3 className="font-serif text-xl sm:text-2xl font-medium text-white tracking-tight">
                             {DAYS_OF_WEEK[evt.dayOfWeek]} {evt.date.getDate()} de {capitalizedMonthName}
                           </h3>
-                          <span className={`font-mono text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
-                            isLiveNow
-                              ? 'bg-emerald-950/60 text-emerald-300 border-emerald-700/60 shadow-sm'
-                              : 'text-[#c5a059] bg-[#c5a059]/10 border-[#c5a059]/30'
-                          }`}>
-                            {evt.slot.time} HS {isLiveNow ? `→ ${formattedEvtEndTime} hs` : '(3h)'}
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!isAdmin) {
+                                if (onRequestAdmin) onRequestAdmin();
+                              } else {
+                                setSlotToEdit(evt.slot);
+                              }
+                            }}
+                            className={`font-mono text-xs px-2.5 py-0.5 rounded-full font-semibold border flex items-center gap-1 transition-all ${
+                              isLiveNow
+                                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-700/60 shadow-sm'
+                                : 'text-[#c5a059] bg-[#c5a059]/10 border-[#c5a059]/30 hover:bg-[#c5a059]/20 hover:border-[#c5a059]/50 cursor-pointer'
+                            }`}
+                            title="Modificar horario del evento y del ensayo"
+                          >
+                            <Clock size={11} />
+                            <span>{evt.slot.time} HS {isLiveNow ? `→ ${formattedEvtEndTime} hs` : '(3h)'}</span>
+                            {isAdmin && <Pencil size={10} className="text-[#c5a059]/80 ml-0.5" />}
+                          </button>
                           {isLiveNow && (
                             <span className="font-mono text-[9px] uppercase tracking-wider text-emerald-400 bg-emerald-950/60 border border-emerald-700/60 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
@@ -727,6 +749,59 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
                             ))}
                           </div>
                         </div>
+                      )}
+
+                      {/* APARTADO DE ENSAYO DENTRO DEL EVENTO */}
+                      {evt.slot.rehearsal && evt.slot.rehearsal.enabled ? (
+                        <div className="bg-gradient-to-r from-amber-950/20 via-[#18181d] to-[#141418] border border-amber-500/30 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-400 flex-shrink-0">
+                              <Music size={18} />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-mono text-xs uppercase tracking-wider text-amber-300 font-bold">
+                                  Apartado de Ensayo Previo
+                                </span>
+                                <span className="font-mono text-xs text-amber-400 font-extrabold bg-amber-400/15 px-2.5 py-0.5 rounded border border-amber-400/30">
+                                  {DAYS_OF_WEEK[evt.slot.rehearsal.day]} a las {evt.slot.rehearsal.time} HS
+                                </span>
+                                <span className="text-xs font-mono text-[#888894]">
+                                  ({evt.slot.rehearsal.durationMinutes || 90} min)
+                                </span>
+                              </div>
+                              <p className="text-xs text-[#a0a0ab] mt-0.5">
+                                <span className="text-white font-medium">{evt.slot.rehearsal.label || 'Ensayo programado'}</span> • Convocado el mismo equipo del culto
+                              </p>
+                            </div>
+                          </div>
+
+                          {isAdmin && onSaveSlot && (
+                            <button
+                              type="button"
+                              onClick={() => setSlotToEdit(evt.slot)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#232328] hover:bg-[#2e2e35] text-[#c5a059] hover:text-white rounded-lg text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer border border-[#3a3a42] flex-shrink-0"
+                              title="Modificar fecha u hora del ensayo"
+                            >
+                              <Pencil size={11} />
+                              <span>Modificar Ensayo</span>
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        isAdmin && onSaveSlot && (
+                          <div className="bg-[#0e0e11] border border-[#232328] rounded-xl px-4 py-2.5 flex items-center justify-between text-xs">
+                            <span className="text-[#6b6b75] font-mono text-[11px]">Sin apartado de ensayo configurado para este evento</span>
+                            <button
+                              type="button"
+                              onClick={() => setSlotToEdit(evt.slot)}
+                              className="text-[#c5a059] hover:underline font-mono text-xs flex items-center gap-1 cursor-pointer"
+                            >
+                              <Music size={12} />
+                              <span>+ Programar Ensayo</span>
+                            </button>
+                          </div>
+                        )
                       )}
 
                       {/* Director Convocado (Destacado) */}
@@ -1358,6 +1433,23 @@ export const MonthCalendarView: React.FC<MonthCalendarViewProps> = ({
             </table>
           </div>
         </div>
+      )}
+      {/* Modal para Modificar Horario del Evento y del Ensayo */}
+      {slotToEdit && (
+        <EditEventScheduleModal
+          slot={slotToEdit}
+          isOpen={!!slotToEdit}
+          isAdmin={isAdmin}
+          onClose={() => setSlotToEdit(null)}
+          onSaveSlot={updated => {
+            if (onSaveSlot) onSaveSlot(updated);
+            setSlotToEdit(null);
+          }}
+          onRequestAdmin={() => {
+            if (onRequestAdmin) onRequestAdmin();
+          }}
+          showToast={showToast}
+        />
       )}
     </div>
   );

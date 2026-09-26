@@ -1,51 +1,112 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <defs>
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#18181d"/>
-      <stop offset="50%" stop-color="#0e0e11"/>
-      <stop offset="100%" stop-color="#050507"/>
+      <stop offset="0%" stop-color="#1a1a22"/>
+      <stop offset="50%" stop-color="#0e0e13"/>
+      <stop offset="100%" stop-color="#050508"/>
     </linearGradient>
-    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#e8ca84"/>
-      <stop offset="50%" stop-color="#c5a059"/>
-      <stop offset="100%" stop-color="#99752d"/>
+
+    <linearGradient id="goldMusicGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff4c2"/>
+      <stop offset="25%" stop-color="#eac66e"/>
+      <stop offset="60%" stop-color="#c5a059"/>
+      <stop offset="100%" stop-color="#84621c"/>
     </linearGradient>
-    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#c5a059" stop-opacity="0.3"/>
+
+    <linearGradient id="goldMusicGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffeeb0"/>
+      <stop offset="45%" stop-color="#d9af52"/>
+      <stop offset="100%" stop-color="#9a7226"/>
+    </linearGradient>
+
+    <linearGradient id="ambientGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c5a059" stop-opacity="0.35"/>
+      <stop offset="60%" stop-color="#c5a059" stop-opacity="0.08"/>
       <stop offset="100%" stop-color="#c5a059" stop-opacity="0"/>
     </linearGradient>
-    <filter id="goldGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="8" result="blur" />
+
+    <filter id="musicGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10" result="blur" />
       <feComposite in="SourceGraphic" in2="blur" operator="over" />
     </filter>
   </defs>
 
-  <!-- Background with safe zone -->
-  <rect width="512" height="512" rx="110" fill="url(#bgGrad)"/>
-  <rect x="12" y="12" width="488" height="488" rx="98" fill="none" stroke="#2a2a32" stroke-width="3"/>
-  <circle cx="256" cy="256" r="180" fill="url(#glowGrad)"/>
+  <!-- Background Canvas -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+  <rect x="14" y="14" width="484" height="484" rx="100" fill="none" stroke="#2d2d38" stroke-width="3"/>
+  <circle cx="256" cy="256" r="185" fill="url(#ambientGlow)"/>
 
-  <!-- Icon Graphics: Worship / Music / Lyre & Cross Emblem (Centered with safe margin) -->
-  <g transform="translate(256, 256) scale(1.15) translate(-256, -256)" filter="url(#goldGlow)">
-    <!-- Outer Lyre / Harp Body -->
-    <path d="M170 140 C170 140, 150 240, 180 320 C205 385, 307 385, 332 320 C362 240, 342 140, 342 140 C322 170, 300 180, 256 180 C212 180, 190 170, 170 140 Z" fill="none" stroke="url(#goldGrad)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-    
-    <!-- Central Cross & Strings -->
-    <!-- Center Vertical Beam (Cross & String 1) -->
-    <line x1="256" y1="120" x2="256" y2="368" stroke="url(#goldGrad)" stroke-width="10" stroke-linecap="round"/>
-    <!-- Cross Horizontal Bar -->
-    <line x1="206" y1="180" x2="306" y2="180" stroke="url(#goldGrad)" stroke-width="10" stroke-linecap="round"/>
-    
-    <!-- Harp Strings (Flanking) -->
-    <line x1="220" y1="182" x2="220" y2="345" stroke="url(#goldGrad)" stroke-width="4" stroke-opacity="0.85" stroke-linecap="round"/>
-    <line x1="292" y1="182" x2="292" y2="345" stroke="url(#goldGrad)" stroke-width="4" stroke-opacity="0.85" stroke-linecap="round"/>
-    <line x1="190" y1="200" x2="200" y2="310" stroke="url(#goldGrad)" stroke-width="3" stroke-opacity="0.6" stroke-linecap="round"/>
-    <line x1="322" y1="200" x2="312" y2="310" stroke="url(#goldGrad)" stroke-width="3" stroke-opacity="0.6" stroke-linecap="round"/>
+  <!-- Subtle Circular Music Staff Arcs -->
+  <g opacity="0.22" stroke="url(#goldMusicGrad)" fill="none" stroke-width="2">
+    <circle cx="256" cy="256" r="210" stroke-dasharray="8 12" />
+    <circle cx="256" cy="256" r="170" stroke-dasharray="5 9" />
+    <circle cx="256" cy="256" r="130" stroke-dasharray="3 7" />
+  </g>
 
-    <!-- Decorative Top Crown & Accents -->
-    <circle cx="256" cy="115" r="10" fill="url(#goldGrad)"/>
-    <circle cx="170" cy="140" r="8" fill="url(#goldGrad)"/>
-    <circle cx="342" cy="140" r="8" fill="url(#goldGrad)"/>
-    <circle cx="256" cy="378" r="7" fill="url(#goldGrad)"/>
+  <!-- Main Musical Emblem (Treble Clef + Musical Notes in Harmony) -->
+  <g filter="url(#musicGlow)" transform="translate(256, 256) scale(0.95) translate(-256, -256)">
+
+    <!-- Right Beamed Musical Eighth Notes (Corcheas de Alabanza) -->
+    <!-- Beam -->
+    <path d="M 285 155 L 375 125 L 375 147 L 285 177 Z" fill="url(#goldMusicGrad)" />
+    <!-- Secondary inner beam -->
+    <path d="M 285 186 L 375 156 L 375 168 L 285 198 Z" fill="url(#goldMusicGrad2)" opacity="0.9" />
+
+    <!-- Note Stem 1 -->
+    <rect x="285" y="165" width="12" height="155" rx="6" fill="url(#goldMusicGrad)" />
+    <!-- Note Head 1 -->
+    <ellipse cx="270" cy="320" rx="30" ry="22" transform="rotate(-25 270 320)" fill="url(#goldMusicGrad)" />
+    <ellipse cx="270" cy="320" rx="16" ry="10" transform="rotate(-25 270 320)" fill="#121217" opacity="0.3" />
+
+    <!-- Note Stem 2 -->
+    <rect x="363" y="135" width="12" height="155" rx="6" fill="url(#goldMusicGrad)" />
+    <!-- Note Head 2 -->
+    <ellipse cx="348" cy="290" rx="28" ry="20" transform="rotate(-25 348 290)" fill="url(#goldMusicGrad)" />
+    <ellipse cx="348" cy="290" rx="15" ry="9" transform="rotate(-25 348 290)" fill="#121217" opacity="0.3" />
+
+    <!-- Left Harmonic Treble Clef (Clave de Sol Majestuosa) -->
+    <path
+      d="M 216 410
+         C 195 410 178 395 178 372
+         C 178 348 198 335 218 344
+         C 228 348 234 358 234 370
+         C 234 390 220 398 205 398
+         C 202 398 198 396 195 394
+         M 216 410
+         L 216 140
+         C 216 90 240 70 252 70
+         C 264 70 270 85 264 110
+         C 256 142 225 200 205 250
+         C 175 320 135 345 135 285
+         C 135 220 200 190 242 220
+         C 275 244 280 290 255 325
+         C 235 352 195 352 178 335"
+      fill="none"
+      stroke="url(#goldMusicGrad)"
+      stroke-width="16"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+
+    <!-- Treble Clef Bottom Terminal Dot -->
+    <circle cx="216" cy="410" r="14" fill="url(#goldMusicGrad)" />
+
+    <!-- Ambient Sparkles / Musical Accents -->
+    <!-- Top Sparkle -->
+    <path d="M 252 50 Q 252 65 262 65 Q 252 65 252 80 Q 252 65 242 65 Q 252 65 252 50 Z" fill="#ffffff" />
+    <circle cx="252" cy="65" r="4" fill="url(#goldMusicGrad)" />
+
+    <!-- Small floating note (semicorchea flotante) -->
+    <g transform="translate(110, 150) scale(0.65)">
+      <ellipse cx="40" cy="80" rx="16" ry="11" transform="rotate(-25 40 80)" fill="url(#goldMusicGrad2)" />
+      <rect x="50" y="20" width="7" height="60" rx="3.5" fill="url(#goldMusicGrad2)" />
+      <path d="M 57 20 C 75 25 80 40 70 55" fill="none" stroke="url(#goldMusicGrad2)" stroke-width="7" stroke-linecap="round" />
+    </g>
+
+    <g transform="translate(385, 330) scale(0.55)">
+      <ellipse cx="40" cy="80" rx="16" ry="11" transform="rotate(-25 40 80)" fill="url(#goldMusicGrad)" />
+      <rect x="50" y="20" width="7" height="60" rx="3.5" fill="url(#goldMusicGrad)" />
+      <path d="M 57 20 C 75 25 80 40 70 55" fill="none" stroke="url(#goldMusicGrad)" stroke-width="7" stroke-linecap="round" />
+    </g>
   </g>
 </svg>

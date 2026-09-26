@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppState, SongItem } from '../types';
+import { AppState, SongItem, Slot } from '../types';
 import { MonthCalendarView } from './MonthCalendarView';
 import { WeekView } from './WeekView';
 
@@ -19,6 +19,7 @@ interface EventsAgendaViewProps {
   onRestoreWeek: (previousAssignments: Record<string, Record<string, string>>) => void;
   showToast: (msg: string) => void;
   onRequestAdmin: () => void;
+  onSaveSlot?: (slot: Slot) => void;
 }
 
 export const EventsAgendaView: React.FC<EventsAgendaViewProps> = ({
@@ -37,6 +38,7 @@ export const EventsAgendaView: React.FC<EventsAgendaViewProps> = ({
   onRestoreWeek,
   showToast,
   onRequestAdmin,
+  onSaveSlot,
 }) => {
   const [viewMode, setViewMode] = useState<'mes' | 'semana'>('mes');
 
@@ -57,6 +59,7 @@ export const EventsAgendaView: React.FC<EventsAgendaViewProps> = ({
           onSelectSong={onSelectSong}
           showToast={showToast}
           onRequestAdmin={onRequestAdmin}
+          onSaveSlot={onSaveSlot}
           agendaViewMode={viewMode}
           onAgendaViewModeChange={setViewMode}
         />
@@ -76,6 +79,7 @@ export const EventsAgendaView: React.FC<EventsAgendaViewProps> = ({
           onApplySchedule={onApplySchedule}
           showToast={showToast}
           onRequestAdmin={onRequestAdmin}
+          onSaveSlot={onSaveSlot}
           agendaViewMode={viewMode}
           onAgendaViewModeChange={setViewMode}
         />

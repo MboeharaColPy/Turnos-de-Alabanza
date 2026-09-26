@@ -150,6 +150,20 @@ export function getInitialDefaultState(): AppState {
   };
 }
 
+export function isRehearsalSlot(slot: Slot, allSlots: Slot[]): boolean {
+  if (!slot) return false;
+  // If slot is explicitly the default legacy rehearsal slot
+  if (slot.id === 'slt_sabado_ensayo') return true;
+  // If another slot has rehearsal enabled on this slot's day
+  const isCoveredByOther = allSlots.some(
+    other => other.id !== slot.id && other.rehearsal?.enabled && other.rehearsal.day === slot.day
+  );
+  if (isCoveredByOther && (slot.label || '').toLowerCase().includes('ensayo')) {
+    return true;
+  }
+  return false;
+}
+
 export function sanitizeLoadedState(rawState: unknown): AppState {
   const fallbackDefault = getInitialDefaultState();
   if (!rawState || typeof rawState !== 'object') {
@@ -171,129 +185,17 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
     return 'H';
   };
 
-  // Limpiar roles heredados obsoletos (como "Voces h", "Voces m") y garantizar los 6 roles vocales exactos
+  // Respetar exactamente los roles que vienen de la base de datos sin sobreescribir
   let roles: Role[] = Array.isArray(parsed.roles) && parsed.roles.length > 0 ? parsed.roles : fallbackDefault.roles;
-  
-  // Filtrar roles no deseados o duplicados obsoletos
-  const legacyRoleNamesToPurge = ['voces h', 'voces m', 'voz h', 'voz m', 'voz masculina', 'voz femenina', 'voces'];
-  roles = roles.filter(
-    r => !legacyRoleNamesToPurge.includes(r.name.toLowerCase().trim())
-  );
 
-  const requiredRoleNames = [
-    'Director',
-    'Voz h 1',
-    'Voz h 2',
-    'Voz h 3',
-    'Voz m 1',
-    'Voz m 2',
-    'Voz m 3',
-    'Piano',
-    'Guitarra acustica',
-    'Bateria',
-    'Bajo',
-    'Guitarra electrica',
-    'Sonido',
-    'Sonido 2',
-    'Audio visual',
-    'Audio visual 2',
-  ];
-
-  requiredRoleNames.forEach((reqName, idx) => {
-    const exists = roles.some(
-      r => r.name.toLowerCase().trim() === reqName.toLowerCase().trim()
-    );
-    if (!exists) {
-      roles.push({
-        id: `role_${idx + 1}_${reqName.toLowerCase().replace(/\s+/g, '_')}`,
-        name: reqName,
-        priority: idx + 1,
-      });
-    }
-  });
-
-  // Mapear los IDs de los 3 roles vocales masculinos y 3 femeninos exactos
-  const vozHRoleIds = roles
-    .filter(r => {
-      const n = r.name.toLowerCase().trim();
-      return n === 'voz h 1' || n === 'voz h 2' || n === 'voz h 3';
-    })
-    .map(r => r.id);
-
-  const vozMRoleIds = roles
-    .filter(r => {
-      const n = r.name.toLowerCase().trim();
-      return n === 'voz m 1' || n === 'voz m 2' || n === 'voz m 3';
-    })
-    .map(r => r.id);
-
+  // Respetar los músicos de la base de datos exactamente como fueron guardados
   const rawMusicians = Array.isArray(parsed.musicians) && parsed.musicians.length > 0
     ? parsed.musicians
     : fallbackDefault.musicians;
 
-  // Asegurar que los músicos tengan asignados sus roles vocales según perfil real
   const musicians: Musician[] = rawMusicians.map((m, idx) => {
     const gender = (m.gender === 'H' || m.gender === 'M') ? m.gender : inferGender(m.name || '');
-    let roleIds = Array.isArray(m.roleIds) ? [...m.roleIds] : [];
-    
-    // Identificar si este integrante canta (tiene algún rol de voz o director asignado)
-    const hasVozH = roleIds.some(id => vozHRoleIds.includes(id));
-    const hasVozM = roleIds.some(id => vozMRoleIds.includes(id));
-    const primaryRole = roles.find(r => r.id === m.primaryRoleId);
-    const primaryIsVozH = primaryRole && (primaryRole.name.toLowerCase().includes('voz h') || (primaryRole.name.toLowerCase().includes('director') && gender === 'H'));
-    const primaryIsVozM = primaryRole && (primaryRole.name.toLowerCase().includes('voz m') || (primaryRole.name.toLowerCase().includes('director') && gender === 'M'));
-
-    // Si es cantante masculino (o director), asegurar que pueda participar en los 3 puestos de voz h
-    if (gender === 'H' && (hasVozH || primaryIsVozH)) {
-      vozHRoleIds.forEach(id => {
-        if (!roleIds.includes(id)) roleIds.push(id);
-      });
-      // Remover accidentalmente asignados roles de voz m si existieran
-      roleIds = roleIds.filter(id => !vozMRoleIds.includes(id));
-    } else if (gender === 'M' && (hasVozM || primaryIsVozM)) {
-      // Si es cantante femenina (o directora), asegurar que pueda participar en los 3 puestos de voz m
-      vozMRoleIds.forEach(id => {
-        if (!roleIds.includes(id)) roleIds.push(id);
-      });
-      // Remover accidentalmente asignados roles de voz h si existieran
-      roleIds = roleIds.filter(id => !vozHRoleIds.includes(id));
-    } else {
-      // Para músicos que NO son cantantes (ej: Batería, Bajo, Sonido, AV, etc.):
-      // Limpiar cualquier rol de voz inyectado automáticamente
-      roleIds = roleIds.filter(id => !vozHRoleIds.includes(id) && !vozMRoleIds.includes(id));
-      
-      // Si quedó sin roles, recuperar su rol original según INITIAL_PRELOADED_MUSICIANS_DATA
-      if (roleIds.length === 0) {
-        const initMatch = INITIAL_PRELOADED_MUSICIANS_DATA.find(
-          x => x.name.toLowerCase() === (m.name || '').toLowerCase()
-        );
-        if (initMatch?.primaryRoleName) {
-          const matchRole = roles.find(r => r.name.toLowerCase() === initMatch.primaryRoleName?.toLowerCase());
-          if (matchRole) {
-            roleIds.push(matchRole.id);
-            if (initMatch.primaryRoleName.toLowerCase().startsWith('voz h')) {
-              vozHRoleIds.forEach(id => { if (!roleIds.includes(id)) roleIds.push(id); });
-            } else if (initMatch.primaryRoleName.toLowerCase().startsWith('voz m')) {
-              vozMRoleIds.forEach(id => { if (!roleIds.includes(id)) roleIds.push(id); });
-            }
-          }
-        }
-      }
-    }
-
-    // Auto-asignación: Todas las personas que tengan marcado sonido o audiovisual, automáticamente quedan marcadas también con el 2
-    const sonidoRole = roles.find(r => r.name.toLowerCase().trim() === 'sonido');
-    const sonido2Role = roles.find(r => r.name.toLowerCase().trim() === 'sonido 2');
-    const avRole = roles.find(r => r.name.toLowerCase().trim() === 'audio visual' || r.name.toLowerCase().trim() === 'audiovisual');
-    const av2Role = roles.find(r => r.name.toLowerCase().trim() === 'audio visual 2' || r.name.toLowerCase().trim() === 'audiovisual 2');
-
-    if (sonidoRole && sonido2Role && roleIds.includes(sonidoRole.id) && !roleIds.includes(sonido2Role.id)) {
-      roleIds.push(sonido2Role.id);
-    }
-    if (avRole && av2Role && roleIds.includes(avRole.id) && !roleIds.includes(av2Role.id)) {
-      roleIds.push(av2Role.id);
-    }
-
+    const roleIds = Array.isArray(m.roleIds) ? [...m.roleIds] : [];
     return {
       id: m.id || `mus_${idx + 1}`,
       name: m.name || `Integrante ${idx + 1}`,
@@ -305,45 +207,34 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
     };
   });
 
-  // Asegurar que los slots contengan exclusivamente roles válidos y no IDs ficticios u obsoletos
-  const validRoleIdsSet = new Set(roles.map(r => r.id));
-  const allRoleIds = roles.map(r => r.id);
-  const sonidoRoleObj = roles.find(r => r.name.toLowerCase().trim() === 'sonido');
-  const sonido2RoleObj = roles.find(r => r.name.toLowerCase().trim() === 'sonido 2');
-  const avRoleObj = roles.find(r => r.name.toLowerCase().trim() === 'audio visual' || r.name.toLowerCase().trim() === 'audiovisual');
-  const av2RoleObj = roles.find(r => r.name.toLowerCase().trim() === 'audio visual 2' || r.name.toLowerCase().trim() === 'audiovisual 2');
-
+  // Respetar los slots de la base de datos exactamente
   const rawSlots = Array.isArray(parsed.slots) && parsed.slots.length > 0 ? parsed.slots : fallbackDefault.slots;
   const slots: Slot[] = rawSlots.map(s => {
-    let slotRoles = s.roleIds && s.roleIds.length > 0 ? [...s.roleIds] : [...allRoleIds];
-    if (sonidoRoleObj && sonido2RoleObj && slotRoles.includes(sonidoRoleObj.id) && !slotRoles.includes(sonido2RoleObj.id)) {
-      slotRoles.push(sonido2RoleObj.id);
-    }
-    if (avRoleObj && av2RoleObj && slotRoles.includes(avRoleObj.id) && !slotRoles.includes(av2RoleObj.id)) {
-      slotRoles.push(av2RoleObj.id);
-    }
-    const rawIds = Array.from(new Set([...slotRoles, ...vozHRoleIds, ...vozMRoleIds]));
-    const sanitizedRoleIds = rawIds.filter(rid => validRoleIdsSet.has(rid));
+    const slotRoles = Array.isArray(s.roleIds) ? s.roleIds : [];
     return {
       ...s,
+      day: typeof s.day === 'number' ? s.day : 6,
+      time: s.time ? String(s.time).slice(0, 5) : '10:00',
       durationMinutes: s.durationMinutes ? Number(s.durationMinutes) : 90,
-      rehearsal: s.rehearsal && typeof s.rehearsal === 'object' ? s.rehearsal : undefined,
-      roleIds: sanitizedRoleIds.length > 0 ? sanitizedRoleIds : allRoleIds,
+      rehearsal: s.rehearsal && typeof s.rehearsal === 'object' && s.rehearsal.enabled
+        ? {
+            enabled: true,
+            day: typeof s.rehearsal.day === 'number' ? s.rehearsal.day : 5,
+            time: s.rehearsal.time ? String(s.rehearsal.time).slice(0, 5) : '18:00',
+            durationMinutes: s.rehearsal.durationMinutes ? Number(s.rehearsal.durationMinutes) : 90,
+            label: s.rehearsal.label || 'Ensayo previo',
+          }
+        : (s.rehearsal ? { ...s.rehearsal, enabled: false } : undefined),
+      roleIds: slotRoles,
     };
   });
 
-  // Limpiar assignments: eliminar cualquier rol obsoleto o inexistente
+  // Respetar todas las asignaciones tal cual están en la base de datos
   const sanitizedAssignments: Record<string, Record<string, string>> = {};
   if (parsed.assignments && typeof parsed.assignments === 'object') {
     Object.entries(parsed.assignments).forEach(([shiftKey, roleMap]) => {
       if (roleMap && typeof roleMap === 'object') {
-        const cleanMap: Record<string, string> = {};
-        Object.entries(roleMap).forEach(([rId, mId]) => {
-          if (validRoleIdsSet.has(rId) && typeof mId === 'string' && mId) {
-            cleanMap[rId] = mId;
-          }
-        });
-        sanitizedAssignments[shiftKey] = cleanMap;
+        sanitizedAssignments[shiftKey] = { ...roleMap };
       }
     });
   }
@@ -394,7 +285,10 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
     couples: Array.isArray(parsed.couples) ? parsed.couples : fallbackDefault.couples,
     notices: Array.isArray(parsed.notices) ? parsed.notices : [],
     chatMessages: Array.isArray(parsed.chatMessages) && parsed.chatMessages.length > 0 ? parsed.chatMessages : fallbackDefault.chatMessages,
-    adminPassword: parsed.adminPassword || 'alabanza2026',
+    adminPassword:
+      parsed.adminPassword !== undefined && parsed.adminPassword !== null
+        ? String(parsed.adminPassword).trim()
+        : '1019052271',
     seeded: !!parsed.seeded,
     worshipPlaylistUrl:
       typeof parsed.worshipPlaylistUrl === 'string'
@@ -661,47 +555,12 @@ export function subscribeToCloudState(
         const cloudData = snapshot.data();
         const sanitizedCloud = sanitizeLoadedState(cloudData);
 
-        // Protección anti-sobreescritura: verificar si localmente hay asignaciones y la nube vino vacía
-        const currentLocal = loadStoredState();
-        const localAssignCount = Object.keys(currentLocal.assignments || {}).reduce(
-          (acc, k) => acc + Object.keys(currentLocal.assignments[k] || {}).length,
-          0
-        );
-        const cloudAssignCount = Object.keys(sanitizedCloud.assignments || {}).reduce(
-          (acc, k) => acc + Object.keys(sanitizedCloud.assignments[k] || {}).length,
-          0
-        );
-
-        // Si la nube está vacía pero este dispositivo tenía asignaciones guardadas:
-        // Preservamos las asignaciones del usuario y las re-sincronizamos hacia la nube para recuperarlas
-        if (cloudAssignCount === 0 && localAssignCount > 0) {
-          console.warn(`[Storage] Nube vacía detectada; restaurando ${localAssignCount} asignaciones locales hacia la nube`);
-          const restoredState: AppState = {
-            ...sanitizedCloud,
-            assignments: currentLocal.assignments,
-            shiftSongs: (currentLocal.shiftSongs && Object.keys(currentLocal.shiftSongs).length > 0)
-              ? currentLocal.shiftSongs
-              : sanitizedCloud.shiftSongs,
-            lastUpdated: new Date().toISOString(),
-          };
-          saveStoredState(restoredState);
-          onUpdate(restoredState);
-          saveCloudState(restoredState);
-          return;
-        }
-
-        // Actualizar cache local normalmente
+        // Guardar en cache local y notificar al estado de React
         saveStoredState(sanitizedCloud);
         onUpdate(sanitizedCloud);
-      } else if (!hasAttemptedInitialCloudSeed && navigator.onLine) {
-        hasAttemptedInitialCloudSeed = true;
+      } else {
         const local = loadStoredState();
-        try {
-          await setDoc(docRef, local, { merge: true });
-          onUpdate(local);
-        } catch (err) {
-          console.warn('Modo sin conexión detectado, usando datos locales:', err);
-        }
+        onUpdate(local);
       }
     },
     error => {
