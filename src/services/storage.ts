@@ -17,6 +17,7 @@ import {
 export const STORAGE_KEY = 'turnos_musicos_data_v4';
 const CLOUD_DOC_PATH = { collection: 'shared_data', id: 'main' };
 
+
 export interface DetectedBackup {
   key: string;
   source: 'localStorage' | 'cloudBackup';
@@ -143,7 +144,6 @@ export function getInitialDefaultState(): AppState {
     couples,
     notices: defaultNotices,
     chatMessages: defaultChatMessages,
-    adminPassword: 'alabanza2026',
     seeded: true,
     worshipPlaylistUrl: '',
     lastUpdated: new Date().toISOString(),
@@ -285,10 +285,6 @@ export function sanitizeLoadedState(rawState: unknown): AppState {
     couples: Array.isArray(parsed.couples) ? parsed.couples : fallbackDefault.couples,
     notices: Array.isArray(parsed.notices) ? parsed.notices : [],
     chatMessages: Array.isArray(parsed.chatMessages) && parsed.chatMessages.length > 0 ? parsed.chatMessages : fallbackDefault.chatMessages,
-    adminPassword:
-      parsed.adminPassword !== undefined && parsed.adminPassword !== null
-        ? String(parsed.adminPassword).trim()
-        : '1019052271',
     seeded: !!parsed.seeded,
     worshipPlaylistUrl:
       typeof parsed.worshipPlaylistUrl === 'string'
@@ -506,14 +502,15 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
       couples: state.couples || [],
       notices: state.notices || [],
       chatMessages: state.chatMessages || [],
-      adminPassword: state.adminPassword || 'alabanza2026',
       seeded: !!state.seeded,
       worshipPlaylistUrl: state.worshipPlaylistUrl || '',
       lastUpdated: new Date().toISOString(),
     };
     // Sanitizar profundamente para evitar cualquier valor undefined que rechace Firestore
     const cleanPayload = JSON.parse(JSON.stringify(payload));
-    await setDoc(docRef, cleanPayload, { merge: true });
+    // Sin { merge: true }: con merge, Firestore fusiona los mapas anidados (assignments, shiftSongs)
+    // y las claves eliminadas localmente reaparecían desde la nube.
+    await setDoc(docRef, cleanPayload);
 
     // Guardar respaldo adicional en 'backup_latest' si contiene asignaciones o avisos
     const assignCount = Object.keys(cleanPayload.assignments || {}).reduce(
@@ -523,7 +520,7 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
     if (assignCount > 0 || (cleanPayload.notices && cleanPayload.notices.length > 0)) {
       try {
         const backupDocRef = doc(db, CLOUD_DOC_PATH.collection, 'backup_latest');
-        await setDoc(backupDocRef, cleanPayload, { merge: true });
+        await setDoc(backupDocRef, cleanPayload);
       } catch (errBackup) {
         console.warn('No se pudo guardar backup secundario en la nube:', errBackup);
       }

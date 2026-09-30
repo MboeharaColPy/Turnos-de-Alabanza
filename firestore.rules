@@ -1,8 +1,32 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Un administrador es una cuenta de Firebase Auth cuyo UID tiene un documento en admins/{uid}.
+    // Esos documentos se crean SOLO a mano desde la consola de Firebase (las reglas no dejan
+    // escribirlos desde la app), así que nadie puede autoconcederse el rol.
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Estado compartido de la app (shared_data/main) y su respaldo (shared_data/backup_latest):
+    // lectura pública para que todo el grupo vea turnos y repertorio; escritura solo admins.
+    match /shared_data/{docId} {
+      allow read: if true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // Cada usuario solo puede comprobar si SU propio UID está en la lista de admins.
+    match /admins/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow list, write: if false;
+    }
+
+    // Todo lo demás, cerrado.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

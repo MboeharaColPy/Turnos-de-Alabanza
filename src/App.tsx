@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppState, Musician, Role, Slot, SongItem, Couple, SongAttachment, DEFAULT_SONG_CATEGORIES } from './types';
 import {
   loadStoredState,
@@ -14,6 +14,7 @@ import {
   scanAvailableLocalBackups,
   DetectedBackup,
 } from './services/storage';
+import { subscribeAdminStatus, loginAdmin, logoutAdmin, changeAdminPassword, authErrorMessage } from './auth';
 import { Header, ActiveTab } from './components/Header';
 import { BottomNavigation } from './components/BottomNavigation';
 import { DashboardHomeView } from './components/DashboardHomeView';
@@ -33,6 +34,9 @@ import { KeyRound, ShieldAlert, X, Eye, EyeOff, Check, ShieldCheck, RotateCcw } 
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadStoredState());
+  // Copia siempre actualizada del estado, para calcular el siguiente estado de forma síncrona
+  const stateRef = useRef<AppState>(state);
+  stateRef.current = state;
   const [activeTab, setActiveTab] = useState<ActiveTab>('inicio');
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getMonday(new Date()));
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -88,12 +92,14 @@ export default function App() {
   };
 
   // Admin Auth State
-  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
-    return sessionStorage.getItem('alabanza_admin_auth') === 'true';
-  });
+  // isAdmin ya no vive en sessionStorage (cualquiera podía activarlo desde la consola del navegador):
+  // depende de la sesión de Firebase Auth y de que la cuenta exista en admins/{uid}.
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
-  const [adminPasswordError, setAdminPasswordError] = useState(false);
+  const [adminPasswordError, setAdminPasswordError] = useState('');
+  const [adminEmailInput, setAdminEmailInput] = useState(() => localStorage.getItem('alabanza_admin_email') || '');
+  const [adminLoggingIn, setAdminLoggingIn] = useState(false);
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [pendingTab, setPendingTab] = useState<ActiveTab | null>(null);
 
@@ -143,6 +149,9 @@ export default function App() {
     };
   }, []);
 
+  // Sesión de administrador (Firebase Auth)
+  useEffect(() => subscribeAdminStatus(setIsAdmin), []);
+
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
@@ -153,17 +162,18 @@ export default function App() {
   // Guardar y sincronizar con Firestore en tiempo real
   const updateStateAndSave = useCallback(async (updater: (prev: AppState) => AppState) => {
     setIsSaving(true);
-    let nextState: AppState | null = null;
-    setState(prev => {
-      nextState = updater(prev);
-      saveStoredState(nextState);
-      return nextState;
-    });
-
-    if (nextState) {
+    // Antes el "siguiente estado" se calculaba dentro del updater de setState, que React ejecuta
+    // de forma diferida: nextState podía seguir en null y el guardado en la nube se omitía
+    // (además el updater se ejecutaba dos veces bajo StrictMode).
+    const nextState = updater(stateRef.current);
+    stateRef.current = nextState;
+    setState(nextState);
+    saveStoredState(nextState);
+    try {
       await saveCloudState(nextState);
+    } finally {
+      setTimeout(() => setIsSaving(false), 200);
     }
-    setTimeout(() => setIsSaving(false), 200);
   }, []);
 
   // Recargar manual / forzar sincronización desde la nube (sin sobreescribir)
@@ -207,43 +217,32 @@ export default function App() {
   };
 
   // --- Admin Authentication Handlers ---
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const correctPassword = String(state.adminPassword ?? '1019052271').trim();
-    const entered = adminPasswordInput.trim();
-
-    // Verificación estricta y exacta: sensible a mayúsculas y minúsculas (sin variaciones)
-    if (entered === correctPassword) {
+    if (adminLoggingIn) return;
+    setAdminLoggingIn(true);
+    setAdminPasswordError('');
+    try {
+      await loginAdmin(adminEmailInput, adminPasswordInput);
+      localStorage.setItem('alabanza_admin_email', adminEmailInput.trim());
       setIsAdmin(true);
-      sessionStorage.setItem('alabanza_admin_auth', 'true');
       setShowAdminModal(false);
       setAdminPasswordInput('');
-      setAdminPasswordError(false);
       showToast('¡Acceso de Administrador concedido!');
-      const validTabs: ActiveTab[] = [
-        'inicio',
-        'canciones',
-        'calendario',
-        'eventos',
-        'musicos',
-        'estadisticas',
-        'config',
-        'mes',
-        'semana',
-        'cancionero',
-      ];
-      if (pendingTab && validTabs.includes(pendingTab)) {
+      if (pendingTab) {
         setActiveTab(pendingTab);
       }
       setPendingTab(null);
-    } else {
-      setAdminPasswordError(true);
+    } catch (err) {
+      setAdminPasswordError(authErrorMessage(err));
+    } finally {
+      setAdminLoggingIn(false);
     }
   };
 
-  const handleLogoutAdmin = () => {
+  const handleLogoutAdmin = async () => {
+    await logoutAdmin();
     setIsAdmin(false);
-    sessionStorage.removeItem('alabanza_admin_auth');
     showToast('Sesión de administrador cerrada.');
     if (activeTab === 'estadisticas' || activeTab === 'config') {
       setActiveTab('inicio');
@@ -269,16 +268,14 @@ export default function App() {
       setPendingTab(null);
     }
     setShowAdminModal(true);
-    setAdminPasswordError(false);
+    setAdminPasswordError('');
     setAdminPasswordInput('');
   };
 
-  const handleUpdateAdminPassword = (newPassword: string) => {
-    updateStateAndSave(prev => ({
-      ...prev,
-      adminPassword: newPassword,
-    }));
-    showToast('¡Contraseña de administrador actualizada con éxito!');
+  const handleUpdateAdminPassword = async (currentPassword: string, newPassword: string): Promise<string | null> => {
+    const error = await changeAdminPassword(currentPassword, newPassword);
+    if (!error) showToast('¡Contraseña de administrador actualizada con éxito!');
+    return error;
   };
 
   // --- Handlers de Asignaciones ---
@@ -355,6 +352,10 @@ export default function App() {
 
   // --- Handlers de Canciones y Setlist ---
   const handleUpdateSongs = (shiftKey: string, songs: SongItem[]) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     updateStateAndSave(prev => {
       const nextShiftSongs = { ...(prev.shiftSongs || {}) };
       if (songs.length === 0) {
@@ -370,6 +371,10 @@ export default function App() {
   };
 
   const handleAddToCatalog = (song: SongItem) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     updateStateAndSave(prev => {
       const catalog = prev.songCatalog || [];
       const alreadyInCatalog = catalog.some(
@@ -384,6 +389,10 @@ export default function App() {
   };
 
   const handleAddSongDirectToCatalog = (songData: Omit<SongItem, 'id'>) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     const newSong: SongItem = {
       ...songData,
       id: `sng_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -419,6 +428,10 @@ export default function App() {
     updatedAttachments?: SongAttachment[],
     updatedCategories?: string[]
   ) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     updateStateAndSave(prev => {
       // 1. Update in songCatalog
       const updatedCatalog = (prev.songCatalog || []).map(s => {
@@ -522,6 +535,10 @@ export default function App() {
 
   // Actualizar una canción completa del catálogo (metadata, categorías, etc.)
   const handleUpdateSongInCatalog = (updatedSong: SongItem) => {
+    if (!isAdmin) {
+      handleRequestAdminModal();
+      return;
+    }
     updateStateAndSave(prev => {
       const updatedCatalog = (prev.songCatalog || []).map(s => (s.id === updatedSong.id ? updatedSong : s));
       const updatedShiftSongs: Record<string, SongItem[]> = {};
@@ -955,7 +972,6 @@ export default function App() {
           theme={theme}
           onToggleTheme={handleToggleTheme}
           onChangeAdminPassword={handleUpdateAdminPassword}
-          adminPassword={state.adminPassword || 'alabanza2026'}
         />
 
         {/* Contenido según pestaña activa */}
@@ -1157,31 +1173,49 @@ export default function App() {
             </div>
 
             <p className="text-xs text-[#a0a0ab]">
-              Ingresa la contraseña de administración para editar músicos, parejas, roles, turnos y ver reportes.
+              Inicia sesión con tu cuenta de administrador para editar músicos, parejas, roles, turnos y ver reportes.
             </p>
 
             <form onSubmit={handleAdminLogin} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-[#6b6b75] mb-1">
+                  Correo de Administrador
+                </label>
+                <input
+                  type="email"
+                  autoFocus
+                  required
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  value={adminEmailInput}
+                  onChange={e => {
+                    setAdminEmailInput(e.target.value);
+                    setAdminPasswordError('');
+                  }}
+                  placeholder="correo@ejemplo.com"
+                  className="w-full bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none font-mono"
+                />
+              </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-[11px] font-mono uppercase text-[#6b6b75]">
                     Contraseña de Administrador
                   </label>
-                  <span className="text-[10px] text-[#8e8e98] font-mono">
-                    (exacta / minúsculas: alabanza2026)
-                  </span>
                 </div>
                 <div className="relative">
                   <input
                     type={showPasswordText ? 'text' : 'password'}
-                    autoFocus
                     required
+                    autoComplete="current-password"
                     autoCapitalize="none"
                     autoCorrect="off"
                     spellCheck={false}
                     value={adminPasswordInput}
                     onChange={e => {
                       setAdminPasswordInput(e.target.value);
-                      setAdminPasswordError(false);
+                      setAdminPasswordError('');
                     }}
                     placeholder="Contraseña..."
                     className="w-full bg-[#0a0a0b] border border-[#2a2a2e] focus:border-[#c5a059] rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none pr-10 font-mono"
@@ -1199,7 +1233,7 @@ export default function App() {
                   <div className="mt-2 space-y-1 bg-red-950/20 border border-red-900/40 p-2.5 rounded-xl">
                     <p className="text-xs text-red-400 flex items-center gap-1.5 font-mono">
                       <ShieldAlert size={13} className="flex-shrink-0" />
-                      <span>Contraseña incorrecta. Debe ser la contraseña exacta (sensible a mayúsculas y minúsculas).</span>
+                      <span>{adminPasswordError}</span>
                     </p>
                   </div>
                 )}
@@ -1215,9 +1249,10 @@ export default function App() {
                 </button>
                 <button
                   type="submit"
+                  disabled={adminLoggingIn}
                   className="px-4 py-2 bg-[#c5a059] hover:bg-[#d4b068] text-black font-bold rounded-xl text-xs uppercase tracking-wider transition-colors cursor-pointer font-mono shadow-md shadow-[#c5a059]/20"
                 >
-                  Desbloquear
+                  {adminLoggingIn ? 'Entrando...' : 'Iniciar sesión'}
                 </button>
               </div>
             </form>

@@ -97,6 +97,7 @@ export default defineConfig(() => {
         'react-dom/client',
         'firebase/app',
         'firebase/firestore',
+        'firebase/auth',
         'lucide-react',
         'motion/react',
       ],

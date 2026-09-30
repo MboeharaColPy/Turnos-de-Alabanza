@@ -53,8 +53,7 @@ interface HeaderProps {
   onOpenExplainer?: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
-  onChangeAdminPassword?: (newPass: string) => void;
-  adminPassword?: string;
+  onChangeAdminPassword?: (currentPass: string, newPass: string) => Promise<string | null>;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -71,7 +70,6 @@ export const Header: React.FC<HeaderProps> = ({
   theme = 'dark',
   onToggleTheme,
   onChangeAdminPassword,
-  adminPassword = 'alabanza2026',
 }) => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [currentPass, setCurrentPass] = useState('');
@@ -97,27 +95,26 @@ export const Header: React.FC<HeaderProps> = ({
     return activeTab === tabName;
   };
 
-  const handleSaveNewPassword = (e: React.FormEvent) => {
+  const handleSaveNewPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPassError('');
     setPassSuccess(false);
 
-    const actualCurrent = (adminPassword || 'alabanza2026').trim();
-    if (currentPass.trim() !== actualCurrent) {
-      setPassError('La contraseña actual ingresada es incorrecta.');
-      return;
-    }
-    if (newPass.trim().length < 6) {
+    if (newPass.length < 6) {
       setPassError('La nueva contraseña debe tener al menos 6 caracteres.');
       return;
     }
-    if (newPass.trim() !== confirmPass.trim()) {
+    if (newPass !== confirmPass) {
       setPassError('La nueva contraseña y su confirmación no coinciden.');
       return;
     }
+    if (!onChangeAdminPassword) return;
 
-    if (onChangeAdminPassword) {
-      onChangeAdminPassword(newPass.trim());
+    // La contraseña actual la verifica Firebase (reautenticación), no el navegador.
+    const error = await onChangeAdminPassword(currentPass, newPass);
+    if (error) {
+      setPassError(error);
+      return;
     }
     setPassSuccess(true);
     setTimeout(() => {

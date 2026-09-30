@@ -38,6 +38,17 @@
           "description": "Marca de tiempo de última actualización"
         }
       }
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Marca de administrador. El ID del documento es el UID de la cuenta de Firebase Auth; se crea a mano desde la consola.",
+      "type": "object",
+      "properties": {
+        "note": {
+          "type": "string",
+          "description": "Opcional: nombre o correo de la persona (solo para tu referencia)"
+        }
+      }
     }
   },
   "firestore": {
@@ -48,7 +59,10 @@
     "shared_data/backup_latest": {
       "schema": "SharedState",
       "description": "Copia de respaldo del estado con datos significativos"
+    },
+    "admins/{uid}": {
+      "schema": "Admin",
+      "description": "Lista de administradores autorizados a escribir en shared_data (solo lectura del propio documento)"
     }
   }
 }
-

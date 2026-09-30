@@ -99,7 +99,6 @@ export interface AppState {
   couples: Couple[];
   chatMessages?: ChatMessage[];
   notices?: Notice[];
-  adminPassword?: string;
   seeded: boolean;
   worshipPlaylistUrl?: string;
   lastUpdated?: string;

@@ -372,9 +372,12 @@ export function generateRotativeSchedule(
         });
 
         if (fallback.length > 0) {
-          filtered = preferredGender
-            ? fallback.filter(m => m.gender === preferredGender) || fallback
+          // Array.prototype.filter siempre devuelve un array (truthy), por lo que el antiguo
+          // `filter(...) || fallback` nunca usaba el respaldo y podía dejar el rol vacío.
+          const fallbackByGender = preferredGender
+            ? fallback.filter(m => m.gender === preferredGender)
             : fallback;
+          filtered = fallbackByGender.length > 0 ? fallbackByGender : fallback;
         }
       }
 

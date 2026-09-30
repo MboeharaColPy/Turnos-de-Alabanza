@@ -47,7 +47,7 @@ interface ConfigViewProps {
   onDeleteRole: (roleId: string) => void;
   onSaveSlot: (slot: Slot) => void;
   onDeleteSlot: (slotId: string) => void;
-  onUpdateAdminPassword: (newPassword: string) => void;
+  onUpdateAdminPassword: (currentPassword: string, newPassword: string) => Promise<string | null>;
   onResetAllData: (freshState: AppState) => void;
   onImportState: (importedState: AppState) => void;
   onSaveSongCategories?: (categories: string[]) => void;
@@ -334,27 +334,12 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
   };
 
   // --- Password Handler ---
-  const handleSavePassword = (e: React.FormEvent) => {
+  const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordStatus(null);
 
-    const currentPwd = (state.adminPassword || 'alabanza2026').trim();
-    const enteredCurrent = currentPasswordInput.trim();
-    const enteredNew = newPasswordInput.trim();
-    const enteredConfirm = confirmPasswordInput.trim();
-
-    // 1. Validar contraseña actual si se ha configurado
-    if (enteredCurrent !== currentPwd) {
-      setPasswordStatus({
-        type: 'error',
-        message: 'La contraseña actual ingresada es incorrecta. Verifica e intenta de nuevo.',
-      });
-      showToast('Contraseña actual incorrecta.');
-      return;
-    }
-
-    // 2. Validar longitud mínima
-    if (enteredNew.length < 6) {
+    // 1. Validar longitud mínima
+    if (newPasswordInput.length < 6) {
       setPasswordStatus({
         type: 'error',
         message: 'La nueva contraseña debe tener al menos 6 caracteres.',
@@ -363,8 +348,8 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
       return;
     }
 
-    // 3. Validar coincidencia
-    if (enteredNew !== enteredConfirm) {
+    // 2. Validar coincidencia
+    if (newPasswordInput !== confirmPasswordInput) {
       setPasswordStatus({
         type: 'error',
         message: 'La nueva contraseña y su confirmación no coinciden.',
@@ -373,8 +358,13 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
       return;
     }
 
-    // Guardar
-    onUpdateAdminPassword(enteredNew);
+    // 3. Guardar: Firebase verifica la contraseña actual (reautenticación)
+    const error = await onUpdateAdminPassword(currentPasswordInput, newPasswordInput);
+    if (error) {
+      setPasswordStatus({ type: 'error', message: error });
+      showToast(error);
+      return;
+    }
     setCurrentPasswordInput('');
     setNewPasswordInput('');
     setConfirmPasswordInput('');
