@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { SongItem, SongAttachment, AppState, DEFAULT_SONG_CATEGORIES } from '../types';
+import { safeGetStorage, safeSetStorage } from '../utils/safeStorage';
 import {
   parseLyricsLineTokens,
   transposeSongText,
@@ -190,13 +191,13 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
   
   // Persisted Chords vs Lyrics preference per device
   const [showChords, setShowChords] = useState<boolean>(() => {
-    const saved = localStorage.getItem('alabanza_view_chords');
+    const saved = safeGetStorage('alabanza_view_chords');
     return saved !== null ? saved === 'true' : true;
   });
 
   const handleToggleShowChords = (val: boolean) => {
     setShowChords(val);
-    localStorage.setItem('alabanza_view_chords', String(val));
+    safeSetStorage('alabanza_view_chords', String(val));
   };
 
   const [selectedInstrument, setSelectedInstrument] = useState<InstrumentType>('guitar');

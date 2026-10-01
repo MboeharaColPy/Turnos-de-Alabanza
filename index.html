@@ -17,10 +17,159 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+      /* Preloader inicial ultra-rápido para ventana de preview e inicio de app */
+      #app-preloader {
+        position: fixed;
+        inset: 0;
+        background-color: #0a0a0b;
+        color: #e0e0e0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        z-index: 9999;
+        padding: 24px;
+        text-align: center;
+      }
+      .preloader-emblem {
+        width: 84px;
+        height: 84px;
+        margin-bottom: 20px;
+        animation: emblemPulse 2.2s infinite ease-in-out;
+        filter: drop-shadow(0 0 20px rgba(197, 160, 89, 0.28));
+      }
+      @keyframes emblemPulse {
+        0%, 100% { transform: scale(1); opacity: 0.95; }
+        50% { transform: scale(1.06); opacity: 1; filter: drop-shadow(0 0 28px rgba(197, 160, 89, 0.45)); }
+      }
+      .preloader-title {
+        font-family: 'Cormorant Garamond', Georgia, serif;
+        font-size: 26px;
+        font-weight: 600;
+        color: #f5f5f7;
+        margin: 0 0 6px 0;
+        letter-spacing: -0.01em;
+      }
+      .preloader-subtitle {
+        font-size: 13px;
+        font-weight: 500;
+        color: #c5a059;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        margin: 0 0 28px 0;
+      }
+      .preloader-bar-container {
+        width: 180px;
+        height: 4px;
+        background: #1e1e24;
+        border-radius: 999px;
+        overflow: hidden;
+        position: relative;
+        margin-bottom: 14px;
+      }
+      .preloader-bar {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        background: linear-gradient(90deg, #84621c, #c5a059, #fff4c2, #c5a059);
+        border-radius: 999px;
+        width: 50%;
+        animation: barSlide 1.5s infinite ease-in-out;
+      }
+      @keyframes barSlide {
+        0% { left: -50%; width: 30%; }
+        50% { left: 25%; width: 60%; }
+        100% { left: 100%; width: 40%; }
+      }
+      .preloader-hint {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 11px;
+        color: #6b6b75;
+        letter-spacing: 0.04em;
+      }
+      .preloader-reload-btn {
+        display: none;
+        margin-top: 20px;
+        padding: 8px 16px;
+        background-color: #1e1e24;
+        border: 1px solid #2a2a32;
+        color: #c5a059;
+        border-radius: 10px;
+        font-size: 12px;
+        font-family: 'IBM Plex Mono', monospace;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .preloader-reload-btn:hover {
+        background-color: #272730;
+        color: #fff;
+        border-color: #c5a059;
+      }
+    </style>
   </head>
   <body class="bg-[#0a0a0b] text-[#e0e0e0] antialiased selection:bg-[#c5a059] selection:text-black">
     <div id="root"></div>
+
+    <div id="app-preloader">
+      <svg class="preloader-emblem" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="pGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#fff4c2"/>
+            <stop offset="30%" stop-color="#eac66e"/>
+            <stop offset="70%" stop-color="#c5a059"/>
+            <stop offset="100%" stop-color="#84621c"/>
+          </linearGradient>
+          <linearGradient id="pGoldGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#ffeeb0"/>
+            <stop offset="50%" stop-color="#d9af52"/>
+            <stop offset="100%" stop-color="#9a7226"/>
+          </linearGradient>
+        </defs>
+        <!-- Círculo de fondo con borde -->
+        <circle cx="256" cy="256" r="230" fill="#121217" stroke="#2d2d38" stroke-width="4"/>
+        <circle cx="256" cy="256" r="185" fill="none" stroke="url(#pGoldGrad)" stroke-width="2" stroke-dasharray="6 8" opacity="0.4"/>
+        <!-- Emblema Clave de Sol y Corcheas -->
+        <g transform="translate(256, 256) scale(0.9) translate(-256, -256)">
+          <!-- Barra de Corcheas -->
+          <path d="M 285 155 L 375 125 L 375 147 L 285 177 Z" fill="url(#pGoldGrad)"/>
+          <rect x="285" y="165" width="12" height="155" rx="6" fill="url(#pGoldGrad)"/>
+          <ellipse cx="270" cy="320" rx="30" ry="22" transform="rotate(-25 270 320)" fill="url(#pGoldGrad)"/>
+          <rect x="363" y="135" width="12" height="155" rx="6" fill="url(#pGoldGrad)"/>
+          <ellipse cx="348" cy="290" rx="28" ry="20" transform="rotate(-25 348 290)" fill="url(#pGoldGrad)"/>
+          <!-- Clave de Sol -->
+          <path d="M 216 410 C 195 410 178 395 178 372 C 178 348 198 335 218 344 C 228 348 234 358 234 370 C 234 390 220 398 205 398 C 202 398 198 396 195 394 M 216 410 L 216 140 C 216 90 240 70 252 70 C 264 70 270 85 264 110 C 256 142 225 200 205 250 C 175 320 135 345 135 285 C 135 220 200 190 242 220 C 275 244 280 290 255 325 C 235 352 195 352 178 335" fill="none" stroke="url(#pGoldGrad)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="216" cy="410" r="14" fill="url(#pGoldGrad)"/>
+        </g>
+      </svg>
+
+      <h1 class="preloader-title">Gestor de Turnos y Roles</h1>
+      <p class="preloader-subtitle">Ministerio de Alabanza</p>
+
+      <div class="preloader-bar-container">
+        <div class="preloader-bar"></div>
+      </div>
+
+      <p class="preloader-hint" id="preloader-status">Precargando aplicación...</p>
+
+      <button id="preloader-reload" class="preloader-reload-btn" onclick="window.location.reload()">
+        ↻ Recargar vista previa
+      </button>
+    </div>
+
+    <script>
+      // Si tarda más de 6 segundos en cargar, permitir recargar manualmente
+      setTimeout(function() {
+        var btn = document.getElementById('preloader-reload');
+        var status = document.getElementById('preloader-status');
+        if (btn && document.getElementById('app-preloader')) {
+          btn.style.display = 'inline-block';
+          if (status) status.innerText = 'Inicializando módulos...';
+        }
+      }, 6000);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

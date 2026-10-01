@@ -69,10 +69,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
             }
             loadingTask = pdfjsLib.getDocument({ data: bytes });
           } else {
-            loadingTask = pdfjsLib.getDocument(url);
+            loadingTask = pdfjsLib.getDocument({ url });
           }
         } else {
-          loadingTask = pdfjsLib.getDocument(url);
+          loadingTask = pdfjsLib.getDocument({ url });
         }
 
         const doc = await loadingTask.promise;
@@ -372,6 +372,7 @@ const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
         context.scale(pixelRatio, pixelRatio);
 
         const renderContext = {
+          canvas: canvasRef.current,
           canvasContext: context,
           viewport: viewport,
         };

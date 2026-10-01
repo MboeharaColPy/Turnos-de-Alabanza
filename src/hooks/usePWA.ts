@@ -20,91 +20,97 @@ export function usePWA() {
   useEffect(() => {
     // 1. Detect if running in standalone mode (already installed PWA)
     const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-    setIsInstalled(isStandalone);
+      (typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)')?.matches) ||
+      (typeof window !== 'undefined' && (window.navigator as unknown as { standalone?: boolean }).standalone === true);
+    setIsInstalled(!!isStandalone);
 
     // 2. Detect iOS device
-    const userAgent = window.navigator.userAgent.toLowerCase();
+    const userAgent = typeof window !== 'undefined' ? window.navigator.userAgent.toLowerCase() : '';
     const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
     setIsIOS(isIOSDevice);
 
-    // 3. Register Service Worker with vite-plugin-pwa
+    const isIframe = typeof window !== 'undefined' && window.self !== window.top;
+
+    // 3. Register Service Worker with vite-plugin-pwa (solo fuera de iframe de previsualización)
     let refreshing = false;
     const handleControllerChange = () => {
-      if (!refreshing) {
+      if (!refreshing && !isIframe) {
         refreshing = true;
         console.log('[PWA] Nuevo Service Worker activado. Recargando para aplicar cambios...');
         window.location.reload();
       }
     };
 
-    if ('serviceWorker' in navigator) {
+    if (!isIframe && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
     }
 
-    const updateSW = registerSW({
-      immediate: true,
-      onNeedRefresh() {
-        console.log('[PWA] Nueva versión detectada disponible para actualizar');
-        setNeedRefresh(true);
-      },
-      onOfflineReady() {
-        console.log('[PWA] Aplicación lista para funcionar sin conexión');
-        setOfflineReady(true);
-      },
-      onRegisteredSW(swUrl, r) {
-        console.log('[PWA] Service Worker registrado en:', swUrl);
-        if (r) {
-          // Chequeo inmediato al iniciar la app
-          r.update().catch(err => console.log('[PWA] Chequeo inicial:', err));
+    try {
+      const updateSW = registerSW({
+        immediate: true,
+        onNeedRefresh() {
+          console.log('[PWA] Nueva versión detectada disponible para actualizar');
+          setNeedRefresh(true);
+        },
+        onOfflineReady() {
+          console.log('[PWA] Aplicación lista para funcionar sin conexión');
+          setOfflineReady(true);
+        },
+        onRegisteredSW(swUrl, r) {
+          console.log('[PWA] Service Worker registrado en:', swUrl);
+          if (r) {
+            // Chequeo inmediato al iniciar la app
+            r.update().catch(err => console.log('[PWA] Chequeo inicial:', err));
 
-          // Si ya hay un worker esperando en segundo plano, activarlo
-          if (r.waiting) {
-            r.waiting.postMessage({ type: 'SKIP_WAITING' });
-            setNeedRefresh(true);
-          }
-
-          // Chequeo periódico cada 60 segundos
-          const interval = setInterval(() => {
-            r.update().catch(err => console.log('[PWA] Error al chequear actualización periódica:', err));
-          }, 60 * 1000);
-
-          // Chequeo cuando la app pasa al primer plano (ideal para móviles instalados)
-          const onVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-              r.update().catch(err => console.log('[PWA] Error al chequear en visibilidad:', err));
+            // Si ya hay un worker esperando en segundo plano, activarlo
+            if (r.waiting) {
+              r.waiting.postMessage({ type: 'SKIP_WAITING' });
+              setNeedRefresh(true);
             }
-          };
 
-          // Chequeo cuando la ventana vuelve a tener foco
-          const onFocus = () => {
-            r.update().catch(err => console.log('[PWA] Error al chequear actualización en foco:', err));
-          };
+            // Chequeo periódico cada 60 segundos
+            const interval = setInterval(() => {
+              r.update().catch(err => console.log('[PWA] Error al chequear actualización periódica:', err));
+            }, 60 * 1000);
 
-          // Chequeo cuando el dispositivo recupera conexión a internet
-          const onOnline = () => {
-            r.update().catch(err => console.log('[PWA] Error al chequear actualización online:', err));
-          };
+            // Chequeo cuando la app pasa al primer plano (ideal para móviles instalados)
+            const onVisibilityChange = () => {
+              if (document.visibilityState === 'visible') {
+                r.update().catch(err => console.log('[PWA] Error al chequear en visibilidad:', err));
+              }
+            };
 
-          document.addEventListener('visibilitychange', onVisibilityChange);
-          window.addEventListener('focus', onFocus);
-          window.addEventListener('online', onOnline);
+            // Chequeo cuando la ventana vuelve a tener foco
+            const onFocus = () => {
+              r.update().catch(err => console.log('[PWA] Error al chequear actualización en foco:', err));
+            };
 
-          return () => {
-            clearInterval(interval);
-            document.removeEventListener('visibilitychange', onVisibilityChange);
-            window.removeEventListener('focus', onFocus);
-            window.removeEventListener('online', onOnline);
-          };
-        }
-      },
-      onRegisterError(error) {
-        console.warn('[PWA] Error en registro de Service Worker:', error);
-      },
-    });
+            // Chequeo cuando el dispositivo recupera conexión a internet
+            const onOnline = () => {
+              r.update().catch(err => console.log('[PWA] Error al chequear actualización online:', err));
+            };
 
-    setUpdateFunction(() => updateSW);
+            document.addEventListener('visibilitychange', onVisibilityChange);
+            window.addEventListener('focus', onFocus);
+            window.addEventListener('online', onOnline);
+
+            return () => {
+              clearInterval(interval);
+              document.removeEventListener('visibilitychange', onVisibilityChange);
+              window.removeEventListener('focus', onFocus);
+              window.removeEventListener('online', onOnline);
+            };
+          }
+        },
+        onRegisterError(error) {
+          console.warn('[PWA] Error en registro de Service Worker:', error);
+        },
+      });
+
+      setUpdateFunction(() => updateSW);
+    } catch (e) {
+      console.warn('[PWA] Registro de Service Worker omitido (posible iframe o modo desarrollo):', e);
+    }
 
     // 4. Capture Install Prompt event for custom UI button
     const handleBeforeInstallPrompt = (e: Event) => {

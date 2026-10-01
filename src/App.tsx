@@ -30,6 +30,7 @@ import { ConflictExplainerModal } from './components/ConflictExplainerModal';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { usePWA } from './hooks/usePWA';
 import { getMonday } from './utils/dateUtils';
+import { safeGetStorage, safeSetStorage } from './utils/safeStorage';
 import { KeyRound, ShieldAlert, X, Eye, EyeOff, Check, ShieldCheck, RotateCcw } from 'lucide-react';
 
 export default function App() {
@@ -59,7 +60,7 @@ export default function App() {
 
   // Theme State: Dark or Light mode
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    return (localStorage.getItem('alabanza_theme') as 'dark' | 'light') || 'dark';
+    return (safeGetStorage('alabanza_theme') as 'dark' | 'light') || 'dark';
   });
 
   useEffect(() => {
@@ -86,7 +87,7 @@ export default function App() {
   const handleToggleTheme = () => {
     setTheme(prev => {
       const next = prev === 'dark' ? 'light' : 'dark';
-      localStorage.setItem('alabanza_theme', next);
+      safeSetStorage('alabanza_theme', next);
       return next;
     });
   };
@@ -98,7 +99,7 @@ export default function App() {
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [adminPasswordError, setAdminPasswordError] = useState('');
-  const [adminEmailInput, setAdminEmailInput] = useState(() => localStorage.getItem('alabanza_admin_email') || '');
+  const [adminEmailInput, setAdminEmailInput] = useState(() => safeGetStorage('alabanza_admin_email') || '');
   const [adminLoggingIn, setAdminLoggingIn] = useState(false);
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [pendingTab, setPendingTab] = useState<ActiveTab | null>(null);
@@ -224,7 +225,7 @@ export default function App() {
     setAdminPasswordError('');
     try {
       await loginAdmin(adminEmailInput, adminPasswordInput);
-      localStorage.setItem('alabanza_admin_email', adminEmailInput.trim());
+      safeSetStorage('alabanza_admin_email', adminEmailInput.trim());
       setIsAdmin(true);
       setShowAdminModal(false);
       setAdminPasswordInput('');
