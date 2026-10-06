@@ -321,30 +321,13 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
             </span>
           </div>
 
-          {/* Apartado de Ensayo Previo Vinculado */}
+          {/* Ensayo Previo Vinculado */}
           {nextMainEvent.slot.rehearsal && nextMainEvent.slot.rehearsal.enabled && (
-            <div className="mb-5 bg-gradient-to-r from-amber-950/25 via-[#18181d] to-[#141418] border border-amber-500/35 rounded-xl p-3.5 flex items-center justify-between gap-3 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 flex-shrink-0">
-                  <Music size={16} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-xs uppercase tracking-wider text-amber-300 font-bold">
-                      Apartado de Ensayo Previo
-                    </span>
-                    <span className="font-mono text-[11px] font-bold text-amber-400 bg-amber-400/15 px-2 py-0.5 rounded border border-amber-400/30">
-                      {DAYS_OF_WEEK[nextMainEvent.slot.rehearsal.day]} a las {nextMainEvent.slot.rehearsal.time} HS
-                    </span>
-                    <span className="text-[11px] font-mono text-[#888894]">
-                      ({nextMainEvent.slot.rehearsal.durationMinutes || 90} min)
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#a0a0ab] mt-0.5">
-                    <span className="text-white font-medium">{nextMainEvent.slot.rehearsal.label || 'Ensayo programado'}</span> • Convocado el mismo equipo
-                  </p>
-                </div>
-              </div>
+            <div className="mb-4 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/25 text-xs font-mono">
+              <span className="text-amber-400 font-bold">Ensayo:</span>
+              <span className="text-[#e0e0e0]">
+                {DAYS_OF_WEEK[nextMainEvent.slot.rehearsal.day]} {nextMainEvent.slot.rehearsal.time} hs
+              </span>
             </div>
           )}
 
