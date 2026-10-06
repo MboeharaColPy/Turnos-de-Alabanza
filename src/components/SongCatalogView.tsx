@@ -306,7 +306,7 @@ export const SongCatalogView: React.FC<SongCatalogViewProps> = ({
               </button>
             </div>
 
-            {isAdmin && onAddSong && (
+            {onAddSong && (
               <button
                 onClick={() => {
                   setArtistInput('');

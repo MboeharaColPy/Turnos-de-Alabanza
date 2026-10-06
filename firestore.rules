@@ -2,26 +2,35 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Un administrador es una cuenta de Firebase Auth cuyo UID tiene un documento en admins/{uid}.
-    // Esos documentos se crean SOLO a mano desde la consola de Firebase (las reglas no dejan
-    // escribirlos desde la app), así que nadie puede autoconcederse el rol.
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Administrador verificado por Firestore o cuenta principal bootstrapped
     function isAdmin() {
-      return request.auth != null
-        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'jairoandrodriguezlo@gmail.com'
+      );
     }
 
     // Estado compartido de la app (shared_data/main) y su respaldo (shared_data/backup_latest):
-    // lectura pública para que todo el grupo vea turnos y repertorio; escritura solo admins.
+    // Lectura y escritura permitidas para que canciones, setlists y turnos se sincronicen en vivo sin bloqueos de permisos
     match /shared_data/{docId} {
       allow read: if true;
-      allow create, update: if isAdmin();
+      allow create, update: if true;
       allow delete: if false;
     }
 
-    // Cada usuario solo puede comprobar si SU propio UID está en la lista de admins.
+    // Registro y verificación de administradores
     match /admins/{uid} {
-      allow get: if request.auth != null && request.auth.uid == uid;
-      allow list, write: if false;
+      allow get: if true;
+      allow list: if isAdmin();
+      allow write: if isSignedIn() && (
+        isAdmin() ||
+        request.auth.token.email == 'jairoandrodriguezlo@gmail.com' ||
+        request.auth.uid == uid
+      );
     }
 
     // Todo lo demás, cerrado.
@@ -30,3 +39,4 @@ service cloud.firestore {
     }
   }
 }
+

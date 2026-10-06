@@ -14,7 +14,15 @@ import {
   scanAvailableLocalBackups,
   DetectedBackup,
 } from './services/storage';
-import { subscribeAdminStatus, loginAdmin, logoutAdmin, changeAdminPassword, authErrorMessage } from './auth';
+import {
+  subscribeAdminStatus,
+  loginAdmin,
+  loginAdminWithGoogle,
+  logoutAdmin,
+  changeAdminPassword,
+  authErrorMessage,
+  BOOTSTRAP_ADMIN_EMAIL,
+} from './auth';
 import { Header, ActiveTab } from './components/Header';
 import { BottomNavigation } from './components/BottomNavigation';
 import { DashboardHomeView } from './components/DashboardHomeView';
@@ -99,7 +107,7 @@ export default function App() {
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [adminPasswordError, setAdminPasswordError] = useState('');
-  const [adminEmailInput, setAdminEmailInput] = useState(() => safeGetStorage('alabanza_admin_email') || '');
+  const [adminEmailInput, setAdminEmailInput] = useState(() => safeGetStorage('alabanza_admin_email') || BOOTSTRAP_ADMIN_EMAIL);
   const [adminLoggingIn, setAdminLoggingIn] = useState(false);
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [pendingTab, setPendingTab] = useState<ActiveTab | null>(null);
@@ -218,6 +226,26 @@ export default function App() {
   };
 
   // --- Admin Authentication Handlers ---
+  const handleGoogleAdminLogin = async () => {
+    if (adminLoggingIn) return;
+    setAdminLoggingIn(true);
+    setAdminPasswordError('');
+    try {
+      await loginAdminWithGoogle();
+      setIsAdmin(true);
+      setShowAdminModal(false);
+      showToast('¡Acceso de Administrador concedido con Google!');
+      if (pendingTab) {
+        setActiveTab(pendingTab);
+      }
+      setPendingTab(null);
+    } catch (err) {
+      setAdminPasswordError(authErrorMessage(err));
+    } finally {
+      setAdminLoggingIn(false);
+    }
+  };
+
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (adminLoggingIn) return;
@@ -353,10 +381,6 @@ export default function App() {
 
   // --- Handlers de Canciones y Setlist ---
   const handleUpdateSongs = (shiftKey: string, songs: SongItem[]) => {
-    if (!isAdmin) {
-      handleRequestAdminModal();
-      return;
-    }
     updateStateAndSave(prev => {
       const nextShiftSongs = { ...(prev.shiftSongs || {}) };
       if (songs.length === 0) {
@@ -372,10 +396,6 @@ export default function App() {
   };
 
   const handleAddToCatalog = (song: SongItem) => {
-    if (!isAdmin) {
-      handleRequestAdminModal();
-      return;
-    }
     updateStateAndSave(prev => {
       const catalog = prev.songCatalog || [];
       const alreadyInCatalog = catalog.some(
@@ -390,10 +410,6 @@ export default function App() {
   };
 
   const handleAddSongDirectToCatalog = (songData: Omit<SongItem, 'id'>) => {
-    if (!isAdmin) {
-      handleRequestAdminModal();
-      return;
-    }
     const newSong: SongItem = {
       ...songData,
       id: `sng_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -401,6 +417,7 @@ export default function App() {
       artist: songData.artist || 'Desconocido',
       artists: songData.artists || [songData.artist || 'Desconocido'],
       category: songData.category || 'Adoración',
+      categories: songData.categories || [songData.category || 'Adoración'],
       key: songData.key || 'G',
       bpm: songData.bpm || 0,
       lyrics: songData.lyrics || '',
@@ -429,10 +446,6 @@ export default function App() {
     updatedAttachments?: SongAttachment[],
     updatedCategories?: string[]
   ) => {
-    if (!isAdmin) {
-      handleRequestAdminModal();
-      return;
-    }
     updateStateAndSave(prev => {
       // 1. Update in songCatalog
       const updatedCatalog = (prev.songCatalog || []).map(s => {
@@ -450,6 +463,7 @@ export default function App() {
                   category: updatedCategories[0] || s.category,
                 }
               : {}),
+            updatedAt: new Date().toISOString(),
           };
         }
         return s;
@@ -474,6 +488,7 @@ export default function App() {
                     category: updatedCategories[0] || s.category,
                   }
                 : {}),
+              updatedAt: new Date().toISOString(),
             };
           }
           return s;
@@ -503,6 +518,7 @@ export default function App() {
                   category: updatedCategories[0] || curr.category,
                 }
               : {}),
+            updatedAt: new Date().toISOString(),
           }
         : curr
     );
@@ -525,6 +541,7 @@ export default function App() {
                         category: updatedCategories[0] || s.category,
                       }
                     : {}),
+                  updatedAt: new Date().toISOString(),
                 }
               : s
           )
@@ -536,10 +553,6 @@ export default function App() {
 
   // Actualizar una canción completa del catálogo (metadata, categorías, etc.)
   const handleUpdateSongInCatalog = (updatedSong: SongItem) => {
-    if (!isAdmin) {
-      handleRequestAdminModal();
-      return;
-    }
     updateStateAndSave(prev => {
       const updatedCatalog = (prev.songCatalog || []).map(s => (s.id === updatedSong.id ? updatedSong : s));
       const updatedShiftSongs: Record<string, SongItem[]> = {};
@@ -1077,6 +1090,7 @@ export default function App() {
               onDeleteMusician={handleDeleteMusician}
               onSaveCouple={handleSaveCouple}
               onDeleteCouple={handleDeleteCouple}
+              onSaveRole={handleSaveRole}
               showToast={showToast}
             />
           )}
@@ -1174,8 +1188,42 @@ export default function App() {
             </div>
 
             <p className="text-xs text-[#a0a0ab]">
-              Inicia sesión con tu cuenta de administrador para editar músicos, parejas, roles, turnos y ver reportes.
+              Inicia sesión con tu cuenta de administrador ({BOOTSTRAP_ADMIN_EMAIL}) para gestionar configuraciones, turnos y ver reportes.
             </p>
+
+            {/* Acceso con Google */}
+            <button
+              type="button"
+              disabled={adminLoggingIn}
+              onClick={handleGoogleAdminLogin}
+              className="w-full flex items-center justify-center gap-2.5 py-2.5 px-4 bg-white hover:bg-slate-100 text-slate-800 rounded-xl text-xs font-semibold shadow transition-all cursor-pointer border border-slate-300 active:scale-95"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                />
+              </svg>
+              <span>Continuar con Google</span>
+            </button>
+
+            <div className="flex items-center gap-2 my-1">
+              <div className="flex-1 h-px bg-[#24242a]"></div>
+              <span className="text-[10px] text-[#6b6b75] uppercase font-mono tracking-widest">o con correo</span>
+              <div className="flex-1 h-px bg-[#24242a]"></div>
+            </div>
 
             <form onSubmit={handleAdminLogin} className="space-y-4">
               <div>

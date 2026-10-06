@@ -35,6 +35,7 @@ interface MusiciansViewProps {
   onDeleteMusician: (musicianId: string) => void;
   onSaveCouple: (couple: Couple) => void;
   onDeleteCouple: (coupleId: string) => void;
+  onSaveRole?: (role: Role) => void;
   showToast: (msg: string) => void;
 }
 
@@ -64,6 +65,7 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
   onDeleteMusician,
   onSaveCouple,
   onDeleteCouple,
+  onSaveRole,
   showToast,
 }) => {
   // Visual Mode and Sorting States (Default: Listado & Alfabético A-Z)
@@ -77,6 +79,27 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
   const [gender, setGender] = useState<Gender>('H');
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
   const [primaryRoleId, setPrimaryRoleId] = useState<string>('');
+
+  // Creación rápida de nuevo rol desde el modal de músicos
+  const [isCreatingRole, setIsCreatingRole] = useState(false);
+  const [newRoleNameInput, setNewRoleNameInput] = useState('');
+
+  const handleQuickCreateRole = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = newRoleNameInput.trim();
+    if (!clean) return;
+    if (onSaveRole) {
+      const newRole: Role = {
+        id: generateId('rol'),
+        name: clean,
+      };
+      onSaveRole(newRole);
+      setSelectedRoleIds(prev => [...prev, newRole.id]);
+      setNewRoleNameInput('');
+      setIsCreatingRole(false);
+      showToast(`¡Rol "${clean}" creado y asignado exitosamente!`);
+    }
+  };
 
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState('');
@@ -1225,10 +1248,22 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
                     Todos los Roles Habilitados ({selectedRoleIds.length})
                   </label>
                   <div className="flex items-center gap-2 text-[10px] font-mono tracking-wider uppercase">
+                    {onSaveRole && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setIsCreatingRole(!isCreatingRole)}
+                          className="text-[#c5a059] hover:underline cursor-pointer font-bold flex items-center gap-0.5"
+                        >
+                          + Crear Rol
+                        </button>
+                        <span className="text-[#2a2a2e]">|</span>
+                      </>
+                    )}
                     <button
                       type="button"
                       onClick={selectAllRoles}
-                      className="text-[#c5a059] hover:underline cursor-pointer"
+                      className="text-[#888894] hover:text-[#c5a059] hover:underline cursor-pointer"
                     >
                       Todos
                     </button>
@@ -1242,6 +1277,37 @@ export const MusiciansView: React.FC<MusiciansViewProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* Formulario rápido para crear nuevo rol si está activo */}
+                {isCreatingRole && onSaveRole && (
+                  <div className="mb-2.5 p-2 bg-[#121216] border border-[#c5a059]/40 rounded-xl flex items-center gap-2 animate-in fade-in duration-150">
+                    <input
+                      type="text"
+                      value={newRoleNameInput}
+                      onChange={e => setNewRoleNameInput(e.target.value)}
+                      placeholder="Nombre del nuevo rol (ej: Saxofón, Flauta, Bajo 2)..."
+                      className="flex-1 bg-[#0a0a0b] text-white text-xs px-2.5 py-1.5 rounded-lg border border-[#2a2a2e] focus:border-[#c5a059] focus:outline-none"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleQuickCreateRole}
+                      className="px-3 py-1.5 bg-[#c5a059] hover:bg-[#d8b065] text-black font-bold text-xs rounded-lg cursor-pointer"
+                    >
+                      Guardar Rol
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreatingRole(false);
+                        setNewRoleNameInput('');
+                      }}
+                      className="px-2 py-1.5 text-[#888894] hover:text-white text-xs rounded-lg cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
 
                 {state.roles.length === 0 ? (
                   <p className="text-xs text-[#6b6b75] italic p-3 bg-[#0a0a0b] rounded border border-[#1f1f23]">

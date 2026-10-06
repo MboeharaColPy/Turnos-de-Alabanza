@@ -508,16 +508,20 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
     };
     // Sanitizar profundamente para evitar cualquier valor undefined que rechace Firestore
     const cleanPayload = JSON.parse(JSON.stringify(payload));
-    // Sin { merge: true }: con merge, Firestore fusiona los mapas anidados (assignments, shiftSongs)
-    // y las claves eliminadas localmente reaparecían desde la nube.
+    // Guardar en documento principal
     await setDoc(docRef, cleanPayload);
 
-    // Guardar respaldo adicional en 'backup_latest' si contiene asignaciones o avisos
+    // Guardar respaldo adicional en 'backup_latest' si contiene datos significativos
     const assignCount = Object.keys(cleanPayload.assignments || {}).reduce(
       (acc: number, k: string) => acc + Object.keys(cleanPayload.assignments[k] || {}).length,
       0
     );
-    if (assignCount > 0 || (cleanPayload.notices && cleanPayload.notices.length > 0)) {
+    const shiftSongsValues = Object.values(cleanPayload.shiftSongs || {}) as unknown[];
+    const songsInShifts: number = shiftSongsValues.reduce<number>(
+      (acc, list) => acc + (Array.isArray(list) ? list.length : 0),
+      0
+    );
+    if (assignCount > 0 || songsInShifts > 0 || (cleanPayload.notices && cleanPayload.notices.length > 0)) {
       try {
         const backupDocRef = doc(db, CLOUD_DOC_PATH.collection, 'backup_latest');
         await setDoc(backupDocRef, cleanPayload);
@@ -528,7 +532,7 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
 
     return true;
   } catch (error) {
-    console.warn('Almacenamiento en la nube en modo diferido/offline:', error);
+    console.error('Error al guardar estado en Firestore:', error);
     return false;
   }
 }
@@ -537,7 +541,7 @@ let hasAttemptedInitialCloudSeed = false;
 
 /**
  * Escucha cambios en tiempo real desde Firestore.
- * Incluye protección para no borrar asignaciones locales si la nube llega vacía.
+ * Incluye protección contra sobreescritura de datos locales nuevos con versiones antiguas.
  */
 export function subscribeToCloudState(
   onUpdate: (state: AppState) => void,
@@ -548,9 +552,55 @@ export function subscribeToCloudState(
   const unsubscribe = onSnapshot(
     docRef,
     async snapshot => {
+      // Ignorar escrituras locales optimistas pendientes en este cliente
+      if (snapshot.metadata.hasPendingWrites) {
+        return;
+      }
       if (snapshot.exists()) {
         const cloudData = snapshot.data();
-        const sanitizedCloud = sanitizeLoadedState(cloudData);
+        let sanitizedCloud = sanitizeLoadedState(cloudData);
+
+        // Validar si los datos locales en este navegador son más recientes
+        const currentLocal = loadStoredState();
+        const localTime = currentLocal.lastUpdated ? new Date(currentLocal.lastUpdated).getTime() : 0;
+        const cloudTime = sanitizedCloud.lastUpdated ? new Date(sanitizedCloud.lastUpdated).getTime() : 0;
+
+        // Si lo local es más nuevo (por ejemplo edición reciente), preservarlo e intentar sincronizarlo
+        if (localTime > cloudTime + 2000) {
+          console.log('[Storage] Preservando cambios locales más recientes que la nube');
+          saveCloudState(currentLocal);
+          return;
+        }
+
+        // Fusión segura: preservar cualquier canción agregada localmente que aún no esté en la nube
+        if (currentLocal.songCatalog && currentLocal.songCatalog.length > 0) {
+          const cloudSongIds = new Set((sanitizedCloud.songCatalog || []).map(s => s.id));
+          const extraLocalSongs = currentLocal.songCatalog.filter(s => !cloudSongIds.has(s.id));
+          if (extraLocalSongs.length > 0) {
+            sanitizedCloud = {
+              ...sanitizedCloud,
+              songCatalog: [...sanitizedCloud.songCatalog, ...extraLocalSongs],
+            };
+          }
+        }
+
+        // Fusión segura: preservar shiftSongs locales si la nube viene vacía para un turno
+        if (currentLocal.shiftSongs && Object.keys(currentLocal.shiftSongs).length > 0) {
+          const mergedShiftSongs = { ...sanitizedCloud.shiftSongs };
+          let changed = false;
+          Object.entries(currentLocal.shiftSongs).forEach(([k, list]) => {
+            if ((!mergedShiftSongs[k] || mergedShiftSongs[k].length === 0) && Array.isArray(list) && list.length > 0) {
+              mergedShiftSongs[k] = list;
+              changed = true;
+            }
+          });
+          if (changed) {
+            sanitizedCloud = {
+              ...sanitizedCloud,
+              shiftSongs: mergedShiftSongs,
+            };
+          }
+        }
 
         // Guardar en cache local y notificar al estado de React
         saveStoredState(sanitizedCloud);
