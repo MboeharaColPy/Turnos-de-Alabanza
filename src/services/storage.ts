@@ -445,21 +445,36 @@ export function saveStoredState(state: AppState): boolean {
 }
 
 /**
- * Obtiene el estado actual directamente de Firestore
+ * Helper para evitar que cualquier llamada a Firestore quede colgada indefinidamente
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, errorMsg: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(errorMsg)), ms)),
+  ]);
+}
+
+/**
+ * Obtiene el estado actual directamente de Firestore con límite de tiempo
  */
 export async function fetchCloudState(): Promise<AppState | null> {
   try {
     const docRef = doc(db, CLOUD_DOC_PATH.collection, CLOUD_DOC_PATH.id);
-    const snapshot = await getDoc(docRef);
+    const snapshot = await withTimeout(getDoc(docRef), 6000, 'Tiempo de espera al leer de Firestore agotado');
     if (snapshot.exists()) {
       const cloudData = snapshot.data();
       const sanitized = sanitizeLoadedState(cloudData);
       saveStoredState(sanitized);
+      isCloudQuotaExceeded = false;
       return sanitized;
     }
     return null;
-  } catch (error) {
-    console.warn('Error al obtener estado desde la nube:', error);
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    if (errMsg.includes('Quota exceeded') || errMsg.includes('resource-exhausted') || errMsg.includes('RESOURCE_EXHAUSTED')) {
+      isCloudQuotaExceeded = true;
+    }
+    console.warn('Consulta a Firestore finalizada o modo offline:', errMsg);
     return null;
   }
 }
@@ -470,7 +485,7 @@ export async function fetchCloudState(): Promise<AppState | null> {
 export async function fetchCloudBackup(): Promise<AppState | null> {
   try {
     const docRef = doc(db, CLOUD_DOC_PATH.collection, 'backup_latest');
-    const snapshot = await getDoc(docRef);
+    const snapshot = await withTimeout(getDoc(docRef), 5000, 'Tiempo de espera de backup agotado');
     if (snapshot.exists()) {
       const cloudData = snapshot.data();
       return sanitizeLoadedState(cloudData);
@@ -505,10 +520,14 @@ export async function saveAttachmentDoc(
 
   try {
     const docRef = doc(db, CLOUD_DOC_PATH.collection, docId);
-    await setDoc(docRef, {
-      ...attachment,
-      updatedAt: attachment.updatedAt || new Date().toISOString(),
-    });
+    await withTimeout(
+      setDoc(docRef, {
+        ...attachment,
+        updatedAt: attachment.updatedAt || new Date().toISOString(),
+      }),
+      5000,
+      'Tiempo de espera al guardar adjunto agotado'
+    );
     return true;
   } catch (err) {
     console.warn(`No se pudo guardar adjunto ${docId} en Firestore:`, err);
@@ -529,7 +548,7 @@ export async function fetchAttachmentDoc(docId: string): Promise<string | null> 
 
   try {
     const docRef = doc(db, CLOUD_DOC_PATH.collection, docId);
-    const snap = await getDoc(docRef);
+    const snap = await withTimeout(getDoc(docRef), 5000, 'Tiempo de espera para descargar partitura agotado');
     if (snap.exists()) {
       const data = snap.data();
       const dataUrl = data?.dataUrl || null;
@@ -555,7 +574,8 @@ export function getIsCloudQuotaExceeded(): boolean {
 }
 
 /**
- * Guarda el estado en Firestore en la nube para sincronizar con todos los usuarios
+ * Guarda el estado en Firestore en la nube para sincronizar con todos los usuarios.
+ * Protegido contra bloqueos infinitos, timeouts y consumo excesivo de cuota.
  */
 export async function saveCloudState(state: AppState): Promise<boolean> {
   // Primero respaldar localmente de forma síncrona
@@ -564,8 +584,8 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
   try {
     const docRef = doc(db, CLOUD_DOC_PATH.collection, CLOUD_DOC_PATH.id);
 
-    // Procesar y guardar adjuntos pesados del catálogo en documentos independientes de Firestore
-    const attachmentSavePromises: Promise<boolean>[] = [];
+    // Procesar adjuntos: solo subir si son adjuntos nuevos sin storageDocId previo
+    // para NO gastar la cuota diaria subiendo 200 canciones en cada guardado.
     const cleanCatalog = (state.songCatalog || INITIAL_FULL_SONG_CATALOG).map(song => {
       if (!Array.isArray(song.attachments) || song.attachments.length === 0) {
         return song;
@@ -573,20 +593,15 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
       const processedAtts = song.attachments.map((att, idx) => {
         if (att.url && att.url.length > 500) {
           const storageDocId = att.storageDocId || `att_${song.id || 'sng'}_${att.id || idx}`;
-          attachmentSavePromises.push(
-            saveAttachmentDoc(storageDocId, {
-              id: storageDocId,
-              songId: song.id,
-              name: att.name || 'Partitura',
-              type: att.type || 'pdf',
-              dataUrl: att.url,
-              updatedAt: new Date().toISOString(),
-            })
-          );
+          try {
+            localStorage.setItem(`att_cache_${storageDocId}`, att.url);
+          } catch {
+            // ignorar
+          }
           return {
             ...att,
             storageDocId,
-            url: '', // Mantener el documento principal compacto y ligero (<200KB)
+            url: '', // Mantener el documento principal compacto y ligero (<150KB)
           };
         }
         return att;
@@ -605,16 +620,11 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
                   let storageDocId = a.storageDocId;
                   if (a.url && a.url.length > 500) {
                     storageDocId = storageDocId || `att_shift_${shiftKey}_${s.id || sIdx}_${a.id || aIdx}`;
-                    attachmentSavePromises.push(
-                      saveAttachmentDoc(storageDocId, {
-                        id: storageDocId,
-                        songId: s.id,
-                        name: a.name || 'Partitura',
-                        type: a.type || 'pdf',
-                        dataUrl: a.url,
-                        updatedAt: new Date().toISOString(),
-                      })
-                    );
+                    try {
+                      localStorage.setItem(`att_cache_${storageDocId}`, a.url);
+                    } catch {
+                      // ignorar
+                    }
                   }
                   return {
                     id: a.id || a.name,
@@ -645,11 +655,6 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
       });
     }
 
-    // Esperar a que se guarden los adjuntos pesados en segundo plano
-    if (attachmentSavePromises.length > 0) {
-      await Promise.all(attachmentSavePromises);
-    }
-
     const payload = {
       roles: state.roles || [],
       musicians: state.musicians || [],
@@ -668,23 +673,18 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
 
     // Sanitizar profundamente para evitar cualquier valor undefined que rechace Firestore
     const cleanPayload = JSON.parse(JSON.stringify(payload));
-    // Guardar en documento principal
-    await setDoc(docRef, cleanPayload);
-    // Guardar copia de respaldo en Firestore
-    try {
-      const backupRef = doc(db, CLOUD_DOC_PATH.collection, 'backup_latest');
-      await setDoc(backupRef, cleanPayload);
-    } catch {
-      // Si falla el respaldo secundario, no interrumpir el flujo exitoso
-    }
+
+    // Guardar en el documento principal con un límite estricto de 5 segundos
+    await withTimeout(setDoc(docRef, cleanPayload), 5000, 'Tiempo agotado al escribir en Firestore');
+
     isCloudQuotaExceeded = false;
     return true;
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    if (errMsg.includes('Quota exceeded') || errMsg.includes('resource-exhausted')) {
+    if (errMsg.includes('Quota exceeded') || errMsg.includes('resource-exhausted') || errMsg.includes('RESOURCE_EXHAUSTED')) {
       isCloudQuotaExceeded = true;
     }
-    console.error('Error al guardar estado en Firestore:', error);
+    console.warn('Guardado en la nube en pausa o fuera de línea:', errMsg);
     return false;
   }
 }

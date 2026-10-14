@@ -1,4 +1,5 @@
-import { AppState, DAYS_OF_WEEK, Slot } from '../types';
+import { AppState, DAYS_OF_WEEK, Slot, SongItem } from '../types';
+import { isRehearsalSlot } from '../services/storage';
 
 export function getMonday(d: Date | string): Date {
   const date = new Date(d);
@@ -154,19 +155,7 @@ export function generateWhatsAppSummary(state: AppState, weekStart: Date): strin
   }
 
   // Filtrar ensayos vinculados para no duplicar integrantes (las personas de eventos y ensayos son las mismas)
-  const isSlotRehearsal = (slot: Slot): boolean => {
-    if (!slot) return false;
-    if (slot.id === 'slt_sabado_ensayo') return true;
-    const isCoveredByOther = (state.slots || []).some(
-      other => other.id !== slot.id && other.rehearsal?.enabled && other.rehearsal.day === slot.day
-    );
-    if (isCoveredByOther && (slot.label || '').toLowerCase().includes('ensayo')) {
-      return true;
-    }
-    return false;
-  };
-
-  const mainSlots = (state.slots || []).filter(slot => !isSlotRehearsal(slot));
+  const mainSlots = (state.slots || []).filter(slot => !isRehearsalSlot(slot, state.slots || []));
   const sortedSlots = [...mainSlots].sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
 
   if (sortedSlots.length === 0) {
@@ -220,26 +209,44 @@ export function generateWhatsAppSummary(state: AppState, weekStart: Date): strin
     const date = dateForDay(weekStart, slot.day);
     const dateStr = formatCardDate(date);
     const eventShiftKey = `${isoLocal(date)}__${slot.id}`;
-    const assignment = state.assignments[eventShiftKey] || {};
+
+    // Obtener asignaciones: si el evento principal no las tiene pero el ensayo vinculado sí, usarlas
+    let assignment = state.assignments[eventShiftKey] || {};
+    if (Object.keys(assignment).length === 0 && slot.rehearsal && slot.rehearsal.enabled) {
+      const rehearsalDate = dateForDay(weekStart, slot.rehearsal.day);
+      const rKey1 = `${isoLocal(rehearsalDate)}__slt_sabado_ensayo`;
+      const rKey2 = `${isoLocal(rehearsalDate)}__${slot.id}`;
+      assignment = state.assignments[rKey1] || state.assignments[rKey2] || {};
+    }
 
     text += `🔹 *${DAYS_OF_WEEK[slot.day].toUpperCase()} ${dateStr}* · ${slot.time} hs\n`;
     text += `📌 *${slot.label}*\n`;
 
     // Ensayo previo vinculado (se informa aquí para no duplicar integrantes dos veces)
     if (slot.rehearsal && slot.rehearsal.enabled) {
-      text += `🎹 *Ensayo:* ${DAYS_OF_WEEK[slot.rehearsal.day]} ${slot.rehearsal.time} hs\n`;
+      text += `🎹 *Ensayo previo:* ${DAYS_OF_WEEK[slot.rehearsal.day]} ${slot.rehearsal.time} hs\n`;
     }
 
-    // Repertorio / Setlist de canciones asignadas a este culto
-    let songs = (state.shiftSongs && state.shiftSongs[eventShiftKey]) || [];
-    if ((!songs || songs.length === 0) && slot.rehearsal && slot.rehearsal.enabled) {
+    // Repertorio / Setlist de canciones asignadas (combinando del culto y del ensayo sin duplicados)
+    const eventSongs = (state.shiftSongs && state.shiftSongs[eventShiftKey]) || [];
+    let rehearsalSongs: SongItem[] = [];
+    if (slot.rehearsal && slot.rehearsal.enabled) {
       const rehearsalDate = dateForDay(weekStart, slot.rehearsal.day);
       const rKey1 = `${isoLocal(rehearsalDate)}__slt_sabado_ensayo`;
       const rKey2 = `${isoLocal(rehearsalDate)}__${slot.id}`;
-      songs = (state.shiftSongs && (state.shiftSongs[rKey1] || state.shiftSongs[rKey2])) || [];
+      rehearsalSongs = (state.shiftSongs && (state.shiftSongs[rKey1] || state.shiftSongs[rKey2])) || [];
     }
 
-    if (Array.isArray(songs) && songs.length > 0) {
+    const mergedSongsMap = new Map<string, SongItem>();
+    [...eventSongs, ...rehearsalSongs].forEach(s => {
+      const key = (s.title || '').trim().toLowerCase();
+      if (key && !mergedSongsMap.has(key)) {
+        mergedSongsMap.set(key, s);
+      }
+    });
+    const songs = Array.from(mergedSongsMap.values());
+
+    if (songs.length > 0) {
       text += `\n🎶 *SETLIST / CANCIONES (${songs.length}):*\n`;
       songs.forEach((s, sIdx) => {
         text += `  ${sIdx + 1}. *${s.title}*`;
@@ -247,6 +254,9 @@ export function generateWhatsAppSummary(state: AppState, weekStart: Date): strin
         if (s.artist) text += ` - _${s.artist}_`;
         text += `\n`;
       });
+      if (state.worshipPlaylistUrl) {
+        text += `  🎧 *Enlace Playlist:* ${state.worshipPlaylistUrl}\n`;
+      }
     }
 
     // Equipo convocado (única lista por evento, ordenada por jerarquía ministerial)

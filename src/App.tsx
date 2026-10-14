@@ -191,13 +191,16 @@ export default function App() {
   // Guardar y sincronizar con Firestore en tiempo real
   const updateStateAndSave = useCallback(async (updater: (prev: AppState) => AppState) => {
     setIsSaving(true);
-    // Antes el "siguiente estado" se calculaba dentro del updater de setState, que React ejecuta
-    // de forma diferida: nextState podía seguir en null y el guardado en la nube se omitía
-    // (además el updater se ejecutaba dos veces bajo StrictMode).
     const nextState = updater(stateRef.current);
     stateRef.current = nextState;
     setState(nextState);
     saveStoredState(nextState);
+
+    // Temporizador de seguridad: nunca dejar la animación pegada más de 3 segundos
+    const safetyTimer = setTimeout(() => {
+      setIsSaving(false);
+    }, 3000);
+
     try {
       const ok = await saveCloudState(nextState);
       if (ok) {
@@ -205,14 +208,21 @@ export default function App() {
       } else if (getIsCloudQuotaExceeded()) {
         setIsCloudQuotaExceeded(true);
       }
+    } catch (err) {
+      console.warn('Error en sincronización en la nube:', err);
     } finally {
-      setTimeout(() => setIsSaving(false), 200);
+      clearTimeout(safetyTimer);
+      setIsSaving(false);
     }
   }, []);
 
   // Recargar manual / forzar sincronización desde la nube (sin sobreescribir)
   const handleRefresh = async () => {
     setIsSaving(true);
+    const safetyTimer = setTimeout(() => {
+      setIsSaving(false);
+    }, 3500);
+
     try {
       const cloud = await fetchCloudState();
       if (cloud) {
@@ -223,7 +233,12 @@ export default function App() {
       } else {
         const local = loadStoredState();
         setState(local);
-        showToast('Modo sin conexión: cargados datos locales.');
+        if (getIsCloudQuotaExceeded()) {
+          setIsCloudQuotaExceeded(true);
+          showToast('Cuota de lectura de Firebase en pausa hoy. Mostrando datos locales.');
+        } else {
+          showToast('Modo sin conexión: cargados datos locales.');
+        }
       }
     } catch (err: unknown) {
       console.warn('Error al sincronizar con la nube:', err);
@@ -235,6 +250,7 @@ export default function App() {
         showToast('No se pudo conectar con Firestore.');
       }
     } finally {
+      clearTimeout(safetyTimer);
       setIsSaving(false);
     }
   };
@@ -242,6 +258,10 @@ export default function App() {
   // Guardado manual explícito del Administrador a Firestore
   const handleAdminManualSave = async () => {
     setIsSaving(true);
+    const safetyTimer = setTimeout(() => {
+      setIsSaving(false);
+    }, 3500);
+
     try {
       const success = await saveCloudState(state);
       if (success) {
@@ -250,19 +270,16 @@ export default function App() {
       } else {
         if (getIsCloudQuotaExceeded()) {
           setIsCloudQuotaExceeded(true);
-          showToast('Límite de lectura de Firebase en pausa. Usa "Sincronizar Dispositivos" para transferir.');
+          showToast('Cuota diaria de Firebase en pausa (se reinicia a medianoche). Datos guardados en este dispositivo.');
         } else {
-          showToast('Guardado localmente (sin conexión a Firebase).');
+          showToast('Guardado localmente en este dispositivo.');
         }
       }
     } catch (err: unknown) {
       console.error('Error guardando en la nube:', err);
-      const errMsg = err instanceof Error ? err.message : String(err);
-      if (errMsg.includes('Quota exceeded') || errMsg.includes('resource-exhausted')) {
-        setIsCloudQuotaExceeded(true);
-      }
-      showToast('Error al conectar con la base de datos.');
+      showToast('Guardado en este dispositivo (sin conexión a Firebase).');
     } finally {
+      clearTimeout(safetyTimer);
       setIsSaving(false);
     }
   };

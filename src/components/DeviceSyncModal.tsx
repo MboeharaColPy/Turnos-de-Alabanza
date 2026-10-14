@@ -195,10 +195,10 @@ export const DeviceSyncModal: React.FC<DeviceSyncModalProps> = ({
               {isCloudQuotaExceeded ? (
                 <>
                   <p className="font-bold text-amber-300 mb-1">
-                    Cuota diaria de lectura de Firebase agotada temporalmente
+                    Cuota diaria gratuita de Firebase completada temporalmente
                   </p>
                   <p className="text-amber-200/90 mb-2">
-                    El límite gratuito diario del proyecto en Firebase se completó por hoy (se reinicia automáticamente a medianoche UTC). Puedes actualizar el proyecto a plan Blaze para lecturas ilimitadas o usar las opciones directas abajo para transferir los turnos a otros celulares ahora mismo.
+                    El límite gratuito del proyecto en Firebase se completó por hoy (se reinicia automáticamente a medianoche UTC). Todos tus cambios están guardados de forma segura en este dispositivo. Puedes usar las opciones abajo para transferir la programación completa a otros celulares ahora mismo con 1 solo clic.
                   </p>
                   <a
                     href="https://console.firebase.google.com/project/gen-lang-client-0279952464/firestore/databases/ai-studio-gestordeturnosyr-54c0fa82-be3b-49ad-ac1e-e9aac492cbc2/data?openUpgradeDialog=true"
