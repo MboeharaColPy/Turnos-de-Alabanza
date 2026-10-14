@@ -26,8 +26,11 @@ try {
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 }
 
+import { fetchAttachmentDoc } from '../services/storage';
+
 interface PdfViewerProps {
-  url: string;
+  url?: string;
+  storageDocId?: string;
   title?: string;
   onClose?: () => void;
   className?: string;
@@ -35,6 +38,7 @@ interface PdfViewerProps {
 
 export const PdfViewer: React.FC<PdfViewerProps> = ({
   url,
+  storageDocId,
   title = 'Partitura PDF',
   className = '',
 }) => {
@@ -56,12 +60,24 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
 
     const loadPdf = async () => {
       try {
+        let pdfSource = url;
+        if ((!pdfSource || pdfSource.trim() === '') && storageDocId) {
+          const fetched = await fetchAttachmentDoc(storageDocId);
+          if (fetched) {
+            pdfSource = fetched;
+          }
+        }
+
+        if (!pdfSource) {
+          throw new Error('No se encontró el contenido o enlace del archivo PDF.');
+        }
+
         let loadingTask: pdfjsLib.PDFDocumentLoadingTask;
 
-        if (url.startsWith('data:')) {
-          const base64Index = url.indexOf('base64,');
+        if (pdfSource.startsWith('data:')) {
+          const base64Index = pdfSource.indexOf('base64,');
           if (base64Index !== -1) {
-            const base64Data = url.substring(base64Index + 7);
+            const base64Data = pdfSource.substring(base64Index + 7);
             const binaryStr = atob(base64Data);
             const bytes = new Uint8Array(binaryStr.length);
             for (let i = 0; i < binaryStr.length; i++) {
@@ -69,10 +85,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
             }
             loadingTask = pdfjsLib.getDocument({ data: bytes });
           } else {
-            loadingTask = pdfjsLib.getDocument({ url });
+            loadingTask = pdfjsLib.getDocument({ url: pdfSource });
           }
         } else {
-          loadingTask = pdfjsLib.getDocument({ url });
+          loadingTask = pdfjsLib.getDocument({ url: pdfSource });
         }
 
         const doc = await loadingTask.promise;
@@ -95,7 +111,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [url]);
+  }, [url, storageDocId]);
 
   // Ajustar escala al ancho de la pantalla en dispositivos móviles
   useEffect(() => {

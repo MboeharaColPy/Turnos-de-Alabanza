@@ -483,6 +483,78 @@ export async function fetchCloudBackup(): Promise<AppState | null> {
 }
 
 /**
+ * Guarda un archivo adjunto pesado (PDF o partitura) en un documento separado de Firestore
+ * y en la caché local para no sobrecargar el documento principal compartido.
+ */
+export async function saveAttachmentDoc(
+  docId: string,
+  attachment: {
+    id: string;
+    songId?: string;
+    name: string;
+    type?: string;
+    dataUrl: string;
+    updatedAt?: string;
+  }
+): Promise<boolean> {
+  try {
+    localStorage.setItem(`att_cache_${docId}`, attachment.dataUrl);
+  } catch {
+    // Si localStorage está lleno, ignorar
+  }
+
+  try {
+    const docRef = doc(db, CLOUD_DOC_PATH.collection, docId);
+    await setDoc(docRef, {
+      ...attachment,
+      updatedAt: attachment.updatedAt || new Date().toISOString(),
+    });
+    return true;
+  } catch (err) {
+    console.warn(`No se pudo guardar adjunto ${docId} en Firestore:`, err);
+    return false;
+  }
+}
+
+/**
+ * Recupera un archivo adjunto pesado (PDF o partitura) desde la caché local o Firestore.
+ */
+export async function fetchAttachmentDoc(docId: string): Promise<string | null> {
+  try {
+    const cached = localStorage.getItem(`att_cache_${docId}`);
+    if (cached) return cached;
+  } catch {
+    // ignorar
+  }
+
+  try {
+    const docRef = doc(db, CLOUD_DOC_PATH.collection, docId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      const dataUrl = data?.dataUrl || null;
+      if (dataUrl) {
+        try {
+          localStorage.setItem(`att_cache_${docId}`, dataUrl);
+        } catch {
+          // ignorar
+        }
+        return dataUrl;
+      }
+    }
+    return null;
+  } catch (err) {
+    console.warn(`Error al recuperar adjunto ${docId}:`, err);
+    return null;
+  }
+}
+
+let isCloudQuotaExceeded = false;
+export function getIsCloudQuotaExceeded(): boolean {
+  return isCloudQuotaExceeded;
+}
+
+/**
  * Guarda el estado en Firestore en la nube para sincronizar con todos los usuarios
  */
 export async function saveCloudState(state: AppState): Promise<boolean> {
@@ -491,13 +563,100 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
 
   try {
     const docRef = doc(db, CLOUD_DOC_PATH.collection, CLOUD_DOC_PATH.id);
+
+    // Procesar y guardar adjuntos pesados del catálogo en documentos independientes de Firestore
+    const attachmentSavePromises: Promise<boolean>[] = [];
+    const cleanCatalog = (state.songCatalog || INITIAL_FULL_SONG_CATALOG).map(song => {
+      if (!Array.isArray(song.attachments) || song.attachments.length === 0) {
+        return song;
+      }
+      const processedAtts = song.attachments.map((att, idx) => {
+        if (att.url && att.url.length > 500) {
+          const storageDocId = att.storageDocId || `att_${song.id || 'sng'}_${att.id || idx}`;
+          attachmentSavePromises.push(
+            saveAttachmentDoc(storageDocId, {
+              id: storageDocId,
+              songId: song.id,
+              name: att.name || 'Partitura',
+              type: att.type || 'pdf',
+              dataUrl: att.url,
+              updatedAt: new Date().toISOString(),
+            })
+          );
+          return {
+            ...att,
+            storageDocId,
+            url: '', // Mantener el documento principal compacto y ligero (<200KB)
+          };
+        }
+        return att;
+      });
+      return { ...song, attachments: processedAtts };
+    });
+
+    // Compactar shiftSongs para evitar duplicar PDFs base64 o campos redundantes
+    const cleanShiftSongs: Record<string, SongItem[]> = {};
+    if (state.shiftSongs && typeof state.shiftSongs === 'object') {
+      Object.entries(state.shiftSongs).forEach(([shiftKey, songs]) => {
+        if (Array.isArray(songs)) {
+          cleanShiftSongs[shiftKey] = songs.map((s, sIdx) => {
+            const compactAtts = Array.isArray(s.attachments)
+              ? s.attachments.map((a, aIdx) => {
+                  let storageDocId = a.storageDocId;
+                  if (a.url && a.url.length > 500) {
+                    storageDocId = storageDocId || `att_shift_${shiftKey}_${s.id || sIdx}_${a.id || aIdx}`;
+                    attachmentSavePromises.push(
+                      saveAttachmentDoc(storageDocId, {
+                        id: storageDocId,
+                        songId: s.id,
+                        name: a.name || 'Partitura',
+                        type: a.type || 'pdf',
+                        dataUrl: a.url,
+                        updatedAt: new Date().toISOString(),
+                      })
+                    );
+                  }
+                  return {
+                    id: a.id || a.name,
+                    name: a.name || 'Archivo',
+                    type: a.type || 'pdf',
+                    storageDocId,
+                    url: a.url && a.url.length > 500 ? '' : (a.url || ''),
+                  };
+                })
+              : [];
+            return {
+              id: s.id,
+              title: s.title,
+              artist: s.artist || '',
+              artists: s.artists || (s.artist ? [s.artist] : []),
+              key: s.key || '',
+              bpm: s.bpm,
+              timeSignature: s.timeSignature || '4/4',
+              category: s.category || 'General',
+              categories: s.categories || (s.category ? [s.category] : ['General']),
+              notes: s.notes || '',
+              lyrics: s.lyrics || '',
+              youtubeUrl: s.youtubeUrl || '',
+              attachments: compactAtts,
+            };
+          });
+        }
+      });
+    }
+
+    // Esperar a que se guarden los adjuntos pesados en segundo plano
+    if (attachmentSavePromises.length > 0) {
+      await Promise.all(attachmentSavePromises);
+    }
+
     const payload = {
       roles: state.roles || [],
       musicians: state.musicians || [],
       slots: state.slots || [],
       assignments: state.assignments || {},
-      shiftSongs: state.shiftSongs || {},
-      songCatalog: state.songCatalog || INITIAL_FULL_SONG_CATALOG,
+      shiftSongs: cleanShiftSongs,
+      songCatalog: cleanCatalog,
       songCategories: state.songCategories || DEFAULT_SONG_CATEGORIES,
       couples: state.couples || [],
       notices: state.notices || [],
@@ -506,42 +665,33 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
       worshipPlaylistUrl: state.worshipPlaylistUrl || '',
       lastUpdated: new Date().toISOString(),
     };
+
     // Sanitizar profundamente para evitar cualquier valor undefined que rechace Firestore
     const cleanPayload = JSON.parse(JSON.stringify(payload));
     // Guardar en documento principal
     await setDoc(docRef, cleanPayload);
-
-    // Guardar respaldo adicional en 'backup_latest' si contiene datos significativos
-    const assignCount = Object.keys(cleanPayload.assignments || {}).reduce(
-      (acc: number, k: string) => acc + Object.keys(cleanPayload.assignments[k] || {}).length,
-      0
-    );
-    const shiftSongsValues = Object.values(cleanPayload.shiftSongs || {}) as unknown[];
-    const songsInShifts: number = shiftSongsValues.reduce<number>(
-      (acc, list) => acc + (Array.isArray(list) ? list.length : 0),
-      0
-    );
-    if (assignCount > 0 || songsInShifts > 0 || (cleanPayload.notices && cleanPayload.notices.length > 0)) {
-      try {
-        const backupDocRef = doc(db, CLOUD_DOC_PATH.collection, 'backup_latest');
-        await setDoc(backupDocRef, cleanPayload);
-      } catch (errBackup) {
-        console.warn('No se pudo guardar backup secundario en la nube:', errBackup);
-      }
+    // Guardar copia de respaldo en Firestore
+    try {
+      const backupRef = doc(db, CLOUD_DOC_PATH.collection, 'backup_latest');
+      await setDoc(backupRef, cleanPayload);
+    } catch {
+      // Si falla el respaldo secundario, no interrumpir el flujo exitoso
     }
-
+    isCloudQuotaExceeded = false;
     return true;
-  } catch (error) {
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    if (errMsg.includes('Quota exceeded') || errMsg.includes('resource-exhausted')) {
+      isCloudQuotaExceeded = true;
+    }
     console.error('Error al guardar estado en Firestore:', error);
     return false;
   }
 }
 
-let hasAttemptedInitialCloudSeed = false;
-
 /**
  * Escucha cambios en tiempo real desde Firestore.
- * Incluye protección contra sobreescritura de datos locales nuevos con versiones antiguas.
+ * Sincroniza automáticamente en vivo a todos los dispositivos conectados.
  */
 export function subscribeToCloudState(
   onUpdate: (state: AppState) => void,
@@ -551,59 +701,18 @@ export function subscribeToCloudState(
 
   const unsubscribe = onSnapshot(
     docRef,
-    async snapshot => {
+    snapshot => {
       // Ignorar escrituras locales optimistas pendientes en este cliente
       if (snapshot.metadata.hasPendingWrites) {
         return;
       }
       if (snapshot.exists()) {
         const cloudData = snapshot.data();
-        let sanitizedCloud = sanitizeLoadedState(cloudData);
-
-        // Validar si los datos locales en este navegador son más recientes
-        const currentLocal = loadStoredState();
-        const localTime = currentLocal.lastUpdated ? new Date(currentLocal.lastUpdated).getTime() : 0;
-        const cloudTime = sanitizedCloud.lastUpdated ? new Date(sanitizedCloud.lastUpdated).getTime() : 0;
-
-        // Si lo local es más nuevo (por ejemplo edición reciente), preservarlo e intentar sincronizarlo
-        if (localTime > cloudTime + 2000) {
-          console.log('[Storage] Preservando cambios locales más recientes que la nube');
-          saveCloudState(currentLocal);
-          return;
-        }
-
-        // Fusión segura: preservar cualquier canción agregada localmente que aún no esté en la nube
-        if (currentLocal.songCatalog && currentLocal.songCatalog.length > 0) {
-          const cloudSongIds = new Set((sanitizedCloud.songCatalog || []).map(s => s.id));
-          const extraLocalSongs = currentLocal.songCatalog.filter(s => !cloudSongIds.has(s.id));
-          if (extraLocalSongs.length > 0) {
-            sanitizedCloud = {
-              ...sanitizedCloud,
-              songCatalog: [...sanitizedCloud.songCatalog, ...extraLocalSongs],
-            };
-          }
-        }
-
-        // Fusión segura: preservar shiftSongs locales si la nube viene vacía para un turno
-        if (currentLocal.shiftSongs && Object.keys(currentLocal.shiftSongs).length > 0) {
-          const mergedShiftSongs = { ...sanitizedCloud.shiftSongs };
-          let changed = false;
-          Object.entries(currentLocal.shiftSongs).forEach(([k, list]) => {
-            if ((!mergedShiftSongs[k] || mergedShiftSongs[k].length === 0) && Array.isArray(list) && list.length > 0) {
-              mergedShiftSongs[k] = list;
-              changed = true;
-            }
-          });
-          if (changed) {
-            sanitizedCloud = {
-              ...sanitizedCloud,
-              shiftSongs: mergedShiftSongs,
-            };
-          }
-        }
+        const sanitizedCloud = sanitizeLoadedState(cloudData);
 
         // Guardar en cache local y notificar al estado de React
         saveStoredState(sanitizedCloud);
+        isCloudQuotaExceeded = false;
         onUpdate(sanitizedCloud);
       } else {
         const local = loadStoredState();
@@ -611,6 +720,10 @@ export function subscribeToCloudState(
       }
     },
     error => {
+      const errMsg = error.message || '';
+      if (errMsg.includes('Quota exceeded') || errMsg.includes('resource-exhausted')) {
+        isCloudQuotaExceeded = true;
+      }
       console.warn('Conexión con Firestore operando en modo local/offline:', error.message);
       if (onError) onError(error);
     }

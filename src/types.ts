@@ -45,6 +45,8 @@ export interface SongAttachment {
   name: string;
   url: string;
   type?: 'pdf' | 'image' | 'link';
+  storageDocId?: string;
+  size?: number;
 }
 
 export interface SongItem {

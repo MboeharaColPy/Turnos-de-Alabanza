@@ -1393,6 +1393,7 @@ export const SongLyricsModal: React.FC<SongLyricsModalProps> = ({
                 <div className="flex-1 min-h-0">
                   <PdfViewer
                     url={activePdf.url}
+                    storageDocId={activePdf.storageDocId}
                     title={activePdf.name}
                     className="h-full"
                   />

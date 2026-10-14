@@ -13,6 +13,7 @@ import {
   fetchCloudState,
   scanAvailableLocalBackups,
   DetectedBackup,
+  getIsCloudQuotaExceeded,
 } from './services/storage';
 import {
   subscribeAdminStatus,
@@ -35,11 +36,12 @@ import { MusiciansView } from './components/MusiciansView';
 import { ConfigView } from './components/ConfigView';
 import { SongLyricsModal } from './components/SongLyricsModal';
 import { ConflictExplainerModal } from './components/ConflictExplainerModal';
+import { DeviceSyncModal } from './components/DeviceSyncModal';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { usePWA } from './hooks/usePWA';
 import { getMonday } from './utils/dateUtils';
 import { safeGetStorage, safeSetStorage } from './utils/safeStorage';
-import { KeyRound, ShieldAlert, X, Eye, EyeOff, Check, ShieldCheck, RotateCcw } from 'lucide-react';
+import { KeyRound, ShieldAlert, X, Eye, EyeOff, Check, ShieldCheck, RotateCcw, AlertTriangle } from 'lucide-react';
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadStoredState());
@@ -51,7 +53,9 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isCloudConnected, setIsCloudConnected] = useState(true);
+  const [isCloudQuotaExceeded, setIsCloudQuotaExceeded] = useState(false);
   const [showGlobalExplainerModal, setShowGlobalExplainerModal] = useState(false);
+  const [showDeviceSyncModal, setShowDeviceSyncModal] = useState(false);
 
   // PWA Updates and Installation Hooks
   const {
@@ -146,12 +150,28 @@ export default function App() {
       cloudState => {
         setState(cloudState);
         setIsCloudConnected(true);
+        setIsCloudQuotaExceeded(false);
       },
       error => {
         console.warn('Conexión con Firestore no disponible, usando almacenamiento local:', error);
         setIsCloudConnected(false);
+        const errMsg = error.message || '';
+        if (errMsg.includes('Quota exceeded') || errMsg.includes('resource-exhausted') || getIsCloudQuotaExceeded()) {
+          setIsCloudQuotaExceeded(true);
+        }
       }
     );
+
+    // Consulta directa a Firestore al iniciar la app para asegurar sincronización en frío en todos los dispositivos
+    fetchCloudState().then(cloud => {
+      if (cloud) {
+        setState(cloud);
+        setIsCloudConnected(true);
+        setIsCloudQuotaExceeded(false);
+      }
+    }).catch(err => {
+      console.warn('Error en carga inicial desde la nube:', err);
+    });
 
     return () => {
       unsubscribe();
@@ -179,7 +199,12 @@ export default function App() {
     setState(nextState);
     saveStoredState(nextState);
     try {
-      await saveCloudState(nextState);
+      const ok = await saveCloudState(nextState);
+      if (ok) {
+        setIsCloudQuotaExceeded(false);
+      } else if (getIsCloudQuotaExceeded()) {
+        setIsCloudQuotaExceeded(true);
+      }
     } finally {
       setTimeout(() => setIsSaving(false), 200);
     }
@@ -193,15 +218,22 @@ export default function App() {
       if (cloud) {
         setState(cloud);
         setIsCloudConnected(true);
+        setIsCloudQuotaExceeded(false);
         showToast('Datos actualizados desde la nube en tiempo real.');
       } else {
         const local = loadStoredState();
         setState(local);
         showToast('Modo sin conexión: cargados datos locales.');
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.warn('Error al sincronizar con la nube:', err);
-      showToast('No se pudo conectar con Firestore.');
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes('Quota exceeded') || errMsg.includes('resource-exhausted') || getIsCloudQuotaExceeded()) {
+        setIsCloudQuotaExceeded(true);
+        showToast('Límite de lectura de Firebase alcanzado por hoy.');
+      } else {
+        showToast('No se pudo conectar con Firestore.');
+      }
     } finally {
       setIsSaving(false);
     }
@@ -213,12 +245,22 @@ export default function App() {
     try {
       const success = await saveCloudState(state);
       if (success) {
+        setIsCloudQuotaExceeded(false);
         showToast('¡Todos los cambios guardados exitosamente en la nube de Firebase!');
       } else {
-        showToast('Guardado localmente (sin conexión a Firebase).');
+        if (getIsCloudQuotaExceeded()) {
+          setIsCloudQuotaExceeded(true);
+          showToast('Límite de lectura de Firebase en pausa. Usa "Sincronizar Dispositivos" para transferir.');
+        } else {
+          showToast('Guardado localmente (sin conexión a Firebase).');
+        }
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error guardando en la nube:', err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes('Quota exceeded') || errMsg.includes('resource-exhausted')) {
+        setIsCloudQuotaExceeded(true);
+      }
       showToast('Error al conectar con la base de datos.');
     } finally {
       setIsSaving(false);
@@ -980,13 +1022,40 @@ export default function App() {
           onLogoutAdmin={handleLogoutAdmin}
           isSaving={isSaving}
           isCloudConnected={isCloudConnected}
+          isCloudQuotaExceeded={isCloudQuotaExceeded}
           onSync={handleRefresh}
           onAdminSave={handleAdminManualSave}
           onOpenExplainer={isAdmin ? () => setShowGlobalExplainerModal(true) : undefined}
+          onOpenDeviceSync={() => setShowDeviceSyncModal(true)}
           theme={theme}
           onToggleTheme={handleToggleTheme}
           onChangeAdminPassword={handleUpdateAdminPassword}
         />
+
+        {/* Banner Informativo si la cuota de Firebase está en pausa hoy */}
+        {isCloudQuotaExceeded && (
+          <div className="my-3 p-3 sm:p-3.5 rounded-2xl bg-amber-950/40 border border-amber-800/60 text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg animate-fadeIn">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle size={16} />
+              </div>
+              <div className="text-xs">
+                <span className="font-bold text-amber-300 block sm:inline mr-1">
+                  Límite de lectura de Firebase en pausa por hoy:
+                </span>
+                <span className="text-amber-200/90">
+                  Tus datos locales están a salvo. Puedes transferir la programación directamente a otros celulares con el botón de sincronización.
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowDeviceSyncModal(true)}
+              className="px-3.5 py-1.5 bg-[#c5a059] hover:bg-[#d8b56f] text-black font-extrabold text-xs rounded-xl font-mono uppercase tracking-wider flex-shrink-0 transition cursor-pointer shadow active:scale-95 w-full sm:w-auto text-center"
+            >
+              Sincronizar Dispositivos
+            </button>
+          </div>
+        )}
 
         {/* Contenido según pestaña activa */}
         <main>
@@ -1308,6 +1377,21 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Modal de Sincronización Directa entre Dispositivos */}
+      <DeviceSyncModal
+        isOpen={showDeviceSyncModal}
+        onClose={() => setShowDeviceSyncModal(false)}
+        state={state}
+        onStateImported={importedState => {
+          setState(importedState);
+          stateRef.current = importedState;
+        }}
+        isCloudQuotaExceeded={isCloudQuotaExceeded}
+        isAdmin={isAdmin}
+        onManualCloudSave={handleAdminManualSave}
+        showToast={showToast}
+      />
 
       {/* Notificación Toast flotante */}
       {toastMessage && (

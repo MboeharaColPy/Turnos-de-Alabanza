@@ -323,9 +323,9 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
 
           {/* Ensayo Previo Vinculado */}
           {nextMainEvent.slot.rehearsal && nextMainEvent.slot.rehearsal.enabled && (
-            <div className="mb-4 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/25 text-xs font-mono">
-              <span className="text-amber-400 font-bold">Ensayo:</span>
-              <span className="text-[#e0e0e0]">
+            <div className="mb-3 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#18181c] border border-[#2b2b33] text-[11px] font-mono">
+              <span className="text-[#c5a059] font-medium">Ensayo:</span>
+              <span className="text-[#d4d4dc]">
                 {DAYS_OF_WEEK[nextMainEvent.slot.rehearsal.day]} {nextMainEvent.slot.rehearsal.time} hs
               </span>
             </div>

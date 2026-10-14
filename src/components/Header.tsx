@@ -23,6 +23,8 @@ import {
   EyeOff,
   Save,
   CloudUpload,
+  Share2,
+  AlertTriangle,
 } from 'lucide-react';
 
 import { PWAInstallButton } from './PWAInstallButton';
@@ -48,9 +50,11 @@ interface HeaderProps {
   onLogoutAdmin: () => void;
   isSaving: boolean;
   isCloudConnected?: boolean;
+  isCloudQuotaExceeded?: boolean;
   onSync: () => void;
   onAdminSave?: () => void;
   onOpenExplainer?: () => void;
+  onOpenDeviceSync?: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
   onChangeAdminPassword?: (currentPass: string, newPass: string) => Promise<string | null>;
@@ -64,9 +68,11 @@ export const Header: React.FC<HeaderProps> = ({
   onLogoutAdmin,
   isSaving,
   isCloudConnected = true,
+  isCloudQuotaExceeded = false,
   onSync,
   onAdminSave,
   onOpenExplainer,
+  onOpenDeviceSync,
   theme = 'dark',
   onToggleTheme,
   onChangeAdminPassword,
@@ -236,6 +242,22 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
 
+                {/* Botón Sincronizar Dispositivos (Compartir / Transferir entre celulares) */}
+                {onOpenDeviceSync && (
+                  <button
+                    onClick={onOpenDeviceSync}
+                    className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl border flex items-center justify-center transition-all cursor-pointer flex-shrink-0 shadow-sm ${
+                      isCloudQuotaExceeded
+                        ? 'bg-amber-950/40 text-amber-400 border-amber-800/60 hover:bg-amber-900/50 animate-pulse'
+                        : 'bg-[#141418] hover:bg-[#1a1a1d] text-[#888894] hover:text-[#c5a059] border-[#1f1f23] hover:border-[#c5a059]/40'
+                    }`}
+                    title="Sincronizar entre dispositivos (compartir / respaldar / transferir turnos a otros celulares)"
+                    id="btn-open-device-sync"
+                  >
+                    <Share2 size={15} />
+                  </button>
+                )}
+
                 {/* Botón Acceso Admin: Solo un ícono al lado del cambio de tema */}
                 {isAdmin ? (
                   <button
@@ -259,26 +281,37 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
 
               {/* Cloud Sync Badge */}
-              <span
-                className={`inline-flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-0.5 rounded border uppercase tracking-widest ${
-                  isCloudConnected
-                    ? 'text-[#c5a059] bg-[#c5a059]/10 border-[#c5a059]/30'
-                    : 'text-amber-400 bg-amber-500/10 border-amber-500/30'
-                }`}
-                title="Sincronización en la nube en tiempo real"
-              >
-                {isSaving ? (
-                  <>
-                    <RotateCw size={10} className="text-[#c5a059] animate-spin" />
-                    <span>Guardando...</span>
-                  </>
-                ) : (
-                  <>
-                    <Radio size={10} className="text-[#c5a059] animate-pulse" />
-                    <span>En vivo</span>
-                  </>
-                )}
-              </span>
+              {isCloudQuotaExceeded && onOpenDeviceSync ? (
+                <button
+                  onClick={onOpenDeviceSync}
+                  className="inline-flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded border uppercase tracking-wider text-amber-400 bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20 cursor-pointer"
+                  title="Límite de lectura de Firebase en pausa por hoy. Clic para sincronizar celulares directamente."
+                >
+                  <AlertTriangle size={10} className="text-amber-400" />
+                  <span>Cuota en pausa</span>
+                </button>
+              ) : (
+                <span
+                  className={`inline-flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-0.5 rounded border uppercase tracking-widest ${
+                    isCloudConnected
+                      ? 'text-[#c5a059] bg-[#c5a059]/10 border-[#c5a059]/30'
+                      : 'text-amber-400 bg-amber-500/10 border-amber-500/30'
+                  }`}
+                  title="Sincronización en la nube en tiempo real"
+                >
+                  {isSaving ? (
+                    <>
+                      <RotateCw size={10} className="text-[#c5a059] animate-spin" />
+                      <span>Guardando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Radio size={10} className="text-[#c5a059] animate-pulse" />
+                      <span>En vivo</span>
+                    </>
+                  )}
+                </span>
+              )}
 
               {/* Ayuda & Reglas: SOLO PARA ADMINISTRADOR */}
               {isAdmin && onOpenExplainer && (
