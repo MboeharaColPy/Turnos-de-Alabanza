@@ -162,15 +162,21 @@ export default function App() {
       }
     );
 
-    // Consulta directa a Firestore al iniciar la app para asegurar sincronización en frío en todos los dispositivos
+    // Consulta directa al servidor/nube al iniciar la app para asegurar sincronización en frío en todos los dispositivos
     fetchCloudState().then(cloud => {
       if (cloud) {
         setState(cloud);
         setIsCloudConnected(true);
         setIsCloudQuotaExceeded(false);
+      } else {
+        const local = loadStoredState();
+        const hasAssignments = Object.keys(local.assignments || {}).length > 0;
+        if (hasAssignments) {
+          saveCloudState(local).catch(() => {});
+        }
       }
     }).catch(err => {
-      console.warn('Error en carga inicial desde la nube:', err);
+      console.warn('Error en carga inicial desde la nube/servidor:', err);
     });
 
     return () => {

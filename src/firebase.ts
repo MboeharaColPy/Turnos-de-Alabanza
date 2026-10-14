@@ -2,11 +2,18 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, 
   initializeFirestore, 
-  persistentLocalCache, 
-  persistentMultipleTabManager,
+  memoryLocalCache, 
+  setLogLevel,
   Firestore 
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
+
+// Silenciar logs ruidosos de cuota interna de Firebase
+try {
+  setLogLevel('error');
+} catch {
+  // ignorar
+}
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
@@ -21,9 +28,7 @@ try {
     app,
     {
       ignoreUndefinedProperties: true,
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-      })
+      localCache: memoryLocalCache(),
     },
     databaseId
   );
