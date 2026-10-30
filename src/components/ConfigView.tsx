@@ -430,7 +430,26 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
   }, []);
 
   const handleCheckCloudBackup = async () => {
-    showToast('Consultando respaldo en Firestore...');
+    showToast('Consultando respaldo más completo en Servidor y Firestore...');
+    // 1. Intentar respaldo en el servidor
+    try {
+      const srvRes = await fetch('/api/backups/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (srvRes.ok) {
+        const srvJson = await srvRes.json();
+        if (srvJson?.state && srvJson.assignmentsCount > 0) {
+          onImportState(srvJson.state);
+          showToast(`¡Respaldo recuperado desde el servidor (${srvJson.assignmentsCount} asignaciones)!`);
+          return;
+        }
+      }
+    } catch {
+      // continuar a Firestore
+    }
+
+    // 2. Intentar respaldo en Firestore
     const cloudBkp = await fetchCloudBackup();
     if (cloudBkp) {
       const assignCount = Object.keys(cloudBkp.assignments || {}).reduce(

@@ -471,18 +471,23 @@ export function shouldAcceptIncomingState(incoming: AppState, current: AppState)
     0
   );
 
+  // REGLA CRÍTICA 1: Si el actual tiene asignaciones y el entrante viene vacío, NUNCA sobreescribir
+  if (currentAssignCount > 0 && incomingAssignCount === 0) {
+    console.warn(`[Storage] Rechazado estado entrante vacío: el actual tiene ${currentAssignCount} asignaciones.`);
+    return false;
+  }
+
+  // REGLA CRÍTICA 2: Si el actual tiene asignaciones consolidadas (>=5) y el entrante tiene menos de la mitad, proteger
+  if (currentAssignCount >= 5 && incomingAssignCount < Math.floor(currentAssignCount / 2)) {
+    console.warn(`[Storage] Rechazado estado entrante con solo ${incomingAssignCount} asignaciones frente a ${currentAssignCount} actuales.`);
+    return false;
+  }
+
   const currentTime = current.lastUpdated ? new Date(current.lastUpdated).getTime() : 0;
   const incomingTime = incoming.lastUpdated ? new Date(incoming.lastUpdated).getTime() : 0;
 
-  // Si el actual tiene asignaciones y el entrante no tiene ninguna, no sobreescribir salvo timestamp muy superior
-  if (currentAssignCount > 0 && incomingAssignCount === 0) {
-    if (incomingTime <= currentTime) {
-      return false;
-    }
-  }
-
   // Si el entrante tiene timestamp anterior al actual por más de 3 segundos, rechazar
-  if (incomingTime && currentTime && incomingTime < currentTime - 3000) {
+  if (incomingTime && currentTime && incomingTime < currentTime - 3000 && incomingAssignCount <= currentAssignCount) {
     return false;
   }
 
@@ -494,6 +499,7 @@ export function shouldAcceptIncomingState(incoming: AppState, current: AppState)
  */
 export async function fetchCloudState(): Promise<AppState | null> {
   const localCurrent = loadStoredState();
+  let candidate: AppState | null = null;
 
   // 1. Intentar primero desde el servidor backend (/api/state)
   try {
@@ -501,50 +507,89 @@ export async function fetchCloudState(): Promise<AppState | null> {
     if (res.ok) {
       const serverData = await res.json();
       if (serverData && (serverData.slots || serverData.roles || serverData.musicians)) {
-        const sanitized = sanitizeLoadedState(serverData);
-        if (shouldAcceptIncomingState(sanitized, localCurrent)) {
-          saveStoredState(sanitized);
-          isCloudQuotaExceeded = false;
-          return sanitized;
-        } else {
-          // El estado local es más reciente o tiene asignaciones que el servidor no tiene
-          // Sincronizarlo hacia el servidor para que los demás celulares lo vean
-          saveCloudState(localCurrent).catch(() => {});
-          return localCurrent;
-        }
+        candidate = sanitizeLoadedState(serverData);
       }
-    } else if (res.status === 404) {
-      // El servidor aún no tiene ningún estado; sincronizar con el local si contiene asignaciones
-      saveCloudState(localCurrent).catch(() => {});
     }
-  } catch {
-    // Backend aún no conectado o en inicio frío
+  } catch (apiErr) {
+    console.warn('[Storage] Backend /api/state no disponible:', apiErr);
   }
 
-  // 2. Consulta de respaldo a Firestore
+  // 2. Consulta a Firestore (shared_data/main)
   try {
     const docRef = doc(db, CLOUD_DOC_PATH.collection, CLOUD_DOC_PATH.id);
     const snapshot = await withTimeout(getDoc(docRef), 4000, 'Tiempo de espera al leer de Firestore agotado');
     if (snapshot.exists()) {
-      const cloudData = snapshot.data();
-      const sanitized = sanitizeLoadedState(cloudData);
-      if (shouldAcceptIncomingState(sanitized, localCurrent)) {
-        saveStoredState(sanitized);
-        isCloudQuotaExceeded = false;
-        return sanitized;
-      } else {
-        return localCurrent;
+      const cloudData = sanitizeLoadedState(snapshot.data());
+      const cloudAssignCount = Object.keys(cloudData.assignments || {}).reduce(
+        (acc, k) => acc + Object.keys(cloudData.assignments[k] || {}).length,
+        0
+      );
+      const candidateAssignCount = Object.keys(candidate?.assignments || {}).reduce(
+        (acc, k) => acc + Object.keys(candidate?.assignments[k] || {}).length,
+        0
+      );
+
+      // Preferir el que tenga más asignaciones o el más reciente si ambos tienen
+      if (!candidate || cloudAssignCount > candidateAssignCount) {
+        candidate = cloudData;
       }
+      isCloudQuotaExceeded = false;
     }
-    return localCurrent;
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);
     if (errMsg.includes('Quota exceeded') || errMsg.includes('resource-exhausted') || errMsg.includes('RESOURCE_EXHAUSTED')) {
       isCloudQuotaExceeded = true;
     }
     console.warn('Consulta a Firestore operando con datos locales/servidor:', errMsg);
+  }
+
+  // 3. AUTO-RECUPERACIÓN: Si ni el servidor ni main tienen asignaciones (o tienen 0),
+  // consultar el ancla permanente 'backup_latest' en Firestore
+  const candidateAssignCount = Object.keys(candidate?.assignments || {}).reduce(
+    (acc, k) => acc + Object.keys(candidate?.assignments[k] || {}).length,
+    0
+  );
+  const localAssignCount = Object.keys(localCurrent?.assignments || {}).reduce(
+    (acc, k) => acc + Object.keys(localCurrent?.assignments[k] || {}).length,
+    0
+  );
+
+  if (candidateAssignCount === 0 && localAssignCount === 0) {
+    try {
+      const backupDocRef = doc(db, CLOUD_DOC_PATH.collection, 'backup_latest');
+      const backupSnap = await withTimeout(getDoc(backupDocRef), 4000, 'Timeout backup_latest');
+      if (backupSnap.exists()) {
+        const backupData = sanitizeLoadedState(backupSnap.data());
+        const backupAssignCount = Object.keys(backupData.assignments || {}).reduce(
+          (acc, k) => acc + Object.keys(backupData.assignments[k] || {}).length,
+          0
+        );
+        if (backupAssignCount > 0) {
+          console.log(`[Storage] ¡Recuperadas automáticamente ${backupAssignCount} asignaciones desde backup_latest!`);
+          candidate = backupData;
+          saveStoredState(backupData);
+          saveCloudState(backupData).catch(() => {});
+          return backupData;
+        }
+      }
+    } catch (bkpErr) {
+      console.warn('[Storage] Error al consultar backup_latest:', bkpErr);
+    }
+  }
+
+  // 4. Comparar candidato con localCurrent
+  if (candidate && shouldAcceptIncomingState(candidate, localCurrent)) {
+    saveStoredState(candidate);
+    return candidate;
+  }
+
+  if (localAssignCount > 0) {
+    // Si el local tiene asignaciones y el candidato no, subir el local para que todos lo vean
+    saveCloudState(localCurrent).catch(() => {});
     return localCurrent;
   }
+
+  return candidate || localCurrent;
 }
 
 /**
@@ -796,6 +841,17 @@ export async function saveCloudState(state: AppState): Promise<boolean> {
       const docRef = doc(db, CLOUD_DOC_PATH.collection, CLOUD_DOC_PATH.id);
       await withTimeout(setDoc(docRef, cleanPayload), 4000, 'Tiempo agotado al escribir en Firestore');
       isCloudQuotaExceeded = false;
+
+      // Mantener SIEMPRE actualizado el respaldo permanente en Firestore si contiene asignaciones reales
+      const assignCount = Object.keys(cleanPayload.assignments || {}).reduce(
+        (acc, k) => acc + Object.keys(cleanPayload.assignments[k] || {}).length,
+        0
+      );
+      if (assignCount > 0) {
+        const backupRef = doc(db, CLOUD_DOC_PATH.collection, 'backup_latest');
+        setDoc(backupRef, cleanPayload).catch(() => {});
+      }
+
       return true;
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error);
